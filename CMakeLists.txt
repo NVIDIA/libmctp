@@ -22,7 +22,7 @@ add_definitions (-DMCTP_HAVE_FILEIO)
 add_definitions (-DMCTP_HAVE_STDIO)
 add_definitions (-DMCTP_DEFAULT_ALLOC)
 
-add_library (mctp STATIC alloc.c astlpc.c crc32.c core.c log.c libmctp.h serial.c)
+add_library(libmctp STATIC alloc.c core.c log.c libmctp.h serial.c smbus.c crc32c.c)
 
 target_include_directories (mctp PUBLIC
                             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
