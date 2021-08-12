@@ -7,7 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
-
+#include "mctp-ctrl-cmds.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,6 +78,8 @@ bool mctp_encode_ctrl_cmd_get_ver_support(
 bool mctp_encode_ctrl_cmd_get_msg_type_support(
 	struct mctp_ctrl_cmd_get_msg_type_support *msg_type_support_cmd);
 
+bool mctp_decode_ctrl_cmd_get_msg_type_support(
+	struct mctp_ctrl_resp_get_msg_type_support *msg_type_support_cmd);
 
 /* Get VDM support request */
 bool mctp_encode_ctrl_cmd_get_vdm_support(

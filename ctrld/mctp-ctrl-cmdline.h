@@ -29,6 +29,7 @@ typedef struct mctp_cmdline_args_ {
     uint8_t                 tx_data[MCTP_WRITE_DATA_BUFF_SIZE];
     int                     tx_len;
     uint8_t                 rx_data[MCTP_WRITE_DATA_BUFF_SIZE];
+    uint16_t                target_bdf;
     int                     use_socket;
     int                     mode;
     int                     list_device_op;

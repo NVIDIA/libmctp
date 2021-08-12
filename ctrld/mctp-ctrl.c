@@ -30,9 +30,17 @@
 #include "mctp-ctrl-log.h"
 #include "mctp-ctrl.h"
 #include "mctp-ctrl-cmdline.h"
+#include "mctp-ctrl-cmds.h"
+#include "mctp-encode.h"
+
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #define __unused __attribute__((unused))
+
+/* Set MCTP message Type */
+const uint8_t MCTP_MSG_TYPE_HDR = 0;
+const uint8_t MCTP_CTRL_MSG_TYPE = 0;
+const char *usr_path= "\0mctp-mux";
 
 
 void mctp_print_buffer(const char *str, const uint8_t *buffer, int size)
@@ -120,6 +128,11 @@ mctp_requester_rc_t mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_
     uint8_t hdr[2] = {dest_eid, MCTP_MSG_TYPE_HDR};
     struct iovec iov[4];
 
+    if (mctp_req_msg[0] != MCTP_MSG_TYPE_HDR) {
+        MCTP_CTRL_INFO("%s: unsupported Msg type: %d\n", __func__, mctp_req_msg[0]);
+        return MCTP_REQUESTER_SEND_FAIL;
+    }
+
     /* Binding ID and information */
     iov[0].iov_base = (uint8_t *) bind_id;
     iov[0].iov_len = sizeof (uint8_t);
@@ -129,7 +142,7 @@ mctp_requester_rc_t mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_
     /* MCTP header and payload */
     iov[2].iov_base = hdr;
     iov[2].iov_len = sizeof(hdr);
-    iov[3].iov_base = (uint8_t *)mctp_req_msg;
+    iov[3].iov_base = (uint8_t *)(mctp_req_msg + 1);
     iov[3].iov_len = req_msg_len;
 
     struct msghdr msg = {0};
@@ -149,13 +162,12 @@ mctp_requester_rc_t mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_
     return MCTP_REQUESTER_SUCCESS;
 }
 
-
-static mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
+mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
                                      uint8_t **mctp_resp_msg,
                                      size_t *resp_msg_len)
 {
     size_t min_len = sizeof(eid) + sizeof(MCTP_MSG_TYPE_HDR) +
-                                        sizeof(struct mctp_ctrl_msg_hdr);
+                                        sizeof(struct mctp_ctrl_cmd_msg_hdr);
 
     size_t length = recv(mctp_fd, NULL, 0, MSG_PEEK | MSG_TRUNC);
 
@@ -171,8 +183,8 @@ static mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
     } else {
         struct iovec iov[2];
 
-        size_t mctp_prefix_len =
-            sizeof(eid) + sizeof(MCTP_MSG_TYPE_HDR);
+        //size_t mctp_prefix_len = sizeof(eid) + sizeof(MCTP_MSG_TYPE_HDR);
+        size_t mctp_prefix_len = sizeof(eid);
 
         uint8_t mctp_prefix[mctp_prefix_len];
         size_t mctp_len;
@@ -217,16 +229,6 @@ static mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 
 }
 
-void mctp_cmdline_help(FILE *stream, int exit_code, const char *i2cd_name)
-{
-    /* TBD */
-    fprintf(stream, "Usage: %s options...\n", i2cd_name);
-    fprintf(stream,
-            "   -h  --help              : Display this help.\n"
-           );
-    exit(exit_code);
-}
-
 static const struct option g_options[] = {
     { "verbose",    no_argument,        0, 'v' },
     { "eid",        required_argument,  0, 'e' },
@@ -239,7 +241,7 @@ static const struct option g_options[] = {
     { 0 },
 };
 
-const char * const short_options = "v:e:m:t:s:b:r:h:";
+const char * const short_options = "v:e:m:t:s:b:r:h";
 
 int mctp_cmdline_exec (mctp_cmdline_args_t  *cmd, int sock_fd)
 {
@@ -308,6 +310,24 @@ int mctp_cmdline_exec (mctp_cmdline_args_t  *cmd, int sock_fd)
 
     return MCTP_CMD_SUCCESS;
 }
+
+uint16_t mctp_ctrl_get_target_bdf (mctp_cmdline_args_t  *cmd)
+{
+    struct mctp_astpcie_pkt_private pvt_binding;
+
+    // Get binding information
+    if (cmd->binding_type == MCTP_BINDING_PCIE) {
+        memcpy(&pvt_binding, &cmd->bind_info, sizeof(struct mctp_astpcie_pkt_private));
+    } else {
+        MCTP_CTRL_INFO("%s: Invalid binding type: %d\n", __func__, cmd->binding_type);
+        return 0;
+    }
+
+    /* Update the target EID */
+    MCTP_CTRL_INFO("%s: Target BDF: 0x%x\n", __func__, pvt_binding.remote_id);
+    return (pvt_binding.remote_id);
+}
+
 
 int mctp_cmdline_copy_tx_buff(uint8_t src[], uint8_t *dest, int len)
 {
@@ -486,9 +506,14 @@ int main (int argc, char * const *argv)
     if (!cmdline.mode) {
         mctp_cmdline_exec(&cmdline, mctp_ctrl->sock);
     } else {
+        mctp_ret_codes_t mctp_err_ret;
+
+        /* Discover endpoints */
+        mctp_err_ret = mctp_discover_endpoints(&cmdline, mctp_ctrl);
+
         /* Start MCTP control daemon */
         MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....", __func__);
-        mctp_start_daemon(mctp_ctrl);
+        // mctp_start_daemon(mctp_ctrl);
     }
 
     printf("%s: Close the socket connection\n", __func__);

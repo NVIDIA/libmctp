@@ -12,22 +12,12 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 
+#include "mctp-ctrl-cmdline.h"
+
 /* Define Max buffer size */
 #define MCTP_RX_BUFFER_MAX_SIZE         64
 
-/* do not create sockets in tmp directory
-* To show a socket example – it is fine.
-* creating sockets in tmp directory is a security
-* vulnerability */
-
-const char *usr_path= "\0mctp-mux";
-
 typedef uint8_t mctp_eid_t;
-
-/* Set MCTP message Type */
-const uint8_t MCTP_MSG_TYPE_HDR = 0;
-
-const uint8_t MCTP_CTRL_MSG_TYPE = 0;
 
 typedef enum {
     MCTP_CTRL_FD_SOCKET = 0,
@@ -77,6 +67,19 @@ typedef enum {
 
 int mctp_event_monitor (mctp_ctrl_t *mctp_evt);
 mctp_requester_rc_t mctp_usr_socket_init(mctp_ctrl_t *mctp_ctrl);
+
+mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
+                              const uint8_t *mctp_req_msg, size_t req_msg_len);
+
+mctp_requester_rc_t mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_fd,
+                              const uint8_t *mctp_req_msg, size_t req_msg_len,
+                              mctp_binding_ids_t *bind_id, void *mctp_binding_info,
+                              size_t mctp_binding_len);
+
+uint16_t mctp_ctrl_get_target_bdf (mctp_cmdline_args_t  *cmd);
+mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
+                                     uint8_t **mctp_resp_msg,
+                                     size_t *resp_msg_len);
 
 #ifdef __cplusplus
 }

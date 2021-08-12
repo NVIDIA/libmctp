@@ -11,13 +11,15 @@
 #include <unistd.h>
 
 #include "libmctp-cmds.h"
+#include "mctp-ctrl-cmds.h"
 #include "mctp-encode.h"
 
 static uint8_t createInstanceId()
 {
     static uint8_t instanceId = 0x00;
 
-    instanceId = (instanceId + 1) & MCTP_CTRL_HDR_INSTANCE_ID_MASK;
+    //instanceId = (instanceId + 1) & MCTP_CTRL_HDR_INSTANCE_ID_MASK;
+    instanceId = (instanceId) & MCTP_CTRL_HDR_INSTANCE_ID_MASK;
     return instanceId;
 }
 
@@ -33,7 +35,7 @@ static uint8_t getRqDgramInst()
  * layer or the control command by itself.
  */
 
-static void encode_ctrl_cmd_header(struct mctp_ctrl_msg_hdr *mctp_ctrl_hdr,
+static void encode_ctrl_cmd_header(struct mctp_ctrl_cmd_msg_hdr *mctp_ctrl_hdr,
 				   uint8_t rq_dgram_inst, uint8_t cmd_code)
 {
 	mctp_ctrl_hdr->ic_msg_type = MCTP_CTRL_HDR_MSG_TYPE;
@@ -264,6 +266,19 @@ bool mctp_encode_ctrl_cmd_get_msg_type_support(
 			       MCTP_CTRL_CMD_GET_MESSAGE_TYPE_SUPPORT);
 	return true;
 }
+
+bool mctp_decode_ctrl_cmd_get_msg_type_support(
+	struct mctp_ctrl_resp_get_msg_type_support *msg_type_support_cmd)
+{
+	if (!msg_type_support_cmd)
+		return false;
+
+	if (msg_type_support_cmd->completion_code != MCTP_CTRL_CC_SUCCESS)
+		return false;
+
+	return true;
+}
+
 
 bool mctp_encode_ctrl_cmd_get_vdm_support(
 	struct mctp_ctrl_cmd_get_vdm_support *vdm_support_cmd,
