@@ -24,6 +24,12 @@ static inline void mctp_ctrl_prlog(int level, const char *fmt, ...)
 void mctp_ctrl_prlog(int level, const char *fmt, ...)
     __attribute__((format(printf, 2, 3)));
 
+static enum {
+   MCTP_CTRL_LOG_NONE = 0,
+   MCTP_CTRL_LOG_VERBOSE,
+   MCTP_CTRL_LOG_DEBUG
+} verbosity;
+
 #ifndef pr_fmt
 #define pr_fmt(x) x
 #endif
@@ -38,12 +44,19 @@ void mctp_ctrl_prlog(int level, const char *fmt, ...)
 
 
 #define MCTP_CTRL_ERR(fmt, ...)                                                   \
-    mctp_ctrl_prlog(MCTP_LOG_ERR, pr_fmt(fmt), ##__VA_ARGS__)
+                    mctp_ctrl_prlog(MCTP_LOG_ERR, pr_fmt(fmt), ##__VA_ARGS__)
+
 #define MCTP_CTRL_WARN(fmt, ...)                                                  \
-    mctp_ctrl_prlog(MCTP_LOG_WARNING, pr_fmt(fmt), ##__VA_ARGS__)
+                    mctp_ctrl_prlog(MCTP_LOG_WARNING, pr_fmt(fmt), ##__VA_ARGS__)
+
 #define MCTP_CTRL_INFO(fmt, ...)                                                  \
-    mctp_ctrl_prlog(MCTP_LOG_INFO, pr_fmt(fmt), ##__VA_ARGS__)
+                    mctp_ctrl_prlog(MCTP_LOG_INFO, pr_fmt(fmt), ##__VA_ARGS__)
+
 #define MCTP_CTRL_DEBUG(fmt, ...)                                                 \
-    mctp_ctrl_prlog(MCTP_LOG_DEBUG, pr_fmt(fmt), ##__VA_ARGS__)
+                    mctp_ctrl_prlog(MCTP_LOG_DEBUG, pr_fmt(fmt), ##__VA_ARGS__)
+
+#define MCTP_CTRL_TRACE(f_, ...) do { if (verbosity != MCTP_CTRL_LOG_NONE) \
+                    { mctp_ctrl_prlog(MCTP_LOG_INFO, f_, ##__VA_ARGS__); } } while(0)
+
 
 #endif /* __MCTP_CTRL_LOG_H__ */

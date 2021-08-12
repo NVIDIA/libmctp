@@ -30,9 +30,12 @@ endif
 bin_PROGRAMS = utils/mctp-demux-daemon ctrld/mctp-ctrl
 utils_mctp_demux_daemon_LDADD = libmctp.la
 
-ctrld_mctp_ctrl_SOURCES = ctrld/mctp-discovery.c \
+ctrld_mctp_ctrl_LDFLAGS = "-lsystemd"
+
+ctrld_mctp_ctrl_SOURCES = ctrld/mctp-ctrl.c \
+                    ctrld/mctp-discovery.c \
                     ctrld/mctp-encode.c \
-                    ctrld/mctp-ctrl.c
+                    ctrld/mctp-sdbus.c
 
 pkgconfig_DATA = libmctp.pc
 

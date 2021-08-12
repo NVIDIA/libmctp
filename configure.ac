@@ -26,6 +26,8 @@ PKG_CHECK_MODULES(udev,
                   [PKG_CHECK_VAR(udevdir, udev, udevdir)],
                   [])
 
+AC_CHECK_HEADER(systemd/sd-bus.h, ,[AC_MSG_ERROR([Could not find systemd/sd-bus.h...systemd developement package required])])
+
 AC_SUBST([udevrulesdir], [$udevdir/rules.d])
 
 AC_ARG_ENABLE([astlpc-raw-kcs],

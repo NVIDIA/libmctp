@@ -32,6 +32,7 @@
 #include "mctp-ctrl-cmdline.h"
 #include "mctp-ctrl-cmds.h"
 #include "mctp-encode.h"
+#include "mctp-sdbus.h"
 
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
@@ -514,6 +515,7 @@ int main (int argc, char * const *argv)
         /* Start MCTP control daemon */
         MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....", __func__);
         // mctp_start_daemon(mctp_ctrl);
+        mctp_ctrl_sdbus_init();
     }
 
     printf("%s: Close the socket connection\n", __func__);
