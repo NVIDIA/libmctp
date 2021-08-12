@@ -259,7 +259,16 @@ static int binding_astpcie_get_fd(struct binding *binding)
 
 static int binding_astpcie_process(struct binding *binding)
 {
-	return mctp_astpcie_poll(binding->data, MCTP_ASTPCIE_POLL_TIMEOUT);
+    int rc;
+
+	rc = mctp_astpcie_poll(binding->data, MCTP_ASTPCIE_POLL_TIMEOUT);
+    if (rc & POLLIN) {
+            rc = mctp_astpcie_rx(binding->data);
+            assert(rc == 0);
+    }
+
+    return rc;
+
 }
 
 struct binding bindings[] = {
