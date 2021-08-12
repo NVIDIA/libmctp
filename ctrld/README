@@ -1,0 +1,41 @@
+MCTP Control Daemon overview
+----------------------------
+This application is used to send and receive MCTP packets through MCTP demux-daemon over sockets. It maintains the state machine to initiate the discovery process and follow various steps for discovery. The high level block diagram is shown below:
+
+
+MCTP Socket initialization:
+---------------------------
+The socket connection has to be established between MCTP discovery application and the MCTP demux daemon. This is the primary thing which has to be done before sending/receiving MCTP packets.
+
+Once the socket connection request is initiated, the MCTP demux daemon would register this as a MCTP client.
+
+Also the demux daemon would maintain the number of clients as it is responsible for sending/receiving the packets from/to the corresponding application.
+
+- Whenever there is a request from the client for sending the MCTP packets, the MCTP demux-daemon is responsible for receiving the packets and sending it over libmctp.
+- Similarly whenever there is a receive event from libmctp library, the MCTP damux-daemon would receive the packet and forward to the registered clients.
+
+
+MCTP Event monitor:
+-------------------
+The MCTP events are monitored in the discovery application to make sure it receives all the MCTP type packets and responds accordingly.
+
+It is also responsible for verifying the MCTP type packets, copying the packet to local buffer, processing the packet etc..,
+
+
+MCTP Discovery State machine:
+-----------------------------
+The discovery state machine is responsible for sending the discovery packets and also processes the response packets received from MCTP demux-daemon.
+
+Once the state machine is activated, it has to follow set of sequence (a set of API's implemented for each request and response as per the MCTP specification):
+
+
+Encode/Decode packets functions:
+--------------------------------
+These are helper functions to encode/decode the MCTP packets as per the command code
+
+
+MCTP D-Bus initialization:
+--------------------------
+The D-bus client has to be registered for exporting the below information which would be consumed by PLDM application:
+- Routing table information
+- UUID mapping

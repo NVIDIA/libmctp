@@ -27,7 +27,7 @@ systemdsystemunit_DATA = \
 	systemd/system/mctp-demux.socket
 endif
 
-bin_PROGRAMS = utils/mctp-demux-daemon
+bin_PROGRAMS = utils/mctp-demux-daemon ctrld/mctp-ctrl
 utils_mctp_demux_daemon_LDADD = libmctp.la
 
 pkgconfig_DATA = libmctp.pc
