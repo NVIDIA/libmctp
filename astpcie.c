@@ -151,6 +151,8 @@ static int mctp_astpcie_start(struct mctp_binding *b)
 	if (rc)
 		goto out_close;
 
+	mctp_binding_set_tx_enabled(b, true);
+
 	return 0;
 
 out_close:
