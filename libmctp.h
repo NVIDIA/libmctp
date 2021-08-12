@@ -133,6 +133,9 @@ int mctp_set_rx_all(struct mctp *mctp, mctp_rx_fn fn, void *data);
 int mctp_message_tx(struct mctp *mctp, mctp_eid_t eid,
 		void *msg, size_t msg_len);
 
+int mctp_message_pvt_bind_tx(struct mctp *mctp, mctp_eid_t eid,
+		void *msg, size_t msg_len, void *msg_binding_private);
+
 /* hardware bindings */
 struct mctp_binding {
 	const char *name;

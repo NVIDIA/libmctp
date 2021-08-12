@@ -84,7 +84,8 @@ struct mctp {
 #endif
 
 static int mctp_message_tx_on_bus(struct mctp_bus *bus, mctp_eid_t src,
-				  mctp_eid_t dest, void *msg, size_t msg_len);
+				  mctp_eid_t dest, void *msg, size_t msg_len,
+				  void *msg_binding_private);
 
 struct mctp_pktbuf *mctp_pktbuf_alloc(struct mctp_binding *binding, size_t len)
 {
@@ -491,7 +492,7 @@ static void mctp_rx(struct mctp *mctp, struct mctp_bus *bus, mctp_eid_t src,
 			if (dest_bus == bus)
 				continue;
 
-			mctp_message_tx_on_bus(dest_bus, src, dest, buf, len);
+			mctp_message_tx_on_bus(dest_bus, src, dest, buf, len, NULL);
 		}
 
 	}
@@ -702,7 +703,8 @@ void mctp_binding_set_tx_enabled(struct mctp_binding *binding, bool enable)
 }
 
 static int mctp_message_tx_on_bus(struct mctp_bus *bus, mctp_eid_t src,
-				  mctp_eid_t dest, void *msg, size_t msg_len)
+				  mctp_eid_t dest, void *msg, size_t msg_len,
+				  void *msg_binding_private)
 {
 	size_t max_payload_len, payload_len, p;
 	struct mctp_pktbuf *pkt;
@@ -733,6 +735,12 @@ static int mctp_message_tx_on_bus(struct mctp_bus *bus, mctp_eid_t src,
 		pkt = mctp_pktbuf_alloc(bus->binding,
 				payload_len + sizeof(*hdr));
 		hdr = mctp_pktbuf_hdr(pkt);
+
+		/* store binding specific private data */
+		if (msg_binding_private) {
+			memcpy(pkt->msg_binding_private, msg_binding_private,
+			       bus->binding->pkt_priv_size);
+        }
 
 		/* todo: tags */
 		hdr->ver = bus->binding->version & 0xf;
@@ -773,5 +781,16 @@ int mctp_message_tx(struct mctp *mctp, mctp_eid_t eid,
 	struct mctp_bus *bus;
 
 	bus = find_bus_for_eid(mctp, eid);
-	return mctp_message_tx_on_bus(bus, bus->eid, eid, msg, msg_len);
+	return mctp_message_tx_on_bus(bus, bus->eid, eid, msg, msg_len,
+					NULL);
+}
+
+int mctp_message_pvt_bind_tx(struct mctp *mctp, mctp_eid_t eid,
+		void *msg, size_t msg_len, void *msg_binding_private)
+{
+	struct mctp_bus *bus;
+
+	bus = find_bus_for_eid(mctp, eid);
+	return mctp_message_tx_on_bus(bus, bus->eid, eid, msg, msg_len,
+					msg_binding_private);
 }
