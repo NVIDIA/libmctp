@@ -27,17 +27,18 @@ typedef enum {
 
 typedef struct {
     uint8_t         eid;
-    size_t 	        resp_msg_len;
-    int 	        sock;
+    size_t          resp_msg_len;
+    int             sock;
     uint8_t         type;
-    const char 	    *message;
+    const char      *message;
     uint8_t         rx_buffer[MCTP_RX_BUFFER_MAX_SIZE];
-	void	        *pvt_binding_data;
-	unsigned int	pvt_binding_len;
-	struct pollfd   *pollfds;
+    void            *pvt_binding_data;
+    unsigned int    pvt_binding_len;
+    struct pollfd   *pollfds;
 } mctp_ctrl_t;
 
 
+/* MCTP ctrl requester return codes */
 typedef enum mctp_requester_error_codes {
         MCTP_REQUESTER_SUCCESS = 0,
         MCTP_REQUESTER_OPEN_FAIL = -1,
@@ -51,6 +52,7 @@ typedef enum mctp_requester_error_codes {
         MCTP_REQUESTER_INVALID_RECV_LEN = -9,
 } mctp_requester_rc_t;
 
+/* MCTP ctrl return codes */
 typedef enum {
         MCTP_CMD_SUCCESS,
         MCTP_CMD_FAILED,
@@ -65,7 +67,11 @@ typedef enum {
         MCTP_RET_DISCOVERY_FAILED,
 } mctp_ret_codes_t;
 
+/* Function prototypes */
+void mctp_ctrl_print_buffer(const char *str, const uint8_t *buffer, int size);
+
 int mctp_event_monitor (mctp_ctrl_t *mctp_evt);
+
 mctp_requester_rc_t mctp_usr_socket_init(mctp_ctrl_t *mctp_ctrl);
 
 mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
@@ -77,6 +83,7 @@ mctp_requester_rc_t mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_
                               size_t mctp_binding_len);
 
 uint16_t mctp_ctrl_get_target_bdf (mctp_cmdline_args_t  *cmd);
+
 mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
                                      uint8_t **mctp_resp_msg,
                                      size_t *resp_msg_len);

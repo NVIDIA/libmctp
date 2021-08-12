@@ -14,10 +14,10 @@ static inline void mctp_ctrl_prlog(int level, const char *fmt, ...)
 
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
-    fputs("\n", stderr);
     va_end(ap);
 }
 
+extern uint8_t g_verbose_level;
 
 /* libmctp-internal logging */
 
@@ -28,7 +28,7 @@ static enum {
    MCTP_CTRL_LOG_NONE = 0,
    MCTP_CTRL_LOG_VERBOSE,
    MCTP_CTRL_LOG_DEBUG
-} verbosity;
+} mctp_ctrl_verbosity_t;
 
 #ifndef pr_fmt
 #define pr_fmt(x) x
@@ -44,19 +44,20 @@ static enum {
 
 
 #define MCTP_CTRL_ERR(fmt, ...)                                                   \
-                    mctp_ctrl_prlog(MCTP_LOG_ERR, pr_fmt(fmt), ##__VA_ARGS__)
+                mctp_ctrl_prlog(MCTP_LOG_ERR, pr_fmt(fmt), ##__VA_ARGS__)
 
 #define MCTP_CTRL_WARN(fmt, ...)                                                  \
-                    mctp_ctrl_prlog(MCTP_LOG_WARNING, pr_fmt(fmt), ##__VA_ARGS__)
+                mctp_ctrl_prlog(MCTP_LOG_WARNING, pr_fmt(fmt), ##__VA_ARGS__)
 
 #define MCTP_CTRL_INFO(fmt, ...)                                                  \
-                    mctp_ctrl_prlog(MCTP_LOG_INFO, pr_fmt(fmt), ##__VA_ARGS__)
+                mctp_ctrl_prlog(MCTP_LOG_INFO, pr_fmt(fmt), ##__VA_ARGS__)
 
-#define MCTP_CTRL_DEBUG(fmt, ...)                                                 \
-                    mctp_ctrl_prlog(MCTP_LOG_DEBUG, pr_fmt(fmt), ##__VA_ARGS__)
+#define MCTP_CTRL_DEBUG(f_, ...) do { if (MCTP_CTRL_LOG_DEBUG == g_verbose_level) \
+                { mctp_ctrl_prlog(MCTP_LOG_INFO, f_, ##__VA_ARGS__); } } while(0)
 
-#define MCTP_CTRL_TRACE(f_, ...) do { if (verbosity != MCTP_CTRL_LOG_NONE) \
-                    { mctp_ctrl_prlog(MCTP_LOG_INFO, f_, ##__VA_ARGS__); } } while(0)
+#define MCTP_CTRL_TRACE(f_, ...) do { if (g_verbose_level != MCTP_CTRL_LOG_NONE)  \
+                { mctp_ctrl_prlog(MCTP_LOG_INFO, f_, ##__VA_ARGS__); } } while(0)
 
 
 #endif /* __MCTP_CTRL_LOG_H__ */
+

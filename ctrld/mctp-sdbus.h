@@ -16,27 +16,30 @@
 extern "C" {
 #endif
 
-#define MCTP_GET_UUID_MAPPINGS		"GetUUIDMap"
-#define MCTP_GET_ROITUNG_INFO		"GetRoutingInfo"
+#define MCTP_GET_UUID_MAPPINGS          "GetUUIDMap"
+#define MCTP_GET_ROITUNG_INFO           "GetRoutingInfo"
 
-#define MCTP_CTRL_DBUS_NAME "org.openbmc.mctpctrl"
-#define MCTP_CTRL_OBJ_NAME "/org/openbmc/mctpctrl"
+#define MCTP_CTRL_DBUS_NAME             "org.openbmc.mctpctrl"
+#define MCTP_CTRL_OBJ_NAME              "/org/openbmc/mctpctrl"
 //#define MCTP_CTRL_DBUS_NAME "net.poettering.Calculator"
 //#define MCTP_CTRL_OBJ_NAME "/net/poettering/Calculator"
 
-#define MCTP_CTRL_SD_BUS_FD     0
-#define MCTP_CTRL_TOTAL_FDS     1
+#define MCTP_CTRL_SD_BUS_FD             0
+#define MCTP_CTRL_TOTAL_FDS             1
 
-#define MCTP_CTRL_POLL_TIMEOUT  1000
+#define MCTP_CTRL_POLL_TIMEOUT          1000
+#define MCTP_CTRL_SDBUS_MAX_MSG_SIZE    256
 
-#define DATA_PROPERTY "data"
-#define DATA_SIGNATURE "(i)"
+#define DATA_PROPERTY                   "data"
+#define DATA_SIGNATURE                  "(i)"
 
+/* MCTP ctrl sdbus poll struct */
 typedef struct mctp_sdbus_context {
     struct pollfd fds[MCTP_CTRL_TOTAL_FDS];
     struct sd_bus *bus;
 } mctp_sdbus_context_t;
 
+/* MCTP ctrl supported bus types */
 typedef enum {
     MCTP_CTRL_PCIE_BUS_TYPE,
     MCTP_CTRL_SPI_BUS_TYPE,

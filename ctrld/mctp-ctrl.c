@@ -38,28 +38,46 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #define __unused __attribute__((unused))
 
+/* Global definitions */
+uint8_t g_verbose_level = 0;
+
 /* Set MCTP message Type */
 const uint8_t MCTP_MSG_TYPE_HDR = 0;
 const uint8_t MCTP_CTRL_MSG_TYPE = 0;
 const char *usr_path= "\0mctp-mux";
 
+static int g_socket_fd = -1;
 
-void mctp_print_buffer(const char *str, const uint8_t *buffer, int size)
+
+void mctp_ctrl_clean_up(void)
 {
-    printf("%s: ", str);
-    for (int i = 0; i < size; i++)
-        printf("0x%x ", buffer[i]);
-    printf("\n");
+    /* Close the socket connection */
+    close(g_socket_fd);
+
+    /* Delete Routing table entries */
+    mctp_routing_entry_delete_all();
+
+    /* Delete UUID entries */
+    mctp_uuid_delete_all();
+
+    /* Delete Msg type entries */
+    mctp_msg_types_delete_all();
 }
 
-bool is_mctp_eid_valid(mctp_eid_t eid)
+/* Signal handler for MCTP client app - can be called asynchronously */
+void mctp_signal_handler(int signum)
 {
-    /* TBD */
 
-    /* Verify from routing table as well for validation */
+    mctp_ctrl_clean_up();
+    exit(0);
+}
 
-    printf("VK: %s: eid %d is valid\n", __func__, eid);
-    return true;
+void mctp_ctrl_print_buffer(const char *str, const uint8_t *buffer, int size)
+{
+    MCTP_CTRL_TRACE("%s: ", str);
+    for (int i = 0; i < size; i++)
+        MCTP_CTRL_TRACE("0x%x ", buffer[i]);
+    MCTP_CTRL_TRACE("\n");
 }
 
 mctp_requester_rc_t mctp_usr_socket_init(mctp_ctrl_t *mctp_ctrl)
@@ -68,33 +86,33 @@ mctp_requester_rc_t mctp_usr_socket_init(mctp_ctrl_t *mctp_ctrl)
     int                     rc = -1;
     const char              path[] = "\0mctp-mux";
     struct sockaddr_un      addr;
-
-
+ 
+ 
     /* Create a socket connection */
     fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
     if (-1 == fd) {
         return fd;
     }
-
+ 
     addr.sun_family = AF_UNIX;
     memcpy(addr.sun_path, path, sizeof(path) - 1);
-
+ 
     /* Send a connect request to ther server */
     rc = connect(fd, (struct sockaddr *)&addr,
                  sizeof(path) + sizeof(addr.sun_family) - 1);
     if (-1 == rc) {
         return MCTP_REQUESTER_OPEN_FAIL;
     }
-
+ 
     /* Update the MCTP socket descriptor */
     mctp_ctrl->sock = fd;
-
+ 
     /* Register the type with the server */
     rc = write(fd, &MCTP_CTRL_MSG_TYPE, sizeof(MCTP_CTRL_MSG_TYPE));
     if (-1 == rc) {
         return MCTP_REQUESTER_OPEN_FAIL;
     }
-
+ 
     return MCTP_REQUESTER_SUCCESS;
 }
 
@@ -113,7 +131,7 @@ mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
     msg.msg_iov = iov;
     msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
 
-    mctp_print_buffer("mctp_req_msg >> ", mctp_req_msg, req_msg_len);
+    mctp_ctrl_print_buffer("mctp_req_msg >> ", mctp_req_msg, req_msg_len);
     ssize_t rc = sendmsg(mctp_fd, &msg, 0);
     if (rc == -1) {
             return MCTP_REQUESTER_SEND_FAIL;
@@ -126,8 +144,8 @@ mctp_requester_rc_t mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_
                               mctp_binding_ids_t *bind_id, void *mctp_binding_info,
                               size_t mctp_binding_len)
 {
-    uint8_t hdr[2] = {dest_eid, MCTP_MSG_TYPE_HDR};
-    struct iovec iov[4];
+    uint8_t         hdr[2] = {dest_eid, MCTP_MSG_TYPE_HDR};
+    struct iovec    iov[4];
 
     if (mctp_req_msg[0] != MCTP_MSG_TYPE_HDR) {
         MCTP_CTRL_INFO("%s: unsupported Msg type: %d\n", __func__, mctp_req_msg[0]);
@@ -150,10 +168,10 @@ mctp_requester_rc_t mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_
     msg.msg_iov = iov;
     msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
 
-    mctp_print_buffer("mctp_bind_id  >> ", (uint8_t *) bind_id, sizeof(uint8_t));
-    mctp_print_buffer("mctp_pvt_data >> ", mctp_binding_info, mctp_binding_len);
-    mctp_print_buffer("mctp_req_hdr  >> ", hdr, sizeof(hdr));
-    mctp_print_buffer("mctp_req_msg  >> ", mctp_req_msg, req_msg_len);
+    mctp_ctrl_print_buffer("mctp_bind_id  >> ", (uint8_t *) bind_id, sizeof(uint8_t));
+    mctp_ctrl_print_buffer("mctp_pvt_data >> ", mctp_binding_info, mctp_binding_len);
+    mctp_ctrl_print_buffer("mctp_req_hdr  >> ", hdr, sizeof(hdr));
+    mctp_ctrl_print_buffer("mctp_req_msg  >> ", mctp_req_msg, req_msg_len);
 
     ssize_t rc = sendmsg(mctp_fd, &msg, 0);
     if (rc == -1) {
@@ -179,7 +197,7 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
         /* read and discard */
         uint8_t buf[length];
         recv(mctp_fd, buf, length, 0);
-        mctp_print_buffer("mctp_recv_msg_invalid_len", buf, length);
+        mctp_ctrl_print_buffer("mctp_recv_msg_invalid_len", buf, length);
         return MCTP_REQUESTER_INVALID_RECV_LEN;
     } else {
         struct iovec iov[2];
@@ -205,24 +223,19 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
         msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
         ssize_t bytes = recvmsg(mctp_fd, &msg, 0);
 
-        printf("VK:%s: mctp_prefix_len: %zu, mctp_len: %zu\n", __func__, mctp_prefix_len, mctp_len);
-        mctp_print_buffer("mctp_prefix_msg", mctp_prefix, mctp_prefix_len);
-        mctp_print_buffer("mctp_resp_msg", *mctp_resp_msg, mctp_len);
+        mctp_ctrl_print_buffer("mctp_prefix_msg", mctp_prefix, mctp_prefix_len);
+        mctp_ctrl_print_buffer("mctp_resp_msg", *mctp_resp_msg, mctp_len);
 
-        printf("VK:%s: length:%zu, bytes: %zu\n", __func__, length, bytes);
         if (length != bytes) {
-                printf("VK:%s: free mctp_resp_msg MCTP_REQUESTER_INVALID_RECV_LEN\n", __func__);
+                MCTP_CTRL_ERR("%s: free mctp_resp_msg MCTP_REQUESTER_INVALID_RECV_LEN\n", __func__);
                 free(*mctp_resp_msg);
                 return MCTP_REQUESTER_INVALID_RECV_LEN;
         }
 
-        if (is_mctp_eid_valid(mctp_prefix[0]) == true) {
-            printf("VK:%s: Valid prefix: EID: 0x%x, TYPE: 0x%x\n", __func__, mctp_prefix[0], mctp_prefix[1]);
-        }
-
+        /* Update the response length */
         *resp_msg_len = mctp_len;
 
-        printf("VK:%s: *resp_msg_len: %zu, mctp_len: %zu\n", __func__, *resp_msg_len, mctp_len);
+        MCTP_CTRL_DEBUG("%s: *resp_msg_len: %zu, mctp_len: %zu\n", __func__, *resp_msg_len, mctp_len);
         return MCTP_REQUESTER_SUCCESS;
     }
 
@@ -246,9 +259,9 @@ const char * const short_options = "v:e:m:t:s:b:r:h";
 
 int mctp_cmdline_exec (mctp_cmdline_args_t  *cmd, int sock_fd)
 {
-    mctp_requester_rc_t mctp_ret;
-    size_t resp_msg_len;
-    uint8_t *mctp_resp_msg;
+    mctp_requester_rc_t             mctp_ret;
+    size_t                          resp_msg_len;
+    uint8_t                         *mctp_resp_msg;
     struct mctp_astpcie_pkt_private pvt_binding;
 
     assert(cmd);
@@ -256,14 +269,14 @@ int mctp_cmdline_exec (mctp_cmdline_args_t  *cmd, int sock_fd)
     switch (cmd->ops) {
         case MCTP_CMDLINE_OP_WRITE_DATA:
             /* Send the request message over socket */
-            MCTP_CTRL_INFO("VK: %s: Sending EP request\n", __func__);
+            MCTP_CTRL_INFO("%s: Sending EP request\n", __func__);
             mctp_ret = mctp_client_send(cmd->dest_eid, sock_fd,
                         (const uint8_t *) cmd->tx_data, cmd->tx_len);
-
+  
             if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
-                printf("VK: %s: Failed to send message..\n", __func__);
+                MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
             }
-            MCTP_CTRL_INFO("VK: %s: Successfully sent message..\n", __func__);
+
             break;
 
         case MCTP_CMDLINE_OP_READ_DATA:
@@ -271,10 +284,9 @@ int mctp_cmdline_exec (mctp_cmdline_args_t  *cmd, int sock_fd)
             /* Receive the MCTP packet */
             mctp_ret = mctp_client_recv(cmd->dest_eid, sock_fd, &mctp_resp_msg, &resp_msg_len);
             if (mctp_ret != MCTP_REQUESTER_SUCCESS) {
-                printf("VK: %s: Failed to received message %d\n", __func__, mctp_ret);
+                MCTP_CTRL_ERR("%s: Failed to received message %d\n", __func__, mctp_ret);
             }
 
-            printf("VK: %s: Successfully received message..\n", __func__);
             break;
 
         case MCTP_CMDLINE_OP_BIND_WRITE_DATA:
@@ -283,12 +295,12 @@ int mctp_cmdline_exec (mctp_cmdline_args_t  *cmd, int sock_fd)
             if (cmd->binding_type == MCTP_BINDING_PCIE) {
                 memcpy(&pvt_binding, &cmd->bind_info, sizeof(struct mctp_astpcie_pkt_private));
             } else {
-                MCTP_CTRL_INFO("%s: Invalid binding type: %d\n", __func__, cmd->binding_type);
-                return MCTP_CMD_FAILED;
+                MCTP_CTRL_ERR("%s: Invalid binding type: %d\n", __func__, cmd->binding_type);
+                return MCTP_CMD_FAILED; 
             }
 
             /* Send the request message over socket */
-            MCTP_CTRL_INFO("VK: %s: Pvt bind data: Routing: 0x%x, Remote ID: 0x%x\n",
+            MCTP_CTRL_DEBUG("%s: Pvt bind data: Routing: 0x%x, Remote ID: 0x%x\n",
                             __func__, pvt_binding.routing, pvt_binding.remote_id);
 
             mctp_ret = mctp_client_with_binding_send(cmd->dest_eid, sock_fd,
@@ -296,9 +308,9 @@ int mctp_cmdline_exec (mctp_cmdline_args_t  *cmd, int sock_fd)
                         (void *) &pvt_binding, sizeof(pvt_binding));
 
             if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
-                printf("VK: %s: Failed to send message..\n", __func__);
+                MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
             }
-            MCTP_CTRL_INFO("VK: %s: Successfully sent message..\n", __func__);
+
             break;
 
         case MCTP_CMDLINE_OP_LIST_SUPPORTED_DEV:
@@ -321,7 +333,7 @@ uint16_t mctp_ctrl_get_target_bdf (mctp_cmdline_args_t  *cmd)
         memcpy(&pvt_binding, &cmd->bind_info, sizeof(struct mctp_astpcie_pkt_private));
     } else {
         MCTP_CTRL_INFO("%s: Invalid binding type: %d\n", __func__, cmd->binding_type);
-        return 0;
+        return 0; 
     }
 
     /* Update the target EID */
@@ -344,20 +356,20 @@ int mctp_cmdline_copy_tx_buff(uint8_t src[], uint8_t *dest, int len)
 
 int mctp_event_monitor (mctp_ctrl_t *mctp_evt)
 {
-    mctp_requester_rc_t mctp_ret;
-    uint8_t *mctp_resp_msg;
-    size_t resp_msg_len;
+    mctp_requester_rc_t     mctp_ret;
+    uint8_t                 *mctp_resp_msg;
+    size_t                  resp_msg_len;
 
-    MCTP_CTRL_INFO("VK: %s: Target eid: %d\n", __func__, mctp_evt->eid);
+    MCTP_CTRL_INFO("%s: Target eid: %d\n", __func__, mctp_evt->eid);
 
     /* Receive the MCTP packet */
     mctp_ret = mctp_client_recv(mctp_evt->eid, mctp_evt->sock, &mctp_resp_msg, &resp_msg_len);
     if (mctp_ret != MCTP_REQUESTER_SUCCESS) {
-        MCTP_CTRL_ERR("VK: %s: Failed to received message %d\n", __func__, mctp_ret);
+        MCTP_CTRL_ERR("%s: Failed to received message %d\n", __func__, mctp_ret);
         return MCTP_REQUESTER_RECV_FAIL;
     }
 
-    MCTP_CTRL_INFO("VK: %s: Successfully received message..\n", __func__);
+    MCTP_CTRL_INFO("%s: Successfully received message..\n", __func__);
 
     /* Free the Rx buffer */
     free(mctp_resp_msg);
@@ -412,17 +424,15 @@ int main (int argc, char * const *argv)
     char                    buffer[50];
     char                    *string = "Hello from client";
     int                     fd;
-	uint8_t 		        requestMsg[32];
-	size_t 			        req_msg_len;
-	uint8_t 		        mctp_eid = 8;
-	uint8_t			        *tx_buff, *rx_buff;
-	int                     rc;
-	mctp_ctrl_t 		    *mctp_ctrl, _mctp_ctrl;
-	mctp_requester_rc_t     mctp_ret;
+    uint8_t                 requestMsg[32];
+    size_t                  req_msg_len;
+    uint8_t                 mctp_eid = 8;
+    uint8_t                 *tx_buff, *rx_buff;
+    int                     rc;
+    mctp_ctrl_t             *mctp_ctrl, _mctp_ctrl;
+    mctp_requester_rc_t     mctp_ret;
 
     mctp_cmdline_args_t     cmdline;
-    const char * const i2cd_name = argv[0];
-
 
     /* Initialize MCTP ctrl structure */
     mctp_ctrl = &_mctp_ctrl;
@@ -430,6 +440,9 @@ int main (int argc, char * const *argv)
 
     /* Initialize the cmdline structure */
     memset(&cmdline, 0, sizeof(cmdline));
+
+    /* Register signals */
+    signal(SIGINT, mctp_signal_handler);
 
     /* Update the cmdline sturcture with default values */
     const char * const mctp_ctrl_name = argv[0];
@@ -443,7 +456,7 @@ int main (int argc, char * const *argv)
     cmdline.use_socket      = 0;
     cmdline.list_device_op  = 0;
     cmdline.ops             = MCTP_CMDLINE_OP_NONE;
-
+ 
     memset(&cmdline.tx_data, 0, MCTP_WRITE_DATA_BUFF_SIZE);
     memset(&cmdline.rx_data, 0, MCTP_READ_DATA_BUFF_SIZE);
 
@@ -456,6 +469,7 @@ int main (int argc, char * const *argv)
             case 'v':
                 cmdline.verbose = true;
                 MCTP_CTRL_INFO("%s: Verbose level:%d", __func__, cmdline.verbose);
+                g_verbose_level = cmdline.verbose;
                 break;
             case 'e':
                 cmdline.dest_eid = (uint8_t) atoi(optarg);;
@@ -489,19 +503,22 @@ int main (int argc, char * const *argv)
                                 "\t-h\tPrints this message\n"
                                 "Eg: To send MCTP message of PCIe type:\n"
                                 "\tmctp-ctrl -s \"80 0b\" -t 2 -b \"03 00 00 00 01 12\" -e 255 -m 0");
-	            return EXIT_SUCCESS;
+                return EXIT_SUCCESS;
             default:
-                fprintf(stderr, "Invalid argument\n");
+                MCTP_CTRL_ERR("Invalid argument\n");
                 return EXIT_FAILURE;
         }
     }
 
-	/* Open the user socket file-descriptor */
-	rc = mctp_usr_socket_init(mctp_ctrl);
-	if (MCTP_REQUESTER_OPEN_FAIL == rc) {
-		printf("failed to open mctp socket\n");
-		return EXIT_FAILURE;
-	}
+    /* Open the user socket file-descriptor */
+    rc = mctp_usr_socket_init(mctp_ctrl);
+    if (MCTP_REQUESTER_OPEN_FAIL == rc) {
+        MCTP_CTRL_ERR("Failed to open mctp socket\n");
+        return EXIT_FAILURE;
+    }
+
+    /* Update global socket pointer */
+    g_socket_fd = mctp_ctrl->sock;
 
     /* Run this application only if set as daemon mode */
     if (!cmdline.mode) {
@@ -511,16 +528,20 @@ int main (int argc, char * const *argv)
 
         /* Discover endpoints */
         mctp_err_ret = mctp_discover_endpoints(&cmdline, mctp_ctrl);
+        if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
+            MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
+        }
 
         /* Start MCTP control daemon */
         MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....", __func__);
         // mctp_start_daemon(mctp_ctrl);
+
+        /* Start sdbus initialization and monitoring */
         mctp_ctrl_sdbus_init();
     }
 
-    printf("%s: Close the socket connection\n", __func__);
+    /* Close the socket connection */
     close(mctp_ctrl->sock);
 
-	return EXIT_SUCCESS;
-
+    return EXIT_SUCCESS;
 }

@@ -8,6 +8,7 @@
 
 #define MCTP_CMDLINE_WRBUFF_WIDTH   3
 
+/* Command line options for various operations */
 typedef enum mctp_cmdline_ops {
     MCTP_CMDLINE_OP_READ_DATA,
     MCTP_CMDLINE_OP_WRITE_DATA,
@@ -17,6 +18,7 @@ typedef enum mctp_cmdline_ops {
     MCTP_CMDLINE_OP_NONE,
 } mctp_cmdline_ops_t;
 
+/* Command line structure */
 typedef struct mctp_cmdline_args_ {
     char                    name[10];
     int                     device_id;
@@ -38,6 +40,7 @@ typedef struct mctp_cmdline_args_ {
 } mctp_cmdline_args_t;
 
 
+/* Function prototypes */
 void mctp_ctrld_help(FILE *stream, int exit_code, const char *i2cd_name);
 extern int mctp_command_line_run(mctp_cmdline_args_t *);
 
