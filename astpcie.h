@@ -104,5 +104,6 @@ struct mctp_pcie_hdr {
 #define PCIE_HDR_SIZE_DW (sizeof(struct mctp_pcie_hdr) / sizeof(uint32_t))
 #define MCTP_HDR_SIZE_DW (sizeof(struct mctp_hdr) / sizeof(uint32_t))
 #define PCIE_VDM_HDR_SIZE_DW (PCIE_HDR_SIZE_DW + MCTP_HDR_SIZE_DW)
+#define MCTP_HDR_START_DW (3 * sizeof(uint32_t))
 
 #endif

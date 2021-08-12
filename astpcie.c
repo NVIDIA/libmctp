@@ -187,6 +187,11 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	uint8_t pad = mctp_astpcie_tx_get_pad_len(pkt);
 	ssize_t write_len, len;
 
+	int mctp_hdr_len = ((payload_len_dw * sizeof(uint32_t)) +
+					(sizeof(struct mctp_hdr))) - pad;
+	uint8_t mctp_hdr_data[mctp_hdr_len];
+	memcpy(mctp_hdr_data, (unsigned char *) pkt->data, mctp_hdr_len);
+
 	memcpy(hdr, &mctp_pcie_hdr_template_be, sizeof(*hdr));
 
 	mctp_prdebug("TX, len: %d, pad: %d", payload_len_dw, pad);
@@ -199,6 +204,9 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 
 	len = (payload_len_dw * sizeof(uint32_t)) +
 	      ASPEED_MCTP_PCIE_VDM_HDR_SIZE;
+
+	memcpy((unsigned char *) pkt->data + MCTP_HDR_START_DW,
+				(unsigned char *) mctp_hdr_data, mctp_hdr_len);
 
 	mctp_trace_tx(pkt->data, len);
 
