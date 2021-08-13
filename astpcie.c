@@ -283,8 +283,6 @@ int mctp_astpcie_rx(struct mctp_binding_astpcie *astpcie)
 		return -1;
 	}
 
-	mctp_trace_rx(&data, read_len);
-
 	if (read_len != ASTPCIE_PACKET_SIZE(MCTP_BTU)) {
 		mctp_prerr("Incorrect packet size: %zd", read_len);
 		return -1;
@@ -292,6 +290,10 @@ int mctp_astpcie_rx(struct mctp_binding_astpcie *astpcie)
 
 	hdr = (struct mctp_pcie_hdr *)data;
 	payload_len = mctp_astpcie_rx_get_payload_size(hdr);
+
+    mctp_trace_rx(&data,
+                 (sizeof(struct mctp_pcie_hdr) + \
+                  sizeof(struct mctp_hdr) + payload_len));
 
 	pkt_prv.routing = PCIE_GET_ROUTING(hdr);
 
