@@ -71,6 +71,9 @@ static int mctp_astpcie_get_bdf_ioctl(struct mctp_binding_astpcie *astpcie)
 	if (!rc)
 		astpcie->bdf = bdf.bdf;
 
+    /* Force set Requester ID */
+    astpcie->bdf = 0x0001;
+
 	return rc;
 }
 
