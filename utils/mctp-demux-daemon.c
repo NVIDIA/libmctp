@@ -79,6 +79,14 @@ struct ctx {
 	int		n_clients;
 };
 
+static void mctp_print_hex(uint8_t *data, size_t length)
+{
+    for (int i = 0; i < length; ++i) {
+        printf("%02X ", data[i]);
+    }
+    printf("\n");
+}
+
 static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 {
     int rc;
@@ -101,13 +109,21 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
             eid = *((uint8_t *)msg + MCTP_PCIE_EID_OFFSET);
 
             /* Set MCTP payload size */
-            len = len - (MCTP_PCIE_MSG_OFFSET);
+            len = len - (MCTP_PCIE_MSG_OFFSET) - 1;
+            mctp_print_hex((uint8_t *)msg + MCTP_PCIE_MSG_OFFSET, len);
 
             break;
 
         default:
             warnx("Invalid/Unsupported binding ID %d", bind_id);
             break;
+    }
+
+	if (ctx->verbose) {
+        printf("%s: BindID: %d, Target EID: %d, msg len: %d,\
+                    Routing:%d remote_id: 0x%x\n",
+                    __func__, bind_id, eid, len, pvt_binding.routing,
+                    pvt_binding.remote_id);
     }
 
     rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, msg + MCTP_PCIE_MSG_OFFSET, len,
