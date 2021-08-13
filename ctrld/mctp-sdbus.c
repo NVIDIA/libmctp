@@ -281,6 +281,12 @@ int mctp_ctrl_sdbus_init (void)
         goto finish;
     }
 
+    /* Add Sdbus object manager */
+    r = sd_bus_add_object_manager(context->bus, NULL, MCTP_CTRL_OBJ_NAME);
+    if (r < 0) {
+        MCTP_CTRL_ERR("Failed to add object manager: %s\n", strerror(-r));
+        goto finish;
+    }
 
     while (entry != NULL) {
 
@@ -301,6 +307,19 @@ int mctp_ctrl_sdbus_init (void)
                                  MCTP_CTRL_DBUS_EP_INTERFACE,
                                  mctp_ctrl_endpoint_vtable,
                                  context);
+        if (r < 0) {
+            MCTP_CTRL_ERR("Failed to add Endpoint object: %s\n", strerror(-r));
+            goto finish;
+        }
+
+
+        r = sd_bus_emit_signal(context->bus, mctp_ctrl_objpath,
+                                MCTP_CTRL_DBUS_EP_INTERFACE, "Endpoint", NULL);
+        if (r < 0) {
+            MCTP_CTRL_ERR("Failed to emit Endpoint signal: %s\n", strerror(-r));
+            goto finish;
+        }
+
 
         MCTP_CTRL_TRACE("Registering object '%s' for UUID: %d\n",
                                             mctp_ctrl_objpath, entry->eid);
@@ -311,7 +330,14 @@ int mctp_ctrl_sdbus_init (void)
                                  mctp_ctrl_common_uuid_vtable,
                                  context);
         if (r < 0) {
-            MCTP_CTRL_ERR("Failed to issue method call: %s\n", strerror(-r));
+            MCTP_CTRL_ERR("Failed to add UUID object: %s\n", strerror(-r));
+            goto finish;
+        }
+
+        r = sd_bus_emit_signal(context->bus, mctp_ctrl_objpath,
+                                MCTP_CTRL_DBUS_EP_INTERFACE, "UUID", NULL);
+        if (r < 0) {
+            MCTP_CTRL_ERR("Failed to emit UUID signal: %s\n", strerror(-r));
             goto finish;
         }
 
