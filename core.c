@@ -750,6 +750,8 @@ static int mctp_message_tx_on_bus(struct mctp_bus *bus, mctp_eid_t src,
 		if (msg_binding_private) {
 			memcpy(pkt->msg_binding_private, msg_binding_private,
 			       bus->binding->pkt_priv_size);
+        } else {
+            pkt->msg_binding_private = NULL;
         }
 
 		/* todo: tags */
