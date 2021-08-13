@@ -32,6 +32,11 @@ static const struct mctp_pcie_hdr mctp_pcie_hdr_template_be = {
 	.vendor = VENDOR_ID_DMTF_VDM
 };
 
+static struct mctp_astpcie_pkt_private g_mctp_pkt_prv_default = {
+    .routing    = PCIE_ROUTE_BY_ID,
+    .remote_id  = 0
+};
+
 int mctp_astpcie_get_eid_info_ioctl(struct mctp_binding_astpcie *astpcie,
 				    void *eid_info, uint16_t count,
 				    uint8_t start_eid)
@@ -208,6 +213,11 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 
 
 	mctp_prdebug("TX, len: %d, pad: %d", payload_len_dw, pad);
+
+    /* Update the private data if null */
+    if (!pkt_prv) {
+        pkt_prv = &g_mctp_pkt_prv_default;
+    }
 
 	PCIE_SET_ROUTING(hdr, pkt_prv->routing);
 	PCIE_SET_DATA_LEN(hdr, payload_len_dw);
