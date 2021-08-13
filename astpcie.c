@@ -189,13 +189,23 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	uint16_t payload_len_dw = mctp_astpcie_tx_get_payload_size_dw(pkt);
 	uint8_t pad = mctp_astpcie_tx_get_pad_len(pkt);
 	ssize_t write_len, len;
+	int mctp_hdr_len = ((payload_len_dw * sizeof(uint32_t)) + (sizeof(struct mctp_hdr)));
+    uint8_t *mctp_hdr_data;
 
-	int mctp_hdr_len = ((payload_len_dw * sizeof(uint32_t)) +
-					(sizeof(struct mctp_hdr))) - pad;
-	uint8_t mctp_hdr_data[mctp_hdr_len];
-	memcpy(mctp_hdr_data, (unsigned char *) pkt->data, mctp_hdr_len);
+    /* Allocate memory for MCTP header */
+    mctp_hdr_data = malloc(mctp_hdr_len);
+    if (!mctp_hdr_data) {
+        mctp_prerr("malloc failed, errno = %d", errno);
+        return 0;
+    }
 
+    /* Reset the buffer and copy MCTP header and data */
+	memset(mctp_hdr_data, 0, mctp_hdr_len);
+	memcpy(mctp_hdr_data, (unsigned char *) pkt->data, mctp_hdr_len - pad);
+
+    /* Copy PCIe header template */
 	memcpy(hdr, &mctp_pcie_hdr_template_be, sizeof(*hdr));
+
 
 	mctp_prdebug("TX, len: %d, pad: %d", payload_len_dw, pad);
 
@@ -218,6 +228,9 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 		mctp_prerr("TX error");
 		return -1;
 	}
+
+    /* Free up the MCTP header */
+    free(mctp_hdr_data);
 
 	return 0;
 }
