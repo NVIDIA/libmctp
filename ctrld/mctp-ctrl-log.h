@@ -52,10 +52,10 @@ static enum {
 #define MCTP_CTRL_INFO(fmt, ...)                                                  \
                 mctp_ctrl_prlog(MCTP_LOG_INFO, pr_fmt(fmt), ##__VA_ARGS__)
 
-#define MCTP_CTRL_DEBUG(f_, ...) do { if (MCTP_CTRL_LOG_DEBUG == g_verbose_level) \
+#define MCTP_CTRL_DEBUG(f_, ...) do { if (g_verbose_level >= MCTP_CTRL_LOG_VERBOSE) \
                 { mctp_ctrl_prlog(MCTP_LOG_INFO, f_, ##__VA_ARGS__); } } while(0)
 
-#define MCTP_CTRL_TRACE(f_, ...) do { if (g_verbose_level != MCTP_CTRL_LOG_NONE)  \
+#define MCTP_CTRL_TRACE(f_, ...) do { if (g_verbose_level == MCTP_CTRL_LOG_VERBOSE)  \
                 { mctp_ctrl_prlog(MCTP_LOG_INFO, f_, ##__VA_ARGS__); } } while(0)
 
 

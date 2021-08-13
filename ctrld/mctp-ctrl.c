@@ -235,7 +235,8 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
         /* Update the response length */
         *resp_msg_len = mctp_len;
 
-        MCTP_CTRL_DEBUG("%s: *resp_msg_len: %zu, mctp_len: %zu\n", __func__, *resp_msg_len, mctp_len);
+        MCTP_CTRL_DEBUG("%s: resp_msg_len: %zu, mctp_len: %zu\n",
+                                    __func__, *resp_msg_len, mctp_len);
         return MCTP_REQUESTER_SUCCESS;
     }
 
@@ -360,7 +361,7 @@ int mctp_event_monitor (mctp_ctrl_t *mctp_evt)
     uint8_t                 *mctp_resp_msg;
     size_t                  resp_msg_len;
 
-    MCTP_CTRL_INFO("%s: Target eid: %d\n", __func__, mctp_evt->eid);
+    MCTP_CTRL_DEBUG("%s: Target eid: %d\n", __func__, mctp_evt->eid);
 
     /* Receive the MCTP packet */
     mctp_ret = mctp_client_recv(mctp_evt->eid, mctp_evt->sock, &mctp_resp_msg, &resp_msg_len);
@@ -369,7 +370,7 @@ int mctp_event_monitor (mctp_ctrl_t *mctp_evt)
         return MCTP_REQUESTER_RECV_FAIL;
     }
 
-    MCTP_CTRL_INFO("%s: Successfully received message..\n", __func__);
+    MCTP_CTRL_DEBUG("%s: Successfully received message..\n", __func__);
 
     /* Free the Rx buffer */
     free(mctp_resp_msg);
@@ -381,7 +382,7 @@ static int mctp_start_daemon (mctp_ctrl_t *ctrl)
 {
     int rc;
 
-    MCTP_CTRL_INFO("%s: Daemon starting....\n", __func__);
+    MCTP_CTRL_DEBUG("%s: Daemon starting....\n", __func__);
     ctrl->pollfds = malloc(MCTP_CTRL_FD_NR * sizeof(struct pollfd));
 
     ctrl->pollfds[MCTP_CTRL_FD_SOCKET].fd = ctrl->sock;
@@ -399,7 +400,7 @@ static int mctp_start_daemon (mctp_ctrl_t *ctrl)
             continue;
 
         if (ctrl->pollfds[MCTP_CTRL_FD_SOCKET].revents) {
-            MCTP_CTRL_INFO("%s: Rx socket event...\n", __func__);
+            MCTP_CTRL_DEBUG("%s: Rx socket event...\n", __func__);
 
             /* Read the Socket */
             rc = mctp_event_monitor (ctrl);
@@ -468,7 +469,7 @@ int main (int argc, char * const *argv)
         switch (rc) {
             case 'v':
                 cmdline.verbose = true;
-                MCTP_CTRL_INFO("%s: Verbose level:%d", __func__, cmdline.verbose);
+                MCTP_CTRL_DEBUG("%s: Verbose level:%d", __func__, cmdline.verbose);
                 g_verbose_level = cmdline.verbose;
                 break;
             case 'e':
@@ -477,7 +478,7 @@ int main (int argc, char * const *argv)
                 break;
             case 'm':
                 cmdline.mode = (uint8_t) atoi(optarg);;
-                MCTP_CTRL_INFO("%s: Mode :%s", __func__,
+                MCTP_CTRL_DEBUG("%s: Mode :%s", __func__,
                                             cmdline.mode? "Daemon mode":"Command line mode");
                 break;
             case 't':
