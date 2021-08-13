@@ -544,12 +544,12 @@ int main (int argc, char * const *argv)
             MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
         }
 
-        /* Start MCTP control daemon */
-        MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....", __func__);
-        // mctp_start_daemon(mctp_ctrl);
-
         /* Start sdbus initialization and monitoring */
         mctp_ctrl_sdbus_init();
+
+        /* Start MCTP control daemon */
+        MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....", __func__);
+        mctp_start_daemon(mctp_ctrl);
     }
 
     /* Close the socket connection */
