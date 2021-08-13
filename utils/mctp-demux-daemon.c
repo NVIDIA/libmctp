@@ -110,7 +110,7 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
             break;
     }
 
-    rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, msg, len,
+    rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, msg + MCTP_PCIE_MSG_OFFSET, len,
                                      (void*) &pvt_binding);
     if (rc)
         warnx("Failed to send message: %d", rc);
