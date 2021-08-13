@@ -102,12 +102,22 @@ struct mctp_pktbuf *mctp_pktbuf_alloc(struct mctp_binding *binding, size_t len)
 	buf->end = buf->start + len;
 	buf->mctp_hdr_off = buf->start;
 	buf->next = NULL;
+	buf->msg_binding_private = NULL;
+	if (binding->pkt_priv_size) {
+		buf->msg_binding_private = __mctp_alloc(binding->pkt_priv_size);
+		if (!buf->msg_binding_private) {
+			__mctp_free(buf);
+			return NULL;
+		}
+	}
 
 	return buf;
 }
 
 void mctp_pktbuf_free(struct mctp_pktbuf *pkt)
 {
+	if (pkt->msg_binding_private)
+		__mctp_free(pkt->msg_binding_private);
 	__mctp_free(pkt);
 }
 
