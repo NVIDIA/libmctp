@@ -59,7 +59,7 @@ struct mctp_pcie_hdr {
  * See more details in Table 1 of DSP0238 DMTF Spec.
  */
 #define MSG_4DW_HDR 0x70
-#define MCTP_PCIE_VDM_ATTR 0x0010
+#define MCTP_PCIE_VDM_ATTR 0x0000
 #define MSG_CODE_VDM_TYPE_1 0x7f
 #define VENDOR_ID_DMTF_VDM 0xb41a
 
