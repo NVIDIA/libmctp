@@ -22,7 +22,12 @@ extern "C" {
 #define MCTP_CTRL_DBUS_NAME             "xyz.openbmc_project.MCTP.Control"
 #define MCTP_CTRL_OBJ_NAME              "/xyz/openbmc_project/mctp"
 
-#define MCTP_CTRL_NETWORK_ID            0
+#define MCTP_CTRL_NW_OBJ_PATH           "/xyz/openbmc_project/mctp/0/"
+#define MCTP_CTRL_DBUS_EP_INTERFACE     "xyz.openbmc_project.MCTP.Endpoint"
+#define MCTP_CTRL_DBUS_UUID_INTERFACE   "xyz.openbmc_project.Common.UUID"
+
+#define MCTP_CTRL_SDBUS_OBJ_PATH_SIZE   1024
+#define MCTP_CTRL_SDBUS_NETWORK_ID      0
 
 #define MCTP_CTRL_SD_BUS_FD             0
 #define MCTP_CTRL_TOTAL_FDS             1

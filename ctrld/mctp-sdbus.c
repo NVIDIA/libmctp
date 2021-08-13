@@ -71,114 +71,196 @@ static int mctp_ctrl_supported_bus_types(sd_bus *bus,
     return sd_bus_message_close_container(reply);
 }
 
-static int mctp_ctrl_get_uuids(sd_bus *bus,
-                               const char *path,
-                               const char *interface,
-                               const char *property,
-                               sd_bus_message *reply,
-                               void *userdata,
-                               sd_bus_error *error)
+static uint8_t mctp_ctrl_get_eid_from_sdbus_path(const char *path)
+{
+    char *output = NULL;
+
+    output = strrchr(path, '/');
+    if(output != NULL) {
+        output++;
+        return atoi(output);
+    }
+
+    return 0;
+}
+
+static int mctp_ctrl_sdbus_get_nw_id(sd_bus *bus,
+                                     const char *path,
+                                     const char *interface,
+                                     const char *property,
+                                     sd_bus_message *reply,
+                                     void *userdata,
+                                     sd_bus_error *error)
 {
     int                     r, i=0;
+    uint32_t                mctp_nw_id;
+    uint8_t                 eid_req = 0;
+    mctp_msg_type_table_t   *entry = g_msg_type_entries;
+
+    eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
+
+    while (entry != NULL) {
+
+       if (entry->eid == eid_req) {
+           mctp_nw_id = MCTP_CTRL_SDBUS_NETWORK_ID;
+           break;
+       }
+
+        /* Increment for next entry */
+        entry = entry->next;
+    }
+
+    /* append the message */
+    return sd_bus_message_append(reply, "u", mctp_nw_id);
+}
+
+static int mctp_ctrl_sdbus_get_endpoint(sd_bus *bus,
+                                     const char *path,
+                                     const char *interface,
+                                     const char *property,
+                                     sd_bus_message *reply,
+                                     void *userdata,
+                                     sd_bus_error *error)
+{
+    int                     r, i=0;
+    uint8_t                 eid_req = 0;
+    mctp_msg_type_table_t   *entry = g_msg_type_entries;
+    uint32_t                get_eid;
+
+    eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
+
+    while (entry != NULL) {
+
+        if (entry->eid == eid_req) {
+            get_eid = entry->eid;
+            break;
+        }
+
+        /* Increment for next entry */
+        entry = entry->next;
+    }
+
+    /* append the message */
+    return sd_bus_message_append(reply, "u", get_eid);
+}
+
+static int mctp_ctrl_sdbus_get_msg_type(sd_bus *bus,
+                                  const char *path,
+                                  const char *interface,
+                                  const char *property,
+                                  sd_bus_message *reply,
+                                  void *userdata,
+                                  sd_bus_error *error)
+{
+    int                     r, i=0;
+    uint8_t                 eid_req = 0;
+    mctp_msg_type_table_t   *entry = g_msg_type_entries;
+
+    eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
+
+    r = sd_bus_message_open_container(reply, 'a', "y");
+    if (r < 0)
+        return r;
+
+    while (entry != NULL) {
+
+        if (entry->eid == eid_req) {
+
+            /* Traverse supported message type one by one */
+            while (i < entry->data_len) {
+                /* append the message */
+                r = sd_bus_message_append(reply, "y", entry->data[i]);
+                if (r < 0) {
+                   MCTP_CTRL_ERR("Failed sdbus message append: %s", strerror(-r));
+                   return r;
+                }
+
+                i++;
+            }
+
+            break;
+       }
+
+        /* Increment for next entry */
+        entry = entry->next;
+    }
+
+    return sd_bus_message_close_container(reply);
+}
+
+
+
+static int mctp_ctrl_sdbus_get_uuid(sd_bus *bus,
+                                     const char *path,
+                                     const char *interface,
+                                     const char *property,
+                                     sd_bus_message *reply,
+                                     void *userdata,
+                                     sd_bus_error *error)
+{
+    int                     r, i=0;
+    uint8_t                 eid_req = 0;
+    mctp_uuid_table_t       *entry = g_uuid_entries;
     char                    uuid_data[MCTP_CTRL_SDBUS_MAX_MSG_SIZE];
-    mctp_uuid_table_t       *uuid_entries = g_uuid_entries;
 
-    r = sd_bus_message_open_container(reply, 'a', "s");
-    if (r < 0)
-        return r;
+    eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
 
-    while (uuid_entries != NULL) {
-        /* Reset the message buffer */
-        memset(uuid_data, 0, MCTP_CTRL_SDBUS_MAX_MSG_SIZE);
+    /* Reset the message buffer */
+    memset(uuid_data, 0, MCTP_CTRL_SDBUS_MAX_MSG_SIZE);
 
-        /* Frame the message */
-        snprintf(uuid_data, MCTP_CTRL_SDBUS_MAX_MSG_SIZE,
-                            "EID: 0x%x, UUID: 0x%x-0x%x-0x%x-0x%x-0x%x-0x%x-0x%x-0x%x-0x%x-0x%x",
-                            uuid_entries->eid,
-                            uuid_entries->uuid.canonical.data0,
-                            uuid_entries->uuid.canonical.data1,
-                            uuid_entries->uuid.canonical.data2,
-                            uuid_entries->uuid.canonical.data3,
-                            uuid_entries->uuid.canonical.data4[0],
-                            uuid_entries->uuid.canonical.data4[1],
-                            uuid_entries->uuid.canonical.data4[2],
-                            uuid_entries->uuid.canonical.data4[3],
-                            uuid_entries->uuid.canonical.data4[4],
-                            uuid_entries->uuid.canonical.data4[5]);
+    while (entry != NULL) {
 
-        r = sd_bus_message_append(reply, "s", uuid_data);
-        if (r < 0) {
-            MCTP_CTRL_ERR("Failed to build the list of failed boot modes: %s", strerror(-r));
-            return r;
-        }
+        if (entry->eid == eid_req) {
+            /* Frame the message */
+            snprintf(uuid_data, MCTP_CTRL_SDBUS_MAX_MSG_SIZE,
+                            "%x-%x-%x-%x-%x%x%x%x%x%x",
+                            entry->uuid.canonical.data0,
+                            entry->uuid.canonical.data1,
+                            entry->uuid.canonical.data2,
+                            entry->uuid.canonical.data3,
+                            entry->uuid.canonical.data4[0],
+                            entry->uuid.canonical.data4[1],
+                            entry->uuid.canonical.data4[2],
+                            entry->uuid.canonical.data4[3],
+                            entry->uuid.canonical.data4[4],
+                            entry->uuid.canonical.data4[5]);
+            break;
+       }
 
         /* Increment for next entry */
-        uuid_entries = uuid_entries->next;
+        entry = entry->next;
     }
 
-    return sd_bus_message_close_container(reply);
+    /* append the message */
+    return sd_bus_message_append(reply, "s", uuid_data);
+
 }
 
-static int mctp_ctrl_get_msg_type(sd_bus *bus,
-                               const char *path,
-                               const char *interface,
-                               const char *property,
-                               sd_bus_message *reply,
-                               void *userdata,
-                               sd_bus_error *error)
-{
-    int                     r, i=0;
-    char                    msg_type_data[MCTP_CTRL_SDBUS_MAX_MSG_SIZE];
-    mctp_msg_type_table_t   *msg_type_entries = g_msg_type_entries;
 
-    r = sd_bus_message_open_container(reply, 'a', "s");
-    if (r < 0)
-        return r;
-
-    while (msg_type_entries != NULL) {
-
-        /* Reset the message buffer */
-        memset(msg_type_data, 0, MCTP_CTRL_SDBUS_MAX_MSG_SIZE);
-
-        MCTP_CTRL_DEBUG("MCTP-CTRL: Msg Type length: %d\n", msg_type_entries->data_len);
-
-        /* Frame the message */
-        snprintf(msg_type_data, MCTP_CTRL_SDBUS_MAX_MSG_SIZE,
-                            "EID: 0x%x, supported types: 0x%x-0x%x",
-                            msg_type_entries->eid,
-                            msg_type_entries->data[0],
-                            msg_type_entries->data[1]);
-
-        r = sd_bus_message_append(reply, "s", msg_type_data);
-        if (r < 0) {
-            MCTP_CTRL_ERR("Failed to build the list of failed boot modes: %s", strerror(-r));
-            return r;
-        }
-
-        /* Increment for next entry */
-        msg_type_entries = msg_type_entries->next;
-    }
-
-    return sd_bus_message_close_container(reply);
-}
 
 static int mctp_ctrl_dispatch_sd_bus(mctp_sdbus_context_t *context)
 {
     int r = 0;
     if (context->fds[MCTP_CTRL_SD_BUS_FD].revents) {
         r = sd_bus_process(context->bus, NULL);
-        if (r > 0)
-            MCTP_CTRL_TRACE("Processed %d dbus events\n", r);
     }
 
     return r;
 }
 
-static const sd_bus_vtable mctp_ctrl_vtable[] = {
+/* Properties for xyz.openbmc_project.MCTP.Endpoint */
+static const sd_bus_vtable mctp_ctrl_endpoint_vtable[] = {
     SD_BUS_VTABLE_START(0),
-    SD_BUS_PROPERTY("mctp_supported_bus",   "as", mctp_ctrl_supported_bus_types,    0, SD_BUS_VTABLE_PROPERTY_CONST),
-    SD_BUS_PROPERTY("mctp_get_uuid",        "as", mctp_ctrl_get_uuids,              0, SD_BUS_VTABLE_PROPERTY_CONST),
-    SD_BUS_PROPERTY("mctp_get_msg_type",    "as", mctp_ctrl_get_msg_type,           0, SD_BUS_VTABLE_PROPERTY_CONST),
+    SD_BUS_PROPERTY("NetworkId",                "u",    mctp_ctrl_sdbus_get_nw_id,        0, SD_BUS_VTABLE_PROPERTY_CONST),
+    SD_BUS_PROPERTY("EID",                      "u",    mctp_ctrl_sdbus_get_endpoint,     0, SD_BUS_VTABLE_PROPERTY_CONST),
+    SD_BUS_PROPERTY("SupportedMessageTypes",    "ay",   mctp_ctrl_sdbus_get_msg_type,     0, SD_BUS_VTABLE_PROPERTY_CONST),
+    SD_BUS_VTABLE_END
+};
+
+/* Properties for xyz.openbmc_project.Common.UUID */
+static const sd_bus_vtable mctp_ctrl_common_uuid_vtable[] = {
+    SD_BUS_VTABLE_START(0),
+    SD_BUS_PROPERTY("UUID",                     "s",    mctp_ctrl_sdbus_get_uuid,         0, SD_BUS_VTABLE_PROPERTY_CONST),
     SD_BUS_VTABLE_END
 };
 
@@ -186,29 +268,55 @@ static const sd_bus_vtable mctp_ctrl_vtable[] = {
 /* MCTP ctrl sdbus initialization */
 int mctp_ctrl_sdbus_init (void)
 {
-    mctp_sdbus_context_t *context;
-    const char *name = "mctp-ctrl";
-    int opt, polled, r;
+    mctp_sdbus_context_t    *context;
+    int                     opt, polled, r;
+    char                    mctp_ctrl_objpath[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE];
+    mctp_msg_type_table_t   *entry = g_msg_type_entries;
 
     context = calloc(1, sizeof(*context));
 
-    MCTP_CTRL_TRACE("Starting\n");
     r = sd_bus_default_system(&context->bus);
     if (r < 0) {
         MCTP_CTRL_ERR("Failed to connect to system bus: %s\n", strerror(-r));
         goto finish;
     }
 
-    MCTP_CTRL_TRACE("Registering dbus methods/signals\n");
-    r = sd_bus_add_object_vtable(context->bus,
+
+    while (entry != NULL) {
+
+        /* Reset the message buffer */
+        memset(mctp_ctrl_objpath, '\0', MCTP_CTRL_SDBUS_OBJ_PATH_SIZE);
+
+        /* Frame the message */
+        snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_OBJ_PATH_SIZE,
+                            "%s%d",
+                            MCTP_CTRL_NW_OBJ_PATH,
+                            entry->eid);
+
+        MCTP_CTRL_TRACE("Registering object '%s' for Endpoint: %d\n",
+                                            mctp_ctrl_objpath, entry->eid);
+        r = sd_bus_add_object_vtable(context->bus,
                                  NULL,
-                                 MCTP_CTRL_OBJ_NAME,
-                                 MCTP_CTRL_DBUS_NAME,
-                                 mctp_ctrl_vtable,
+                                 mctp_ctrl_objpath,
+                                 MCTP_CTRL_DBUS_EP_INTERFACE,
+                                 mctp_ctrl_endpoint_vtable,
                                  context);
-    if (r < 0) {
-        MCTP_CTRL_ERR("Failed to issue method call: %s\n", strerror(-r));
-        goto finish;
+
+        MCTP_CTRL_TRACE("Registering object '%s' for UUID: %d\n",
+                                            mctp_ctrl_objpath, entry->eid);
+        r = sd_bus_add_object_vtable(context->bus,
+                                 NULL,
+                                 mctp_ctrl_objpath,
+                                 MCTP_CTRL_DBUS_UUID_INTERFACE,
+                                 mctp_ctrl_common_uuid_vtable,
+                                 context);
+        if (r < 0) {
+            MCTP_CTRL_ERR("Failed to issue method call: %s\n", strerror(-r));
+            goto finish;
+        }
+
+        /* Increment for next entry */
+        entry = entry->next;
     }
 
     MCTP_CTRL_TRACE("Requesting dbus name: %s\n", MCTP_CTRL_DBUS_NAME);
@@ -252,5 +360,4 @@ finish:
     free(context);
 
     return r;
-
 }
