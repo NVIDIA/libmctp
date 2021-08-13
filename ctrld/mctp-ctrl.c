@@ -322,6 +322,15 @@ int mctp_cmdline_exec (mctp_cmdline_args_t  *cmd, int sock_fd)
             break;
     }
 
+    /* Receive the MCTP packet */
+    mctp_ret = mctp_client_recv(cmd->dest_eid, sock_fd, &mctp_resp_msg, &resp_msg_len);
+    if (mctp_ret != MCTP_REQUESTER_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed to received message %d\n", __func__, mctp_ret);
+        return MCTP_CMD_FAILED;
+    }
+
+    printf("%s: Successfully received message\n", __func__);
+
     return MCTP_CMD_SUCCESS;
 }
 
