@@ -61,7 +61,10 @@ const uint8_t           MCTP_FPGA_EID = 0x10;
 /* Default EID pools */
 const uint8_t           MCTP_FPGA_EID_POOL[] = {0x11, 0x12, 0x13, 0x14,
                                                 0x15, 0x16, 0x17, 0x18,
-                                                0x19, 0x20};
+                                                0x19, 0x20, 0x21, 0x22,
+                                                0x23, 0x24, 0x25, 0x26,
+                                                0x27, 0x28, 0x29, 0x30,
+                                                0x31, 0x32, 0x33, 0x34};
 
 /* PCIe target bdf */
 static int              g_target_bdf = 0;
@@ -674,7 +677,8 @@ mctp_ret_codes_t mctp_set_eid_send_request(int sock_fd, mctp_ctrl_cmd_set_eid_op
 }
 
 /* Receive function for Set Endpoint ID */
-int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len)
+int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
+                                                uint8_t eid, uint8_t *eid_count)
 {
     bool                                req_ret;
     struct mctp_ctrl_resp_set_eid       set_eid_resp;
@@ -690,13 +694,58 @@ int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len)
     req_ret = mctp_decode_resp_set_eid(&set_eid_resp);
     if (req_ret == false) {
         MCTP_CTRL_ERR("%s: Packet parsing failed\n", __func__);
+
+        /* Free Rx packet */
+        free(mctp_resp_msg);
+
         return MCTP_RET_ENCODE_FAILED;
     }
 
-    /* Get the EID pool size from response */
-    g_eid_pool_size = set_eid_resp.eid_pool_size;
+    /* Check whether the EID is accepted by the device or not */
+    if (set_eid_resp.eid_set != eid) {
+        MCTP_CTRL_DEBUG("%s: Set Endpoint id: 0x%x (Rejected by the device)\n",
+                                                            __func__, set_eid_resp.eid_set);
 
-    MCTP_CTRL_DEBUG("%s: g_eid_pool_size: %d\n", __func__, g_eid_pool_size);
+        /* Free Rx packet */
+        free(mctp_resp_msg);
+
+        return MCTP_RET_REQUEST_FAILED;
+    } else {
+        MCTP_CTRL_DEBUG("%s: Set Endpoint id: 0x%x (Accepted by the device)\n",
+                                                            __func__, set_eid_resp.eid_set);
+    }
+
+    /* Check whether the device requires EID pool allocation or not */
+    if (set_eid_resp.status == MCTP_SETEID_ALLOC_STATUS_EID_POOL_REQ) {
+        MCTP_CTRL_DEBUG("%s: Endpoint require EID pool allocation: 0x%x (status)\n",
+                                                            __func__, set_eid_resp.status);
+
+        /* Get the EID pool size from response */
+        g_eid_pool_size = set_eid_resp.eid_pool_size;
+
+
+        /* Also, make sure the pool size is less than global pool buffer */
+        if (set_eid_resp.eid_pool_size < sizeof(MCTP_FPGA_EID_POOL)) {
+            /* update the eid_count pointer */
+            *eid_count = set_eid_resp.eid_pool_size;
+        } else {
+            MCTP_CTRL_ERR("%s: pool size req (0x%x) is greater than global pool (0x%x)\n",
+                                                    __func__, g_eid_pool_size);
+            /* Free Rx packet */
+            free(mctp_resp_msg);
+
+            return MCTP_RET_REQUEST_FAILED;
+        }
+
+        MCTP_CTRL_DEBUG("%s: g_eid_pool_size: 0x%x\n", __func__, g_eid_pool_size);
+
+    } else {
+        MCTP_CTRL_DEBUG("%s: Endpoint doesn't require EID pool allocation: 0x%x (status)\n",
+                                            __func__, set_eid_resp.status);
+
+        /* Reset the EID pool size */
+        g_eid_pool_size = 0;
+    }
 
     /* Free Rx packet */
     free(mctp_resp_msg);
@@ -727,7 +776,7 @@ mctp_ret_codes_t mctp_alloc_eid_send_request(int sock_fd, mctp_eid_t assigned_ei
     pvt_binding.routing = PCIE_ROUTE_BY_ID;
     pvt_binding.remote_id = g_target_bdf;
 
-    /* Prepare the endpoint discovery message */
+    /* Allocate Endpoint ID's message */
     req_ret = mctp_encode_ctrl_cmd_alloc_eid(&set_eid_req, op, eid_count, eid_start);
     if (req_ret == false) {
         MCTP_CTRL_ERR("%s: Packet preparation failed\n", __func__);
@@ -769,7 +818,8 @@ int mctp_alloc_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len)
     struct mctp_ctrl_resp_alloc_eid     alloc_eid_resp;
 
     mctp_print_resp_msg((struct mctp_ctrl_resp*) mctp_resp_msg,
-                        "MCTP_ALLOCATE_EP_ID_RESPONSE", resp_msg_len);
+                        "MCTP_ALLOCATE_EP_ID_RESPONSE",
+                        (sizeof(struct mctp_ctrl_resp_alloc_eid) - sizeof(struct mctp_ctrl_cmd_msg_hdr)));
 
     /* Copy the Rx packet header */
     memcpy(&alloc_eid_resp, mctp_resp_msg, sizeof(struct mctp_ctrl_resp_alloc_eid));
@@ -779,6 +829,16 @@ int mctp_alloc_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len)
     if (req_ret == false) {
         MCTP_CTRL_ERR("%s: Packet parsing failed\n", __func__);
         return MCTP_RET_ENCODE_FAILED;
+    }
+
+    /* Check whether allocation was accepted or not */
+    if (alloc_eid_resp.alloc_status == MCTP_ALLOC_EID_REJECTED) {
+        MCTP_CTRL_ERR("%s: Alloc Endpoint ID rejected..\n", __func__);
+
+        /* Free Rx packet */
+        free(mctp_resp_msg);
+
+        return MCTP_RET_REQUEST_FAILED;
     }
 
     /* Get EID pool size and the EID start */
@@ -1133,6 +1193,21 @@ static mctp_ret_codes_t mctp_discover_response(mctp_discovery_mode mode,
 {
     mctp_ret_codes_t        mctp_ret;
 
+    /* Ignore request commands */
+    switch (mode) {
+        case MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST:
+        case MCTP_EP_DISCOVERY_REQUEST:
+        case MCTP_SET_EP_REQUEST:
+        case MCTP_ALLOCATE_EP_ID_REQUEST:
+        case MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST:
+        case MCTP_GET_EP_UUID_REQUEST:
+        case MCTP_GET_MSG_TYPE_REQUEST:
+            return MCTP_RET_REQUEST_SUCCESS;
+
+        default:
+            break;
+    }
+
     switch (mode) {
         case MCTP_PREPARE_FOR_EP_DISCOVERY_RESPONSE:
         case MCTP_EP_DISCOVERY_RESPONSE:
@@ -1268,7 +1343,8 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
             case MCTP_SET_EP_RESPONSE:
 
                 /* Process the MCTP_SET_EP_RESPONSE */
-                mctp_ret = mctp_set_eid_get_response(mctp_resp_msg, resp_msg_len);
+                mctp_ret = mctp_set_eid_get_response(mctp_resp_msg, resp_msg_len,
+                                                     MCTP_FPGA_EID, &eid_count);
                 if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
                     MCTP_CTRL_ERR("%s: Failed MCTP_EP_DISCOVERY_RESPONSE\n", __func__);
                     return MCTP_RET_DISCOVERY_FAILED;
@@ -1277,11 +1353,14 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                 /* Next step is to Allocate endpoint IDs request */
                 discovery_mode = MCTP_ALLOCATE_EP_ID_REQUEST;
 
+                break;
+
             case MCTP_ALLOCATE_EP_ID_REQUEST:
 
                 /* Update the Allocate EIDs operation, number of EIDs, Starting EID */
-                alloc_eid_op = alloc_eid_op;
-                eid_count = sizeof(MCTP_FPGA_EID_POOL);
+                alloc_eid_op = alloc_req_eid;
+
+                //eid_count = sizeof(MCTP_FPGA_EID_POOL);
                 eid_start = MCTP_FPGA_EID_POOL[0];
 
                 /* Send the MCTP_ALLOCATE_EP_ID_REQUEST */
@@ -1308,7 +1387,15 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
 
                 /* Next step is to get UUID request */
                 discovery_mode = MCTP_GET_EP_UUID_REQUEST;
-                discovery_mode = MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST;
+                //discovery_mode = MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST;
+
+                /*
+                 * Sleep for a while, since the device need to allocate EIDs
+                 * to downstream devices
+                 */
+                MCTP_CTRL_DEBUG("%s: MCTP_ALLOCATE_EP_ID_RESPONSE (sleep for 5 seconds..)\n", __func__);
+                sleep(5);
+
                 break;
 
             case MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST:
@@ -1344,11 +1431,16 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
 
                 /* Next step is to Get Endpoint UUID request */
                 discovery_mode = MCTP_GET_EP_UUID_REQUEST;
+
                 break;
 
             case MCTP_GET_EP_UUID_REQUEST:
 
-                eid_count = sizeof(MCTP_FPGA_EID_POOL);
+                /*
+                 * TBD: FPGA-ISSUE: Currently FPGA responds to only two UUID's
+                 * This can be removed once FPGA issue is fixed
+                 */
+                eid_count = 2;
 
                 /* Send the MCTP_GET_EP_UUID_REQUEST */
                 if (uuid_req_count < eid_count) {
@@ -1359,8 +1451,6 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                         return MCTP_RET_DISCOVERY_FAILED;
                     }
 
-                    /* Increment the UUID request count */
-                    uuid_req_count++;
                 }
 
                 /* Wait for the endpoint response */
@@ -1377,19 +1467,29 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                     return MCTP_RET_DISCOVERY_FAILED;
                 }
 
+                /* Increment the UUID request count */
+                uuid_req_count++;
+
                 /* Continue probing all UUID requests */
                 if (uuid_req_count < eid_count) {
                     MCTP_CTRL_DEBUG("%s: MCTP_GET_EP_UUID_RESPONSE: Probe for eid: %d\n",
                                                         __func__, MCTP_FPGA_EID_POOL[uuid_req_count]);
                     /* Next step is to Get Endpoint UUID request */
                     discovery_mode = MCTP_GET_EP_UUID_REQUEST;
+
+                    /*
+                     * Sleep for a while, before sending the next command
+                     * since the device need to get the data from downstream device
+                     */
+                    MCTP_CTRL_DEBUG("%s: Sleep for 2 seconds before sending next EID req: 0x%x\n", __func__, uuid_req_count);
+                    sleep(2);
+
                     break;
                 }
 
                 discovery_mode = MCTP_GET_MSG_TYPE_REQUEST;
 
                 break;
-
 
             case MCTP_GET_MSG_TYPE_REQUEST:
 
@@ -1401,9 +1501,6 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                         MCTP_CTRL_ERR("%s: Failed MCTP_GET_MSG_TYPE_REQUEST\n", __func__);
                         return MCTP_RET_DISCOVERY_FAILED;
                     }
-
-                    /* Increment the Msg type request count */
-                    msg_type_req_count++;
                 }
 
                 /* Wait for the endpoint response */
@@ -1419,6 +1516,9 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                     MCTP_CTRL_ERR("%s: MCTP_GET_MSG_TYPE_RESPONSE\n", __func__);
                     return MCTP_RET_DISCOVERY_FAILED;
                 }
+
+                /* Increment the Msg type request count */
+                msg_type_req_count++;
 
                 /* Continue probing for all EID's */
                 if (msg_type_req_count < eid_count) {

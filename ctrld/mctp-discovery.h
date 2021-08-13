@@ -117,7 +117,8 @@ mctp_ret_codes_t mctp_ep_discovery_send_request(int sock_fd);
 int mctp_ep_discovery_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len);
 
 mctp_ret_codes_t mctp_set_eid_send_request(int sock_fd, mctp_ctrl_cmd_set_eid_op op, uint8_t eid);
-int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len);
+int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
+                                                uint8_t eid, uint8_t *eid_count);
 
 mctp_ret_codes_t mctp_alloc_eid_send_request(int sock_fd, mctp_eid_t eid,
                                     mctp_ctrl_cmd_set_eid_op op,

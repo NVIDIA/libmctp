@@ -544,5 +544,14 @@ int main (int argc, char * const *argv)
     /* Close the socket connection */
     close(mctp_ctrl->sock);
 
+    /* Delete Routing table entries */
+    mctp_routing_entry_delete_all();
+
+    /* Delete UUID entries */
+    mctp_uuid_delete_all();
+
+    /* Delete Msg type entries */
+    mctp_msg_types_delete_all();
+
     return EXIT_SUCCESS;
 }

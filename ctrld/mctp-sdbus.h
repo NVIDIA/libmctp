@@ -19,10 +19,10 @@ extern "C" {
 #define MCTP_GET_UUID_MAPPINGS          "GetUUIDMap"
 #define MCTP_GET_ROITUNG_INFO           "GetRoutingInfo"
 
-#define MCTP_CTRL_DBUS_NAME             "org.openbmc.mctpctrl"
-#define MCTP_CTRL_OBJ_NAME              "/org/openbmc/mctpctrl"
-//#define MCTP_CTRL_DBUS_NAME "net.poettering.Calculator"
-//#define MCTP_CTRL_OBJ_NAME "/net/poettering/Calculator"
+#define MCTP_CTRL_DBUS_NAME             "xyz.openbmc_project.MCTP.Control"
+#define MCTP_CTRL_OBJ_NAME              "/xyz/openbmc_project/mctp"
+
+#define MCTP_CTRL_NETWORK_ID            0
 
 #define MCTP_CTRL_SD_BUS_FD             0
 #define MCTP_CTRL_TOTAL_FDS             1

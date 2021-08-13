@@ -42,8 +42,8 @@ static int                      mctp_ctrl_running = 1;
 /* String map for supported bus type */
 char g_mctp_ctrl_supported_buses[MCTP_CTRL_MAX_BUS_TYPES][10] = {
     "PCIe Bus ",
-    "I2C Bus ",
-    "SPI Bus "
+    "SPI Bus ",
+    "I2C Bus "
 };
 
 static int mctp_ctrl_supported_bus_types(sd_bus *bus,
@@ -87,8 +87,7 @@ static int mctp_ctrl_get_uuids(sd_bus *bus,
     if (r < 0)
         return r;
 
-    for (i = 0; i < g_uuid_table_len; i++) {
-
+    while (uuid_entries != NULL) {
         /* Reset the message buffer */
         memset(uuid_data, 0, MCTP_CTRL_SDBUS_MAX_MSG_SIZE);
 
@@ -136,7 +135,7 @@ static int mctp_ctrl_get_msg_type(sd_bus *bus,
     if (r < 0)
         return r;
 
-    for (i = 0; i < g_msg_type_table_len; i++) {
+    while (msg_type_entries != NULL) {
 
         /* Reset the message buffer */
         memset(msg_type_data, 0, MCTP_CTRL_SDBUS_MAX_MSG_SIZE);
@@ -145,11 +144,10 @@ static int mctp_ctrl_get_msg_type(sd_bus *bus,
 
         /* Frame the message */
         snprintf(msg_type_data, MCTP_CTRL_SDBUS_MAX_MSG_SIZE,
-                            "EID: 0x%x, supported types: 0x%x-0x%x-0x%x",
+                            "EID: 0x%x, supported types: 0x%x-0x%x",
                             msg_type_entries->eid,
                             msg_type_entries->data[0],
-                            msg_type_entries->data[1],
-                            msg_type_entries->data[2]);
+                            msg_type_entries->data[1]);
 
         r = sd_bus_message_append(reply, "s", msg_type_data);
         if (r < 0) {
@@ -176,7 +174,6 @@ static int mctp_ctrl_dispatch_sd_bus(mctp_sdbus_context_t *context)
     return r;
 }
 
-/* The vtable of our little object, implements the net.poettering.Calculator interface */
 static const sd_bus_vtable mctp_ctrl_vtable[] = {
     SD_BUS_VTABLE_START(0),
     SD_BUS_PROPERTY("mctp_supported_bus",   "as", mctp_ctrl_supported_bus_types,    0, SD_BUS_VTABLE_PROPERTY_CONST),
