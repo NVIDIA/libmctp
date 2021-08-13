@@ -38,13 +38,15 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #define __unused __attribute__((unused))
 
+/* Default socket path */
+#define MCTP_SOCK_PATH "\0mctp-mux";
+
 /* Global definitions */
 uint8_t g_verbose_level = 0;
 
 /* Set MCTP message Type */
 const uint8_t MCTP_MSG_TYPE_HDR = 0;
 const uint8_t MCTP_CTRL_MSG_TYPE = 0;
-const char *usr_path= "\0mctp-mux";
 
 static int g_socket_fd = -1;
 
@@ -84,7 +86,7 @@ mctp_requester_rc_t mctp_usr_socket_init(mctp_ctrl_t *mctp_ctrl)
 {
     int                     fd = -1;
     int                     rc = -1;
-    const char              path[] = "\0mctp-mux";
+    const char              path[] = MCTP_SOCK_PATH;
     struct sockaddr_un      addr;
  
  
