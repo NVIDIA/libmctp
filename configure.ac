@@ -30,6 +30,19 @@ AC_CHECK_HEADER(systemd/sd-bus.h, ,[AC_MSG_ERROR([Could not find systemd/sd-bus.
 
 AC_SUBST([udevrulesdir], [$udevdir/rules.d])
 
+AC_ARG_ENABLE([capture],
+              [AC_HELP_STRING([--enable-capture],
+                              [Use libpcap to capture messages and packets])])
+AS_IF([test "x$enable_capture" = "xyes"],
+       [PKG_CHECK_MODULES(pcap, libpcap,
+                          [AC_DEFINE([HAVE_PCAP], [1],
+                                     [Define to 1 if you have libpcap])],
+                          [])],
+       [])
+AC_SUBST([pcap_CFLAGS])
+AC_SUBST([pcap_LIBS])
+AM_CONDITIONAL([HAVE_PCAP], [test "x$enable_capture" = "xyes"])
+
 AC_ARG_ENABLE([astlpc-raw-kcs],
               [AS_HELP_STRING([--enable-astlpc-raw-kcs],
                               [Use udev rules to symlink raw-kcs device nodes for the astlpc binding])])

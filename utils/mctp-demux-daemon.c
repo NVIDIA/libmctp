@@ -3,6 +3,7 @@
 #define _GNU_SOURCE
 
 #include "config.h"
+#include "utils/mctp-capture.h"
 
 #include <err.h>
 #include <errno.h>
@@ -85,7 +86,10 @@ struct ctx {
 	struct client *clients;
 	int n_clients;
 
-	bool clients_changed;
+	struct {
+		struct capture binding;
+		struct capture socket;
+	} pcap;
 };
 
 static void mctp_print_hex(uint8_t *data, size_t length)
@@ -570,6 +574,8 @@ static int client_process_recv(struct ctx *ctx, int idx)
 		tx_pvt_message(ctx, ctx->buf, rc);
 		return 0;
 	}
+	if (ctx->pcap.socket.path)
+		capture_socket(ctx->pcap.socket.dumper, ctx->buf, rc);
 
 	eid = *(uint8_t *)ctx->buf;
 
@@ -727,6 +733,10 @@ static int run_daemon(struct ctx *ctx)
 }
 
 static const struct option options[] = {
+	{ "capture-binding", required_argument, 0, 'b' },
+	{ "capture-socket", required_argument, 0, 's' },
+	{ "binding-linktype", required_argument, 0, 'B' },
+	{ "socket-linktype", required_argument, 0, 'S' },
 	{ "verbose", no_argument, 0, 'v' },
 	{ "eid", required_argument, 0, 'e' },
 	{ 0 },
@@ -752,14 +762,28 @@ int main(int argc, char *const *argv)
 	ctx->n_clients = 0;
 	ctx->local_eid = local_eid_default;
 	ctx->verbose = false;
+	ctx->pcap.binding.path = NULL;
+	ctx->pcap.socket.path = NULL;
 
 	mctp_prinfo("MCTP demux started.");
 
 	for (;;) {
-		rc = getopt_long(argc, argv, "e:v", options, NULL);
+		rc = getopt_long(argc, argv, "b:es::v", options, NULL);
 		if (rc == -1)
 			break;
 		switch (rc) {
+		case 'b':
+			ctx->pcap.binding.path = optarg;
+			break;
+		case 's':
+			ctx->pcap.socket.path = optarg;
+			break;
+		case 'B':
+			ctx->pcap.binding.linktype = atoi(optarg);
+			break;
+		case 'S':
+			ctx->pcap.socket.linktype = atoi(optarg);
+			break;
 		case 'v':
 			ctx->verbose = true;
 			break;
@@ -801,14 +825,51 @@ int main(int argc, char *const *argv)
 	if (rc)
 		return EXIT_FAILURE;
 
+	if (ctx->pcap.binding.path || ctx->pcap.socket.path) {
+		if (capture_init()) {
+			rc = EXIT_FAILURE;
+			goto cleanup_mctp;
+		}
+	}
+
+	if (ctx->pcap.binding.path) {
+		rc = capture_prepare(&ctx->pcap.binding);
+		if (rc == -1) {
+			fprintf(stderr, "Failed to initialise capture: %d\n", rc);
+			rc = EXIT_FAILURE;
+			goto cleanup_mctp;
+		}
+
+		mctp_set_capture_handler(ctx->mctp, capture_binding,
+					 ctx->pcap.binding.dumper);
+	}
+
+	if (ctx->pcap.socket.path) {
+		rc = capture_prepare(&ctx->pcap.socket);
+		if (rc == -1) {
+			fprintf(stderr, "Failed to initialise capture: %d\n", rc);
+			rc = EXIT_FAILURE;
+			goto cleanup_pcap_binding;
+		}
+	}
+
+	rc = binding_init(ctx, argv[optind], argc - optind - 1, argv + optind + 1);
+	if (rc) {
+		fprintf(stderr, "Failed to initialise binding: %d\n", rc);
+		rc = EXIT_FAILURE;
+		goto cleanup_pcap_socket;
+	}
+
 	rc = sd_notify(0, "STATUS=Creating sockets.");
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
 
 	rc = sd_listen_fds(true);
 	if (rc <= 0) {
 		rc = socket_init(ctx);
-		if (rc)
+		if (rc) {
+			fprintf(stderr, "Failed to initialse socket: %d\n", rc);
 			return EXIT_FAILURE;
+		}
 	} else {
 		ctx->sock = SD_LISTEN_FDS_START;
 	}
@@ -818,4 +879,17 @@ int main(int argc, char *const *argv)
 
 	rc = run_daemon(ctx);
 	return rc ? EXIT_FAILURE : EXIT_SUCCESS;
+cleanup_pcap_socket:
+	if (ctx->pcap.socket.path)
+		capture_close(&ctx->pcap.socket);
+
+cleanup_pcap_binding:
+	if (ctx->pcap.binding.path)
+		capture_close(&ctx->pcap.binding);
+
+	rc = rc ? EXIT_FAILURE : EXIT_SUCCESS;
+cleanup_mctp:
+
+	return rc;
+
 }
