@@ -55,6 +55,7 @@ struct binding {
 	const char *name;
 	int (*init)(struct mctp *mctp, struct binding *binding, mctp_eid_t eid,
 		    int n_params, char *const *params);
+	void		(*destroy)(struct mctp *mctp, struct binding *binding);
 	int (*get_fd)(struct binding *binding);
 	int (*process)(struct binding *binding);
 	void *data;
@@ -301,6 +302,15 @@ static int binding_astlpc_init(struct mctp *mctp, struct binding *binding,
 	return 0;
 }
 
+static void binding_astlpc_destroy(struct mctp *mctp, struct binding *binding)
+{
+	struct mctp_binding_astlpc *astlpc = binding->data;
+
+	mctp_unregister_bus(mctp, mctp_binding_astlpc_core(astlpc));
+
+	mctp_astlpc_destroy(astlpc);
+}
+
 static int binding_astlpc_get_fd(struct binding *binding)
 {
 	return mctp_astlpc_get_fd(binding->data);
@@ -403,6 +413,7 @@ struct binding bindings[] = { {
 				      .name = "astlpc",
 				      .init = binding_astlpc_init,
 				      .get_fd = binding_astlpc_get_fd,
+				      .destroy = binding_astlpc_destroy,
 				      .process = binding_astlpc_process,
 				      .sockname = "\0mctp-lpc-mux",
 				      .events = POLLIN,
@@ -609,6 +620,12 @@ static int binding_init(struct ctx *ctx, const char *name, int argc,
 	rc = ctx->binding->init(ctx->mctp, ctx->binding, ctx->local_eid, argc,
 				argv);
 	return rc;
+}
+
+static void binding_destroy(struct ctx *ctx)
+{
+	if (ctx->binding->destroy)
+		ctx->binding->destroy(ctx->mctp, ctx->binding);
 }
 
 enum {
@@ -868,7 +885,7 @@ int main(int argc, char *const *argv)
 		rc = socket_init(ctx);
 		if (rc) {
 			fprintf(stderr, "Failed to initialse socket: %d\n", rc);
-			goto cleanup_pcap_socket;
+			goto cleanup_binding;
 		}
 	} else {
 		ctx->sock = SD_LISTEN_FDS_START;
@@ -878,7 +895,9 @@ int main(int argc, char *const *argv)
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
 
 	rc = run_daemon(ctx);
-	return rc ? EXIT_FAILURE : EXIT_SUCCESS;
+cleanup_binding:
+	binding_destroy(ctx);
+
 cleanup_pcap_socket:
 	if (ctx->pcap.socket.path)
 		capture_close(&ctx->pcap.socket);
