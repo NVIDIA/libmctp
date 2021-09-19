@@ -663,6 +663,9 @@ mctp_ret_codes_t mctp_set_eid_send_request(int sock_fd, mctp_ctrl_cmd_set_eid_op
 
     mctp_print_req_msg(&ep_req, "MCTP_SET_EP_REQUEST", msg_len);
 
+    /* TBD: ep request set eid issue */
+    ep_req.data[0] = 0;
+
     /* Send the request message over socket */
     mctp_ret = mctp_client_with_binding_send(dest_eid, sock_fd,
                                 (const uint8_t *) &ep_req,
@@ -867,6 +870,7 @@ mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd, mctp_eid_t eid
     mctp_eid_t                                  dest_eid;
     mctp_binding_ids_t                          bind_id;
     struct mctp_astpcie_pkt_private             pvt_binding;
+    static int                                  entry_count = 0;
 
     /* Set destination EID as NULL */
     dest_eid = MCTP_EID_NULL;
@@ -879,11 +883,14 @@ mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd, mctp_eid_t eid
     pvt_binding.remote_id = g_target_bdf;
 
     /* Get routing table request message */
-    req_ret = mctp_encode_ctrl_cmd_get_routing_table(&get_routing_req, entry_handle);
+    req_ret = mctp_encode_ctrl_cmd_get_routing_table(&get_routing_req, entry_handle + entry_count);
     if (req_ret == false) {
         MCTP_CTRL_ERR("%s: Packet preparation failed\n", __func__);
         return MCTP_RET_ENCODE_FAILED;
     }
+
+    /* Increment the entry count */
+    entry_count++;
 
     /* Get the message length */
     msg_len = sizeof(struct mctp_ctrl_cmd_get_routing_table) -
@@ -1253,6 +1260,7 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
     size_t                      resp_msg_len; 
     int                         uuid_req_count = 0;
     int                         msg_type_req_count = 0;
+    mctp_routing_table_t        *routing_entry;
 
     /* Update Target BDF */
     g_target_bdf = mctp_ctrl_get_target_bdf (cmd);
@@ -1361,7 +1369,7 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                 /* Update the Allocate EIDs operation, number of EIDs, Starting EID */
                 alloc_eid_op = alloc_req_eid;
 
-                //eid_count = sizeof(MCTP_FPGA_EID_POOL);
+                /* Set the start of EID */
                 eid_start = MCTP_FPGA_EID_POOL[0];
 
                 /* Send the MCTP_ALLOCATE_EP_ID_REQUEST */
@@ -1413,14 +1421,14 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                 break;
 
             case MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE:
-    
+
                 /* Process the MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE */
                 mctp_ret = mctp_get_routing_table_get_response(ctrl->sock, eid, mctp_resp_msg, resp_msg_len);
                 if (MCTP_RET_DISCOVERY_FAILED == mctp_ret) {
                     MCTP_CTRL_ERR("%s: Failed MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE\n", __func__);
                     return MCTP_RET_DISCOVERY_FAILED;
                 }
-    
+
                 /* Check if next routing entry found and set discovery mode accordingly */
                 if (MCTP_RET_ROUTING_TABLE_FOUND == mctp_ret) {
     
@@ -1429,6 +1437,9 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                     break;
                 }
 
+                /* Get the start of Routing entry */
+                routing_entry = g_routing_table_entries;
+
                 /* Next step is to Get Endpoint UUID request */
                 discovery_mode = MCTP_GET_EP_UUID_REQUEST;
 
@@ -1436,15 +1447,14 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
 
             case MCTP_GET_EP_UUID_REQUEST:
 
-                /*
-                 * TBD: FPGA-ISSUE: Currently FPGA responds to only two UUID's
-                 * This can be removed once FPGA issue is fixed
-                 */
-                eid_count = 1;
-
                 /* Send the MCTP_GET_EP_UUID_REQUEST */
-                if (uuid_req_count < eid_count) {
-                    eid_start = MCTP_FPGA_EID_POOL[uuid_req_count];
+                if (routing_entry) {
+
+                    /* Set the Start of EID */
+                    eid_start = routing_entry->routing_table.starting_eid;
+
+                    MCTP_CTRL_DEBUG("%s: Send UUID Request for EID: 0x%x\n",
+                                            __func__, eid_start);
 
                     mctp_ret = mctp_get_endpoint_uuid_send_request(ctrl->sock, eid_start);
                     if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
@@ -1467,25 +1477,19 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                     return MCTP_RET_DISCOVERY_FAILED;
                 }
 
-                /* Increment the UUID request count */
-                uuid_req_count++;
+                /* Increment the routing entry */
+                routing_entry = routing_entry->next;
 
                 /* Continue probing all UUID requests */
-                if (uuid_req_count < eid_count) {
-                    MCTP_CTRL_DEBUG("%s: MCTP_GET_EP_UUID_RESPONSE: Probe for eid: %d\n",
-                                                        __func__, MCTP_FPGA_EID_POOL[uuid_req_count]);
+                if (routing_entry) {
+
                     /* Next step is to Get Endpoint UUID request */
                     discovery_mode = MCTP_GET_EP_UUID_REQUEST;
-
-                    /*
-                     * Sleep for a while, before sending the next command
-                     * since the device need to get the data from downstream device
-                     */
-                    MCTP_CTRL_DEBUG("%s: Sleep for 2 seconds before sending next EID req: 0x%x\n", __func__, uuid_req_count);
-                    sleep(2);
-
                     break;
                 }
+
+                /* Get the start of Routing entry */
+                routing_entry = g_routing_table_entries;
 
                 discovery_mode = MCTP_GET_MSG_TYPE_REQUEST;
 
@@ -1493,9 +1497,14 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
 
             case MCTP_GET_MSG_TYPE_REQUEST:
 
-                /* Send the MCTP_GET_MSG_TYPE_REQUEST */
-                if (msg_type_req_count < eid_count) {
-                    eid_start = MCTP_FPGA_EID_POOL[msg_type_req_count];
+                /* Send the MCTP_GET_EP_UUID_REQUEST */
+                if (routing_entry) {
+
+                    /* Set the Start of EID */
+                    eid_start = routing_entry->routing_table.starting_eid;
+
+                    MCTP_CTRL_DEBUG("%s: Send Get Msg type Request for EID: 0x%x\n",
+                                            __func__, eid_start);
 
                     mctp_ret = mctp_get_msg_type_request(ctrl->sock, eid_start);
                     if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
@@ -1518,13 +1527,12 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                     return MCTP_RET_DISCOVERY_FAILED;
                 }
 
-                /* Increment the Msg type request count */
-                msg_type_req_count++;
+                /* Increment the routing entry */
+                routing_entry = routing_entry->next;
 
-                /* Continue probing for all EID's */
-                if (msg_type_req_count < eid_count) {
-                    MCTP_CTRL_DEBUG("%s: MCTP_GET_MSG_TYPE_RESPONSE: Probe for eid: %d\n",
-                                                        __func__, MCTP_FPGA_EID_POOL[msg_type_req_count]);
+                /* Continue probing all UUID requests */
+                if (routing_entry) {
+
                     /* Next step is to Get Endpoint UUID request */
                     discovery_mode = MCTP_GET_MSG_TYPE_REQUEST;
                     break;
