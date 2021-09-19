@@ -42,6 +42,17 @@
 /* Default socket path */
 #define MCTP_SOCK_PATH "\0mctp-mux";
 
+/* MCTP Tx/Rx timeouts */
+#define MCTP_CTRL_TXRX_TIMEOUT_SECS         5
+#define MCTP_CTRL_TXRX_TIMEOUT_MICRO_SECS   0
+
+/* MCTP Tx/Rx waittime in milli-seconds */
+#define MCTP_CTRL_WAIT_SECONDS              (1 * 1000)
+#define MCTP_CTRL_WAIT_TIME                 (2 * MCTP_CTRL_WAIT_SECONDS)
+
+/* MCTP control retry threshold */
+#define MCTP_CTRL_CMD_RETRY_THRESHOLD       3
+
 /* Global definitions */
 uint8_t g_verbose_level = 0;
 
@@ -89,14 +100,24 @@ mctp_requester_rc_t mctp_usr_socket_init(mctp_ctrl_t *mctp_ctrl)
     int                     rc = -1;
     const char              path[] = MCTP_SOCK_PATH;
     struct sockaddr_un      addr;
- 
- 
+    struct timeval          timeout;
+
+    /* Set timeout as 5 seconds */
+    timeout.tv_sec = MCTP_CTRL_TXRX_TIMEOUT_SECS;
+    timeout.tv_usec = MCTP_CTRL_TXRX_TIMEOUT_MICRO_SECS;
+
     /* Create a socket connection */
     fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
     if (-1 == fd) {
         return fd;
     }
- 
+
+    /* Register socket operations timeouts */ 
+    if (setsockopt (fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
+                sizeof(timeout)) < 0) {
+        MCTP_CTRL_ERR("%s: socket[%d] setsockopt failed\n", __func__, fd);
+    }
+
     addr.sun_family = AF_UNIX;
     memcpy(addr.sun_path, path, sizeof(path) - 1);
  
@@ -193,8 +214,9 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 
     size_t length = recv(mctp_fd, NULL, 0, MSG_PEEK | MSG_TRUNC);
 
-    if (length <= 0) {
-            MCTP_CTRL_INFO("%s: length: %ld\n", __func__, length);
+    if ((length <= 0) || (length > 4096)) {
+            MCTP_CTRL_INFO("%s: Recv failed: Invalid length: %ld or timedout\n",
+                                                        __func__, length);
             return MCTP_REQUESTER_RECV_FAIL;
     } else if (length < min_len) {
         /* read and discard */
@@ -276,6 +298,7 @@ int mctp_cmdline_exec (mctp_cmdline_args_t  *cmd, int sock_fd)
     struct mctp_astpcie_pkt_private pvt_binding;
     time_t                          now;
     int64_t                         t_start, t_end;
+    int                             retry = 0;
 
     assert(cmd);
 
@@ -338,19 +361,37 @@ int mctp_cmdline_exec (mctp_cmdline_args_t  *cmd, int sock_fd)
     }
 
     /* Receive the MCTP packet */
-    mctp_ret = mctp_client_recv(cmd->dest_eid, sock_fd, &mctp_resp_msg, &resp_msg_len);
-    if (mctp_ret != MCTP_REQUESTER_SUCCESS) {
-        MCTP_CTRL_ERR("%s: Failed to received message %d\n", __func__, mctp_ret);
-        return MCTP_CMD_FAILED;
+
+    while (1) {
+        mctp_ret = mctp_client_recv(cmd->dest_eid, sock_fd, &mctp_resp_msg, &resp_msg_len);
+        if (mctp_ret != MCTP_REQUESTER_SUCCESS) {
+
+            /* End time */
+            t_end = mctp_millis();
+ 
+            /* Check if it's timedout or not */
+            if ((t_end - t_start) > MCTP_CTRL_WAIT_TIME) {
+                MCTP_CTRL_ERR("%s: MCTP Rx Command Timed out (waited %f seconds)\n",
+                                __func__, (float) (t_end - t_start)/(float)MCTP_CTRL_WAIT_SECONDS);
+            }
+
+            /* Return as failed once crossed threshold */
+            if (retry >= MCTP_CTRL_CMD_RETRY_THRESHOLD) {
+                MCTP_CTRL_ERR("%s: Failed to received message %d\n", __func__, mctp_ret);
+                return MCTP_CMD_FAILED;
+            }
+
+            MCTP_CTRL_ERR("%s: Retrying [%d] time\n", __func__, ++retry);
+            t_start = t_end;
+        } else {
+            /* End time */
+            t_end = mctp_millis();
+  
+            printf("%s: Successfully received message\n", __func__);
+            break;
+        }
     }
 
-    /* Timestamp Day and Date */
-    time(&now);
-
-    /* End time */
-    t_end = mctp_millis();
-
-    printf("%s: Successfully received message\n", __func__);
     printf("Command Done in [%d] ms\n", (t_end - t_start));
 
     return MCTP_CMD_SUCCESS;
