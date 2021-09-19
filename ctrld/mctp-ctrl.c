@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -260,14 +261,26 @@ static const struct option g_options[] = {
 
 const char * const short_options = "v:e:m:t:s:b:r:h";
 
+static int64_t mctp_millis()
+{
+    struct timespec now;
+    timespec_get(&now, TIME_UTC);
+    return ((int64_t) now.tv_sec) * 1000 + ((int64_t) now.tv_nsec) / 1000000;
+}
+
 int mctp_cmdline_exec (mctp_cmdline_args_t  *cmd, int sock_fd)
 {
     mctp_requester_rc_t             mctp_ret;
     size_t                          resp_msg_len;
     uint8_t                         *mctp_resp_msg;
     struct mctp_astpcie_pkt_private pvt_binding;
+    time_t                          now;
+    int64_t                         t_start, t_end;
 
     assert(cmd);
+
+    /* Start time */
+    t_start = mctp_millis();
 
     switch (cmd->ops) {
         case MCTP_CMDLINE_OP_WRITE_DATA:
@@ -331,7 +344,14 @@ int mctp_cmdline_exec (mctp_cmdline_args_t  *cmd, int sock_fd)
         return MCTP_CMD_FAILED;
     }
 
+    /* Timestamp Day and Date */
+    time(&now);
+
+    /* End time */
+    t_end = mctp_millis();
+
     printf("%s: Successfully received message\n", __func__);
+    printf("Command Done in [%d] ms\n", (t_end - t_start));
 
     return MCTP_CMD_SUCCESS;
 }
