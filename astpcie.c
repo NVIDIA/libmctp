@@ -181,38 +181,44 @@ static uint16_t mctp_astpcie_tx_get_payload_size_dw(struct mctp_pktbuf *pkt)
 
 	return PCIE_PKT_ALIGN(sz) / sizeof(uint32_t) - MCTP_HDR_SIZE_DW;
 }
+
 /*
  * Tx function which writes single packet to device driver
  */
 static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 {
-	struct mctp_astpcie_pkt_private *pkt_prv =
-		(struct mctp_astpcie_pkt_private *)pkt->msg_binding_private;
-	struct mctp_binding_astpcie *astpcie = binding_to_astpcie(b);
-	struct mctp_pcie_hdr *hdr = (struct mctp_pcie_hdr *)pkt->data;
-	struct mctp_hdr *mctp_hdr = mctp_pktbuf_hdr(pkt);
-	uint16_t payload_len_dw = mctp_astpcie_tx_get_payload_size_dw(pkt);
-	uint8_t pad = mctp_astpcie_tx_get_pad_len(pkt);
-	ssize_t write_len, len;
-	int mctp_hdr_len = ((payload_len_dw * sizeof(uint32_t)) + (sizeof(struct mctp_hdr)));
-    uint8_t *mctp_hdr_data;
+	struct mctp_astpcie_pkt_private     *pkt_prv = (struct mctp_astpcie_pkt_private *)pkt->msg_binding_private;
+	struct mctp_binding_astpcie         *astpcie = binding_to_astpcie(b);
+	struct mctp_pcie_hdr                hdr[PCIE_VDM_HDR_SIZE];
+	struct mctp_hdr                     *mctp_hdr = mctp_pktbuf_hdr(pkt);
+	uint16_t                            payload_len_dw = mctp_astpcie_tx_get_payload_size_dw(pkt);
+	uint8_t                             pad = mctp_astpcie_tx_get_pad_len(pkt);
+	ssize_t                             write_len, len;
+	int                                 mctp_hdr_len = ((payload_len_dw * sizeof(uint32_t)) + (sizeof(struct mctp_hdr)));
+    uint8_t                             *pcie_mctp_hdr_data;
 
-    /* Allocate memory for MCTP header */
-    mctp_hdr_data = malloc(mctp_hdr_len);
-    if (!mctp_hdr_data) {
+    /* Do a sanity check before proceeding */
+    if (payload_len_dw > 16) {
+        mctp_prdebug("Invalid payload len: %d, pad: %d", payload_len_dw, pad);
+        return -1;
+    }
+
+    /* Allocate memory for PCIe-header, MCTP header and payload */
+    pcie_mctp_hdr_data = (uint8_t *) malloc(PCIE_VDM_HDR_SIZE + mctp_hdr_len);
+    if (!pcie_mctp_hdr_data) {
         mctp_prerr("malloc failed, errno = %d", errno);
         return 0;
     }
 
-    /* Reset the buffer and copy MCTP header and data */
-	memset(mctp_hdr_data, 0, mctp_hdr_len);
-	memcpy(mctp_hdr_data, (unsigned char *) pkt->data, mctp_hdr_len - pad);
+    /* Reset the buffer */
+	memset(pcie_mctp_hdr_data, 0, (PCIE_VDM_HDR_SIZE + mctp_hdr_len));
+
+    /* Copy MCTP header and data from core buffer */
+	memcpy((pcie_mctp_hdr_data + PCIE_VDM_HDR_SIZE),
+                    (unsigned char *) pkt->data, mctp_hdr_len - pad);
 
     /* Copy PCIe header template */
 	memcpy(hdr, &mctp_pcie_hdr_template_be, sizeof(*hdr));
-
-
-	mctp_prdebug("TX, len: %d, pad: %d", payload_len_dw, pad);
 
     /* Update the private data if null */
     if (!pkt_prv) {
@@ -228,19 +234,19 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	len = (payload_len_dw * sizeof(uint32_t)) +
 	      ASPEED_MCTP_PCIE_VDM_HDR_SIZE;
 
-	memcpy((unsigned char *) pkt->data + MCTP_HDR_START_DW,
-				(unsigned char *) mctp_hdr_data, mctp_hdr_len);
+    /* Copy PCIe header to original buffer */
+	memcpy(pcie_mctp_hdr_data, hdr, sizeof(*hdr));
 
-	mctp_trace_tx(pkt->data, len);
+	mctp_trace_tx(pcie_mctp_hdr_data, len);
 
-	write_len = write(astpcie->fd, pkt->data, len);
+	write_len = write(astpcie->fd, pcie_mctp_hdr_data, len);
 	if (write_len < 0) {
 		mctp_prerr("TX error");
 		return -1;
 	}
 
     /* Free up the MCTP header */
-    free(mctp_hdr_data);
+    free(pcie_mctp_hdr_data);
 
 	return 0;
 }
@@ -342,7 +348,6 @@ int mctp_astpcie_rx(struct mctp_binding_astpcie *astpcie)
 		return -1;
 	}
 
-	mctp_hdr = mctp_pktbuf_hdr(pkt);
 	memcpy(pkt->msg_binding_private, &pkt_prv, sizeof(pkt_prv));
 
 	mctp_bus_rx(&astpcie->binding, pkt);

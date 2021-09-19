@@ -63,6 +63,7 @@ struct mctp_pcie_hdr {
 #define MSG_CODE_VDM_TYPE_1 0x7f
 #define VENDOR_ID_DMTF_VDM 0xb41a
 
+#define PCIE_VDM_HDR_SIZE 12
 #define PCIE_HDR_ROUTING_SHIFT 0
 #define PCIE_HDR_ROUTING_MASK 0x7
 
@@ -74,6 +75,9 @@ struct mctp_pcie_hdr {
 
 #define PCIE_HDR_DATA_LEN_SHIFT 0
 #define PCIE_HDR_DATA_LEN_MASK 0xff03
+
+#define PCIE_MAX_DATA_LEN_DW 1024
+#define PCIE_MAX_DATA_LEN (PCIE_MAX_DATA_LEN_DW * sizeof(uint32_t))
 
 #define PCIE_GET_DATA_LEN(x)                                                   \
 	be16toh(((x->mbz_attr_length >> PCIE_HDR_DATA_LEN_SHIFT) &             \
