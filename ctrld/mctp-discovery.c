@@ -735,8 +735,8 @@ int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
             /* update the eid_count pointer */
             *eid_count = set_eid_resp.eid_pool_size;
         } else {
-            MCTP_CTRL_ERR("%s: pool size req (0x%x) is greater than global pool (0x%x)\n",
-                                                    __func__, g_eid_pool_size);
+            MCTP_CTRL_ERR("%s: pool size req %d is greater than global pool %lu\n",
+                                                    __func__, g_eid_pool_size, sizeof(MCTP_FPGA_EID_POOL));
             /* Free Rx packet */
             free(mctp_resp_msg);
 
@@ -1231,7 +1231,7 @@ static mctp_ret_codes_t mctp_discover_response(mctp_discovery_mode mode,
                 MCTP_CTRL_ERR("%s: Failed to received message %d\n", __func__, mctp_ret);
                 return MCTP_RET_REQUEST_FAILED;
             }
-            
+
             break;
 
         default:
@@ -1272,11 +1272,9 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                                         ctrl->sock, &mctp_resp_msg, &resp_msg_len);
         if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
             MCTP_CTRL_ERR("%s: Failed to received message %d\n", __func__, mctp_ret);
-            break;
+            return MCTP_RET_DISCOVERY_FAILED;
         }
        
-        //MCTP_CTRL_TRACE("%s: Successfully received message..\n", __func__);
- 
         switch(discovery_mode) {
             case MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST:
     
@@ -1401,8 +1399,8 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                  * Sleep for a while, since the device need to allocate EIDs
                  * to downstream devices
                  */
-                MCTP_CTRL_DEBUG("%s: MCTP_ALLOCATE_EP_ID_RESPONSE (sleep for 5 seconds..)\n", __func__);
-                sleep(5);
+                MCTP_CTRL_DEBUG("%s: MCTP_ALLOCATE_EP_ID_RESPONSE (sleep for a while..)\n", __func__);
+                sleep(2);
 
                 break;
 
@@ -1470,11 +1468,14 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
 
             case MCTP_GET_EP_UUID_RESPONSE:
 
-                /* Process the MCTP_GET_EP_UUID_RESPONSE */
-                mctp_ret = mctp_get_endpoint_uuid_response(eid_start, mctp_resp_msg, resp_msg_len);
-                if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
-                    MCTP_CTRL_ERR("%s: MCTP_GET_EP_UUID_RESPONSE\n", __func__);
-                    return MCTP_RET_DISCOVERY_FAILED;
+                if (mctp_ret == MCTP_RET_REQUEST_FAILED) {
+                    MCTP_CTRL_ERR("%s: MCTP_GET_EP_UUID_RESPONSE Failed EID: %d\n", __func__, eid_start);
+                } else {
+                    /* Process the MCTP_GET_EP_UUID_RESPONSE */
+                    mctp_ret = mctp_get_endpoint_uuid_response(eid_start, mctp_resp_msg, resp_msg_len);
+                    if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+                        MCTP_CTRL_ERR("%s: MCTP_GET_EP_UUID_RESPONSE Failed\n", __func__);
+                    }
                 }
 
                 /* Increment the routing entry */
@@ -1520,17 +1521,20 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
 
             case MCTP_GET_MSG_TYPE_RESPONSE:
 
-                /* Process the MCTP_GET_MSG_TYPE_RESPONSE */
-                mctp_ret = mctp_get_msg_type_response(eid_start, mctp_resp_msg, resp_msg_len);
-                if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
-                    MCTP_CTRL_ERR("%s: MCTP_GET_MSG_TYPE_RESPONSE\n", __func__);
-                    return MCTP_RET_DISCOVERY_FAILED;
+                if (mctp_ret == MCTP_RET_REQUEST_FAILED) {
+                    MCTP_CTRL_ERR("%s: MCTP_GET_MSG_TYPE_RESPONSE Failed EID: %d\n", __func__, eid_start);
+                } else {
+                    /* Process the MCTP_GET_MSG_TYPE_RESPONSE */
+                    mctp_ret = mctp_get_msg_type_response(eid_start, mctp_resp_msg, resp_msg_len);
+                    if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+                        MCTP_CTRL_ERR("%s: MCTP_GET_MSG_TYPE_RESPONSE Failed\n", __func__);
+                    }
                 }
 
                 /* Increment the routing entry */
                 routing_entry = routing_entry->next;
 
-                /* Continue probing all UUID requests */
+                /* Continue probing all Msg type requests */
                 if (routing_entry) {
 
                     /* Next step is to Get Endpoint UUID request */
