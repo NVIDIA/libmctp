@@ -344,6 +344,9 @@ int mctp_set_rx_all(struct mctp *mctp, mctp_rx_fn fn, void *data)
 static struct mctp_bus *find_bus_for_eid(struct mctp *mctp, mctp_eid_t dest
 					 __attribute__((unused)))
 {
+	if (mctp->n_busses == 0)
+		return NULL;
+
 	/* for now, just use the first bus. For full routing support,
 	 * we will need a table of neighbours */
 	return &mctp->busses[0];
@@ -837,6 +840,9 @@ int mctp_message_pvt_bind_tx(struct mctp *mctp, mctp_eid_t eid, void *msg,
 	struct mctp_bus *bus;
 
 	bus = find_bus_for_eid(mctp, eid);
+	if (!bus)
+		return 0;
 	return mctp_message_tx_on_bus(bus, bus->eid, eid, msg, msg_len,
 				      msg_binding_private);
+
 }
