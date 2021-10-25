@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <byteswap.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -213,11 +214,11 @@ static int mctp_ctrl_sdbus_get_uuid(sd_bus *bus,
         if (entry->eid == eid_req) {
             /* Frame the message */
             snprintf(uuid_data, MCTP_CTRL_SDBUS_MAX_MSG_SIZE,
-                            "%x-%x-%x-%x-%x%x%x%x%x%x",
-                            entry->uuid.canonical.data0,
-                            entry->uuid.canonical.data1,
-                            entry->uuid.canonical.data2,
-                            entry->uuid.canonical.data3,
+                    "%08x-%04x-%04x-%04x-%02x%02x%02x%02x%02x%02x",
+                            __bswap_32(entry->uuid.canonical.data0),
+                            __bswap_16(entry->uuid.canonical.data1),
+                            __bswap_16(entry->uuid.canonical.data2),
+                            __bswap_16(entry->uuid.canonical.data3),
                             entry->uuid.canonical.data4[0],
                             entry->uuid.canonical.data4[1],
                             entry->uuid.canonical.data4[2],
@@ -288,6 +289,14 @@ int mctp_ctrl_sdbus_init (void)
         goto finish;
     }
 
+    MCTP_CTRL_TRACE("Requesting dbus name: %s\n", MCTP_CTRL_DBUS_NAME);
+    r = sd_bus_request_name(context->bus, MCTP_CTRL_DBUS_NAME,
+                SD_BUS_NAME_ALLOW_REPLACEMENT|SD_BUS_NAME_REPLACE_EXISTING);
+    if (r < 0) {
+        MCTP_CTRL_ERR("Failed to acquire service name: %s\n", strerror(-r));
+        goto finish;
+    }
+
     while (entry != NULL) {
 
         /* Reset the message buffer */
@@ -312,15 +321,6 @@ int mctp_ctrl_sdbus_init (void)
             goto finish;
         }
 
-
-        r = sd_bus_emit_signal(context->bus, mctp_ctrl_objpath,
-                                MCTP_CTRL_DBUS_EP_INTERFACE, "Endpoint", NULL);
-        if (r < 0) {
-            MCTP_CTRL_ERR("Failed to emit Endpoint signal: %s\n", strerror(-r));
-            goto finish;
-        }
-
-
         MCTP_CTRL_TRACE("Registering object '%s' for UUID: %d\n",
                                             mctp_ctrl_objpath, entry->eid);
         r = sd_bus_add_object_vtable(context->bus,
@@ -334,23 +334,14 @@ int mctp_ctrl_sdbus_init (void)
             goto finish;
         }
 
-        r = sd_bus_emit_signal(context->bus, mctp_ctrl_objpath,
-                                MCTP_CTRL_DBUS_EP_INTERFACE, "UUID", NULL);
+        r = sd_bus_emit_object_added(context->bus, mctp_ctrl_objpath);
         if (r < 0) {
-            MCTP_CTRL_ERR("Failed to emit UUID signal: %s\n", strerror(-r));
+            MCTP_CTRL_ERR("Failed to emit object added: %s\n", strerror(-r));
             goto finish;
         }
 
         /* Increment for next entry */
         entry = entry->next;
-    }
-
-    MCTP_CTRL_TRACE("Requesting dbus name: %s\n", MCTP_CTRL_DBUS_NAME);
-    r = sd_bus_request_name(context->bus, MCTP_CTRL_DBUS_NAME,
-                SD_BUS_NAME_ALLOW_REPLACEMENT|SD_BUS_NAME_REPLACE_EXISTING);
-    if (r < 0) {
-        MCTP_CTRL_ERR("Failed to acquire service name: %s\n", strerror(-r));
-        goto finish;
     }
 
     MCTP_CTRL_TRACE("Getting dbus file descriptors\n");
