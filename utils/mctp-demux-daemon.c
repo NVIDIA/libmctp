@@ -24,6 +24,7 @@
 #include "libmctp.h"
 #include "libmctp-serial.h"
 #include "libmctp-astlpc.h"
+#include "libmctp-astpcie.h"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #define __unused __attribute__((unused))
@@ -228,6 +229,39 @@ static int binding_astlpc_process(struct binding *binding)
 	return mctp_astlpc_poll(binding->data);
 }
 
+static int binding_astpcie_init(struct mctp *mctp, struct binding *binding,
+		mctp_eid_t eid, int n_params,
+		char * const *params __attribute__((unused)))
+{
+	struct mctp_binding_astpcie *astpcie;
+
+	if (n_params) {
+		warnx("astpcie binding does not accept parameters");
+		return -1;
+	}
+
+	astpcie = mctp_astpcie_init_fileio();
+	if (!astpcie) {
+		warnx("could not initialise astpcie binding");
+		return -1;
+	}
+
+	mctp_register_bus(mctp, mctp_binding_astpcie_core(astpcie), eid);
+
+	binding->data = astpcie;
+	return 0;
+}
+
+static int binding_astpcie_get_fd(struct binding *binding)
+{
+	return mctp_astpcie_get_fd(binding->data);
+}
+
+static int binding_astpcie_process(struct binding *binding)
+{
+	return mctp_astpcie_poll(binding->data, MCTP_ASTPCIE_POLL_TIMEOUT);
+}
+
 struct binding bindings[] = {
 	{
 		.name = "null",
@@ -244,7 +278,14 @@ struct binding bindings[] = {
 		.init = binding_astlpc_init,
 		.get_fd = binding_astlpc_get_fd,
 		.process = binding_astlpc_process,
+	},
+    {
+		.name = "astpcie",
+		.init = binding_astpcie_init,
+		.get_fd = binding_astpcie_get_fd,
+		.process = binding_astpcie_process,
 	}
+
 };
 
 struct binding *binding_lookup(const char *name)

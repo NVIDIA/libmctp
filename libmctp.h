@@ -80,6 +80,8 @@ struct mctp_pktbuf {
 	size_t		start, end, size;
 	size_t		mctp_hdr_off;
 	struct mctp_pktbuf *next;
+        /* binding private data */
+        void *msg_binding_private;
 	unsigned char	data[];
 };
 
@@ -138,6 +140,7 @@ struct mctp_binding {
 	struct mctp_bus *bus;
 	struct mctp *mctp;
 	size_t pkt_size;
+	size_t pkt_priv_size;
 	size_t pkt_header;
 	size_t pkt_trailer;
 	int (*start)(struct mctp_binding *binding);
