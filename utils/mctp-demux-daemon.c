@@ -29,6 +29,13 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #define __unused __attribute__((unused))
 
+#define MCTP_BIND_INFO_OFFSET      (sizeof(uint8_t))
+#define MCTP_PCIE_EID_OFFSET       MCTP_BIND_INFO_OFFSET + \
+                                   sizeof(struct mctp_astpcie_pkt_private)
+#define MCTP_PCIE_MSG_OFFSET       MCTP_PCIE_EID_OFFSET + (sizeof(uint8_t))
+
+
+
 #if HAVE_SYSTEMD_SD_DAEMON_H
 #include <systemd/sd-daemon.h>
 #else
@@ -71,6 +78,43 @@ struct ctx {
 	struct client	*clients;
 	int		n_clients;
 };
+
+static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
+{
+    int rc;
+    mctp_binding_ids_t bind_id;
+    struct mctp_astpcie_pkt_private pvt_binding;
+    mctp_eid_t eid;
+
+    /* Get the bus type (binding ID) */
+    bind_id = *((uint8_t *)msg);
+
+    /* Handle based on bind ID's */
+    switch (bind_id) {
+        case MCTP_BINDING_PCIE:
+
+            /* Copy the binding information */
+            memcpy(&pvt_binding, (msg + MCTP_BIND_INFO_OFFSET),
+                                sizeof(struct mctp_astpcie_pkt_private));
+
+            /* Get target EID */
+            eid = *((uint8_t *)msg + MCTP_PCIE_EID_OFFSET);
+
+            /* Set MCTP payload size */
+            len = len - (MCTP_PCIE_MSG_OFFSET);
+
+            break;
+
+        default:
+            warnx("Invalid/Unsupported binding ID %d", bind_id);
+            break;
+    }
+
+    rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, msg, len,
+                                     (void*) &pvt_binding);
+    if (rc)
+        warnx("Failed to send message: %d", rc);
+}
 
 static void tx_message(struct ctx *ctx, mctp_eid_t eid, void *msg, size_t len)
 {
@@ -365,6 +409,9 @@ static int socket_process(struct ctx *ctx)
 	client->active = true;
 	client->sock = fd;
 
+    /* Reset client type to 0xff as type-0 is for MCTP ctrl */
+    client->type = 0xff;
+
 	return 0;
 }
 
@@ -376,16 +423,12 @@ static int client_process_recv(struct ctx *ctx, int idx)
 	int rc;
 
 	/* are we waiting for a type message? */
-	if (!client->type) {
+	if (client->type == 0xff) {
 		uint8_t type;
 		rc = read(client->sock, &type, 1);
 		if (rc <= 0)
 			goto out_close;
 
-		if (type == 0) {
-			rc = -1;
-			goto out_close;
-		}
 		if (ctx->verbose)
 			fprintf(stderr, "client[%d] registered for type %u\n",
 					idx, type);
@@ -427,6 +470,20 @@ static int client_process_recv(struct ctx *ctx, int idx)
 		rc = -1;
 		goto out_close;
 	}
+
+    /* Need a special handling for MCTP-Ctrl type
+     * as it will use different packet formatting as mentioned
+     * below:
+     * PKT-FORMAT:
+     *          [MCTP-BIND-ID]
+     *          [MCTP-PVT-BIND-INFO]
+     *          [MCTP-MSG-HDR]
+     *          [MCTP-MSG]
+     */
+    if (client->type == MCTP_MESSAGE_TYPE_MCTP_CTRL) {
+        tx_pvt_message(ctx, ctx->buf, rc);
+        return 0;
+    }
 
 	eid = *(uint8_t *)ctx->buf;
 

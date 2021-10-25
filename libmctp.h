@@ -74,6 +74,46 @@ enum MCTP_CONTROL_MSG_COMPLETION_CODE {
 	MCTP_CONTROL_MSG_STATUS_ERROR_UNSUPPORTED_CMD	= 0x05
 };
 
+/*
+ * MCTP Message Type codes
+ * See DSP0239 v1.7.0 Table 1.
+ */
+
+typedef enum {
+
+    /* MCTP Control message type starts from 0*/
+    MCTP_MESSAGE_TYPE_MCTP_CTRL = 0x00,
+    MCTP_MESSAGE_TYPE_PLDM,
+    MCTP_MESSAGE_TYPE_NCSI,
+    MCTP_MESSAGE_TYPE_ETHERNET,
+    MCTP_MESSAGE_TYPE_NVME,
+    MCTP_MESSAGE_TYPE_SPDM,
+    MCTP_MESSAGE_TYPE_SECUREDMSG,
+
+    /* MCTP VDPCI message type starts from 0x7e */
+    MCTP_MESSAGE_TYPE_VDPCI  = 0x7E,
+    MCTP_MESSAGE_TYPE_VDIANA
+} mcpt_msg_type_t;
+
+/* MCTP Physical Transport Binding identifiers
+ * See DSP0239 v1.7.0 Table 3.
+ */
+
+typedef enum {
+
+    /* Starts with Reserved */
+    MCTP_BINDING_RESERVED = 0,
+    MCTP_BINDING_SMBUS,
+    MCTP_BINDING_PCIE,
+    MCTP_BINDING_USB,
+    MCTP_BINDING_KCS,
+    MCTP_BINDING_SERIAL,
+
+    /*Last is the vendor ID, all others reserved */
+    MCTP_BINDING_VEDNOR = 0xff
+} mctp_binding_ids_t;
+
+
 /* packet buffers */
 
 struct mctp_pktbuf {
