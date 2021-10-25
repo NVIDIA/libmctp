@@ -8,6 +8,8 @@
 
 #define MCTP_CMDLINE_WRBUFF_WIDTH   3
 
+#define MCTP_CTRL_DELAY_DEFAULT     10
+
 /* Command line options for various operations */
 typedef enum mctp_cmdline_ops {
     MCTP_CMDLINE_OP_READ_DATA,
@@ -23,6 +25,7 @@ typedef struct mctp_cmdline_args_ {
     char                    name[10];
     int                     device_id;
     bool                    verbose;
+    uint8_t                 delay;
     mctp_binding_ids_t      binding_type;
     uint8_t                 bind_info[MCTP_PVT_BIND_BUFF_SIZE];
     int                     bind_len;

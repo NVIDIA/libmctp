@@ -62,6 +62,10 @@ const uint8_t MCTP_CTRL_MSG_TYPE = 0;
 
 static int g_socket_fd = -1;
 
+extern void mctp_routing_entry_delete_all(void);
+extern void mctp_uuid_delete_all(void);
+extern void mctp_msg_types_delete_all(void);
+extern mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *ctrl);
 
 void mctp_ctrl_clean_up(void)
 {
@@ -274,6 +278,7 @@ static const struct option g_options[] = {
     { "eid",        required_argument,  0, 'e' },
     { "mode",       required_argument,  0, 'm' },
     { "type",       required_argument,  0, 't' },
+    { "delay",      required_argument,  0, 'd' },
     { "tx",         required_argument,  0, 's' },
     { "rx",         required_argument,  0, 'r' },
     { "bindinfo",   required_argument,  0, 'b' },
@@ -281,7 +286,7 @@ static const struct option g_options[] = {
     { 0 },
 };
 
-const char * const short_options = "v:e:m:t:s:b:r:h";
+const char * const short_options = "v:e:m:t:d:s:b:r:h";
 
 static int64_t mctp_millis()
 {
@@ -392,7 +397,7 @@ int mctp_cmdline_exec (mctp_cmdline_args_t  *cmd, int sock_fd)
         }
     }
 
-    printf("Command Done in [%d] ms\n", (t_end - t_start));
+    printf("Command Done in [%ld] ms\n", (t_end - t_start));
 
     return MCTP_CMD_SUCCESS;
 }
@@ -504,7 +509,6 @@ int main (int argc, char * const *argv)
     int                     rc;
     mctp_ctrl_t             *mctp_ctrl, _mctp_ctrl;
     mctp_requester_rc_t     mctp_ret;
-
     mctp_cmdline_args_t     cmdline;
 
     /* Initialize MCTP ctrl structure */
@@ -524,6 +528,7 @@ int main (int argc, char * const *argv)
     cmdline.device_id       = -1;
     cmdline.verbose         = false;
     cmdline.binding_type    = MCTP_BINDING_RESERVED;
+    cmdline.delay           = MCTP_CTRL_DELAY_DEFAULT;
     cmdline.read            = 0;
     cmdline.write           = 0;
     cmdline.use_socket      = 0;
@@ -556,6 +561,9 @@ int main (int argc, char * const *argv)
             case 't':
                 cmdline.binding_type = (uint8_t) atoi(optarg);
                 break;
+            case 'd':
+                cmdline.delay = (uint8_t) atoi(optarg);
+                break;
             case 'b':
                 cmdline.bind_len = mctp_cmdline_copy_tx_buff(optarg,
                                             cmdline.bind_info, strlen(optarg));
@@ -572,6 +580,7 @@ int main (int argc, char * const *argv)
                                 "\t-m\tMode: (0 - Commandline mode, 1 - daemon mode)\n"
                                 "\t-t\tBinding Type (0 - Resvd, 2 - PCIe)\n"
                                 "\t-b\tBinding data (pvt)\n"
+                                "\t-d\tDelay in seconds (for MCTP enumeration)\n"
                                 "\t-s\tTx data (MCTP packet payload: [Req-dgram]-[cmd-code]--)\n"
                                 "\t-h\tPrints this message\n"
                                 "Eg: To send MCTP message of PCIe type:\n"
@@ -582,6 +591,9 @@ int main (int argc, char * const *argv)
                 return EXIT_FAILURE;
         }
     }
+
+    /* sleep before starting the daemon */
+    sleep(cmdline.delay);
 
     /* Open the user socket file-descriptor */
     rc = mctp_usr_socket_init(mctp_ctrl);
