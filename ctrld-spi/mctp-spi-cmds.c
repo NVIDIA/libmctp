@@ -82,17 +82,20 @@
 
 /* Static variables */
 static int      spi_fd = -1;
-volatile int    message_available_test = 0;
+volatile int    message_available = MCTP_RX_MSG_INTR_RST;
 static int      g_gpio_grant_fd = -1;
 static int      g_gpio_intr_fd = -1;
 
 
 /* Static function prototypes */
-static int      ast_gpio_read_interrupt_pin_test(void);
-static int      on_mode_change_test(bool quad, uint8_t waitCycles);
-static int      mctp_spi_xfer_test(int sendLen, uint8_t* sbuf,
+static int      ast_gpio_read_interrupt_pin(void);
+static int      ast_spi_on_mode_change(bool quad, uint8_t waitCycles);
+static int      mctp_spi_xfer(int sendLen, uint8_t* sbuf,
                          int recvLen, uint8_t* rbuf,
                          bool deassert);
+
+/* External variables */
+extern volatile uint32_t *g_gpio_intr_occured;
 
 
 static uint8_t g_spi_hdr_default[MCTP_SPI_HDR_LEN] = {
@@ -110,13 +113,13 @@ static uint8_t g_mctp_hdr_default[MCTP_TRANSPORT_HDR_LEN] = {
     MCTP_TRANSPORT_MESSAGE_TAG   
 };
 
-static SpbAp nvda_spb_ap_test = {
+static SpbAp nvda_spb_ap = {
     .debug_level             = 0,
     .use_interrupt           = 1,
-    .message_available       = &message_available_test,
-    .gpio_read_interrupt_pin = ast_gpio_read_interrupt_pin_test,
-    .on_mode_change          = on_mode_change_test,
-    .spi_xfer                = mctp_spi_xfer_test,
+    .message_available       = &message_available,
+    .gpio_read_interrupt_pin = ast_gpio_read_interrupt_pin,
+    .on_mode_change          = ast_spi_on_mode_change,
+    .spi_xfer                = mctp_spi_xfer,
 };
 
 /* Set Endpoint ID test packet */
@@ -295,30 +298,7 @@ int convert_gpio_to_num(const char* gpio)
 	return (port * AST_GPIO_PORT_OFFSET) + offset + AST_BASE_GPIO_ADDR;
 }
 
-static int mctp_spi_gpio_get_fd_test(int gpio_num)
-{
-    char    cmd[512];
-    char    str[256];
-    int     fd, rc;
-    char    buf[8];
-
-    sprintf(str, "/sys/class/gpio/gpio%d/value", gpio_num);
-
-    if ((fd = open(str, O_RDONLY)) < 0) {
-        MCTP_CTRL_ERR("Failed, gpio %d not exported.\n", gpio_num);
-        return fd;
-    }
-
-    /* Consume any prior interrupts */
-    lseek(fd, 0, SEEK_SET);
-    rc = read(fd, buf, sizeof buf);
-
-    return fd;
-}
-
-extern volatile uint32_t *g_gpio_intr_occured;
-
-static int ast_gpio_read_interrupt_pin_test()
+static int ast_gpio_read_interrupt_pin()
 {
     int rc;
     char buf[8];
@@ -335,13 +315,17 @@ static int ast_gpio_read_interrupt_pin_test()
     return AST_GPIO_POLL_LOW;
 }
 
-static int on_mode_change_test(bool quad, uint8_t waitCycles)
+static int ast_spi_on_mode_change(bool quad, uint8_t waitCycles)
 {
-    // handle mode change here (Eg: Quad/Dual etc...)
+    /*
+     * Placeholder function to handle mode change here
+     * (Eg: Quad/Dual etc...)
+     */
+
     return 0;
 }
 
-static int mctp_spi_xfer_test(int sendLen, uint8_t* sbuf,
+static int mctp_spi_xfer(int sendLen, uint8_t* sbuf,
                          int recvLen, uint8_t* rbuf,
                          bool deassert)
 {
@@ -357,16 +341,10 @@ static int mctp_spi_xfer_test(int sendLen, uint8_t* sbuf,
 
     memcpy(sbuf2, sbuf, sendLen);
 
-    //pin_write(static_cast<int>(_csPin), 0);
-
     status = ast_spi_xfer(spi_fd, sbuf2, len, rbuf2, recvLen, deassert);
 
     // shift out send section
     memcpy(rbuf, rbuf2, recvLen);
-
-    if (deassert) {
-        //pin_write(static_cast<int>(_csPin), 1);
-    }
 
     return 0;
 }
@@ -382,7 +360,7 @@ int mctp_spi_init(mctp_spi_cmdline_args_t *cmd)
     }
 
     /* Initialize SPB AP Library */
-    if (spb_ap_initialize(&nvda_spb_ap_test) != SPB_AP_OK) {
+    if (spb_ap_initialize(&nvda_spb_ap) != SPB_AP_OK) {
         MCTP_CTRL_ERR("%s: Cannot initialize SPB AP\n", __func__);
     }
 
@@ -400,10 +378,29 @@ int mctp_spi_deinit(void)
     return MCTP_SPI_SUCCESS;
 }
 
+static inline int mctp_rx_wait_time(int threshold)
+{
+    int timeout = 0;
+
+    do {
+        timeout++;
+        if (timeout > threshold) {
+            MCTP_CTRL_ERR("%s: Timedout[%d sec] Response message not available\n",
+                                            __func__, (threshold * MCTP_SPI_CMD_DELAY)/1000);
+            return MCTP_SPI_FAILURE;
+        }
+
+        usleep(MCTP_SPI_CMD_DELAY);
+    } while (message_available != MCTP_RX_MSG_INTR);
+
+    /* Reset the status once consumed */
+    message_available = MCTP_RX_MSG_INTR_RST;
+    return MCTP_SPI_SUCCESS;
+}
+
 int mctp_spi_set_endpoint_id(mctp_spi_cmdline_args_t *cmd)
 {
     SpbApStatus     status;
-    int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_set_endpoint_id_cmd)];
 
     mctp_spi_print_msg("MCTP_SPI_SET_ENDPOINT_ID",
@@ -418,19 +415,11 @@ int mctp_spi_set_endpoint_id(mctp_spi_cmdline_args_t *cmd)
     }
 
     MCTP_CTRL_DEBUG("Sent MCTP_SPI_SET_ENDPOINT_ID request successfully\n");
-    do {
-        timeout++;
 
-        if (timeout > 10) {
-            MCTP_CTRL_ERR("%s: Timedout[%d secs] Response message not available\n",
-                                                                    __func__, timeout);
-            return MCTP_SPI_FAILURE;
-        }
-
-        usleep(MCTP_SPI_CMD_DELAY);
-    } while (message_available_test != 1);
-
-    message_available_test = 0;
+    /* Wait for the message interrupt */
+    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
+        return MCTP_SPI_FAILURE;
+    }
 
     /* Call the receive procedure */
     status = spb_ap_recv(sizeof(mctp_spi_set_endpoint_id_cmd),
@@ -451,7 +440,6 @@ int mctp_spi_set_endpoint_id(mctp_spi_cmdline_args_t *cmd)
 int mctp_spi_get_endpoint_id(mctp_spi_cmdline_args_t *cmd)
 {
     SpbApStatus     status;
-    int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_get_endpoint_id_cmd)];
 
     mctp_spi_print_msg("MCTP_SPI_GET_ENDPOINT_ID",
@@ -466,19 +454,11 @@ int mctp_spi_get_endpoint_id(mctp_spi_cmdline_args_t *cmd)
     }
 
     MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_ENDPOINT_ID request successfully\n");
-    do {
-        timeout++;
 
-        if (timeout > 10) {
-            MCTP_CTRL_ERR("%s: Timedout[%d secs] Response message not available\n",
-                                                                    __func__, timeout);
-            return MCTP_SPI_FAILURE;
-        }
-
-        usleep(MCTP_SPI_CMD_DELAY);
-    } while (message_available_test != 1);
-
-    message_available_test = 0;
+    /* Wait for the message interrupt */
+    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
+        return MCTP_SPI_FAILURE;
+    }
 
     /* Call the receive procedure */
     status = spb_ap_recv(sizeof(mctp_spi_get_endpoint_id_cmd),
@@ -499,7 +479,6 @@ int mctp_spi_get_endpoint_id(mctp_spi_cmdline_args_t *cmd)
 int mctp_spi_get_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
 {
     SpbApStatus     status;
-    int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_get_endpoint_uuid_cmd)];
 
     mctp_spi_print_msg("MCTP_SPI_GET_ENDPOINT_UUID",
@@ -514,19 +493,11 @@ int mctp_spi_get_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
     }
 
     MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_ENDPOINT_UUID request successfully\n");
-    do {
-        timeout++;
 
-        if (timeout > 10) {
-            MCTP_CTRL_ERR("%s: Timedout[%d secs] Response message not available\n",
-                                                                    __func__, timeout);
-            return MCTP_SPI_FAILURE;
-        }
-
-        usleep(MCTP_SPI_CMD_DELAY);
-    } while (message_available_test != 1);
-
-    message_available_test = 0;
+    /* Wait for the message interrupt */
+    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
+        return MCTP_SPI_FAILURE;
+    }
 
     /* Call the receive procedure */
     status = spb_ap_recv(sizeof(mctp_spi_get_endpoint_uuid_cmd),
@@ -547,7 +518,6 @@ int mctp_spi_get_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
 int mctp_spi_get_version_support(mctp_spi_cmdline_args_t *cmd)
 {
     SpbApStatus     status;
-    int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_get_mctp_version_support_cmd)];
 
     mctp_spi_print_msg("MCTP_SPI_GET_VERSION",
@@ -562,19 +532,11 @@ int mctp_spi_get_version_support(mctp_spi_cmdline_args_t *cmd)
     }
 
     MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_VERSION request successfully\n");
-    do {
-        timeout++;
 
-        if (timeout > 10) {
-            MCTP_CTRL_ERR("%s: Timedout[%d secs] Response message not available\n",
-                                                                    __func__, timeout);
-            return MCTP_SPI_FAILURE;
-        }
-
-        usleep(MCTP_SPI_CMD_DELAY);
-    } while (message_available_test != 1);
-
-    message_available_test = 0;
+    /* Wait for the message interrupt */
+    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
+        return MCTP_SPI_FAILURE;
+    }
 
     /* Call the receive procedure */
     status = spb_ap_recv(sizeof(mctp_spi_get_mctp_version_support_cmd),
@@ -596,7 +558,6 @@ int mctp_spi_get_version_support(mctp_spi_cmdline_args_t *cmd)
 int mctp_spi_get_message_type(mctp_spi_cmdline_args_t *cmd)
 {
     SpbApStatus     status;
-    int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_get_mctp_message_type_support_cmd)];
 
     mctp_spi_print_msg("MCTP_SPI_GET_MESSAGE_TYPE",
@@ -611,19 +572,11 @@ int mctp_spi_get_message_type(mctp_spi_cmdline_args_t *cmd)
     }
 
     MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_MESSAGE_TYPE request successfully\n");
-    do {
-        timeout++;
 
-        if (timeout > 10) {
-            MCTP_CTRL_ERR("%s: Timedout[%d secs] Response message not available\n",
-                                                                    __func__, timeout);
-            return MCTP_SPI_FAILURE;
-        }
-
-        usleep(MCTP_SPI_CMD_DELAY);
-    } while (message_available_test != 1);
-
-    message_available_test = 0;
+    /* Wait for the message interrupt */
+    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
+        return MCTP_SPI_FAILURE;
+    }
 
     /* Call the receive procedure */
     status = spb_ap_recv(sizeof(mctp_spi_get_mctp_message_type_support_cmd),
@@ -645,7 +598,6 @@ int mctp_spi_get_message_type(mctp_spi_cmdline_args_t *cmd)
 int mctp_spi_set_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
 {
     SpbApStatus     status;
-    int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_set_ep_uuid_cmd)];
 
     MCTP_CTRL_DEBUG("%s: \n", __func__);
@@ -662,19 +614,11 @@ int mctp_spi_set_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
     }
 
     MCTP_CTRL_DEBUG("Sent MCTP_SPI_SET_ENDPOINT_UUID request successfully\n");
-    do {
-        timeout++;
 
-        if (timeout > 10) {
-            MCTP_CTRL_ERR("%s: Timedout[%d secs] Response message not available\n",
-                                                                    __func__, timeout);
-            return MCTP_SPI_FAILURE;
-        }
-
-        usleep(MCTP_SPI_CMD_DELAY);
-    } while (message_available_test != 1);
-
-    message_available_test = 0;
+    /* Wait for the message interrupt */
+    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
+        return MCTP_SPI_FAILURE;
+    }
 
     /* Call the receive procedure */
     status = spb_ap_recv(sizeof(mctp_spi_set_ep_uuid_cmd),
@@ -696,7 +640,6 @@ int mctp_spi_set_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
 int mctp_spi_set_boot_complete(mctp_spi_cmdline_args_t *cmd)
 {
     SpbApStatus     status;
-    int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_set_boot_complete_cmd)];
 
     mctp_spi_print_msg("MCTP_SPI_BOOT_COMPLETE",
@@ -711,19 +654,11 @@ int mctp_spi_set_boot_complete(mctp_spi_cmdline_args_t *cmd)
     }
 
     MCTP_CTRL_DEBUG("Sent MCTP_SPI_BOOT_COMPLETE request successfully\n");
-    do {
-        timeout++;
 
-        if (timeout > 10) {
-            MCTP_CTRL_ERR("%s: Timedout[%d secs] Response message not available\n",
-                                                                    __func__, timeout);
-            return MCTP_SPI_FAILURE;
-        }
-
-        usleep(MCTP_SPI_CMD_DELAY);
-    } while (message_available_test != 1);
-
-    message_available_test = 0;
+    /* Wait for the message interrupt */
+    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
+        return MCTP_SPI_FAILURE;
+    }
 
     /* Call the receive procedure */
     status = spb_ap_recv(sizeof(mctp_spi_set_boot_complete_cmd),
@@ -744,7 +679,6 @@ int mctp_spi_set_boot_complete(mctp_spi_cmdline_args_t *cmd)
 int mctp_spi_heartbeat_send(mctp_spi_cmdline_args_t *cmd)
 {
     SpbApStatus     status;
-    int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_heartbeat_send_cmd)];
 
     mctp_spi_print_msg("MCTP_SPI_HEARTBEAT_SEND",
@@ -759,19 +693,11 @@ int mctp_spi_heartbeat_send(mctp_spi_cmdline_args_t *cmd)
     }
 
     MCTP_CTRL_DEBUG("Sent MCTP_SPI_HEARTBEAT_SEND request successfully\n");
-    do {
-        timeout++;
 
-        if (timeout > 10) {
-            MCTP_CTRL_ERR("%s: Timedout[%d secs] Response message not available\n",
-                                                                    __func__, timeout);
-            return MCTP_SPI_FAILURE;
-        }
-
-        usleep(MCTP_SPI_CMD_DELAY);
-    } while (message_available_test != 1);
-
-    message_available_test = 0;
+    /* Wait for the message interrupt */
+    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
+        return MCTP_SPI_FAILURE;
+    }
 
     /* Call the receive procedure */
     status = spb_ap_recv(sizeof(mctp_spi_heartbeat_send_cmd),
@@ -793,7 +719,6 @@ int mctp_spi_heartbeat_send(mctp_spi_cmdline_args_t *cmd)
 int mctp_spi_heartbeat_enable(mctp_spi_cmdline_args_t *cmd, mctp_spi_hrtb_ops_t enable)
 {
     SpbApStatus     status;
-    int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_heartbeat_enable_cmd) - 1];
 
     if (enable) {
@@ -810,19 +735,11 @@ int mctp_spi_heartbeat_enable(mctp_spi_cmdline_args_t *cmd, mctp_spi_hrtb_ops_t 
         }
 
         MCTP_CTRL_DEBUG("Sent MCTP_SPI_HEARTBEAT_ENABLE request successfully\n");
-        do {
-            timeout++;
- 
-            if (timeout > 10) {
-                MCTP_CTRL_ERR("%s: Timedout[%d secs] Response message not available\n",
-                                                                        __func__, timeout);
-                return MCTP_SPI_FAILURE;
-            }
- 
-            usleep(MCTP_SPI_CMD_DELAY);
-        } while (message_available_test != 1);
- 
-        message_available_test = 0;
+
+        /* Wait for the message interrupt */
+        if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
+            return MCTP_SPI_FAILURE;
+        }
  
         /* Call the receive procedure */
         status = spb_ap_recv((sizeof(mctp_spi_heartbeat_enable_cmd) - 1),
@@ -851,19 +768,11 @@ int mctp_spi_heartbeat_enable(mctp_spi_cmdline_args_t *cmd, mctp_spi_hrtb_ops_t 
         }
 
         MCTP_CTRL_DEBUG("Sent MCTP_SPI_HEARTBEAT_DISABLE request successfully\n");
-        do {
-            timeout++;
- 
-            if (timeout > 10) {
-                MCTP_CTRL_ERR("%s: Timedout[%d secs] Response message not available\n",
-                                                                        __func__, timeout);
-                return MCTP_SPI_FAILURE;
-            }
- 
-            usleep(MCTP_SPI_CMD_DELAY);
-        } while (message_available_test != 1);
- 
-        message_available_test = 0;
+
+        /* Wait for the message interrupt */
+        if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
+            return MCTP_SPI_FAILURE;
+        }
  
         /* Call the receive procedure */
         status = spb_ap_recv((sizeof(mctp_spi_heartbeat_disable_cmd) - 1),
@@ -885,7 +794,6 @@ int mctp_spi_heartbeat_enable(mctp_spi_cmdline_args_t *cmd, mctp_spi_hrtb_ops_t 
 int mctp_spi_query_boot_status(mctp_spi_cmdline_args_t *cmd)
 {
     SpbApStatus     status;
-    int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_query_boot_status_cmd)];
 
     mctp_spi_print_msg("MCTP_SPI_QUERY_BOOT_STATUS",
@@ -900,19 +808,11 @@ int mctp_spi_query_boot_status(mctp_spi_cmdline_args_t *cmd)
     }
 
     MCTP_CTRL_DEBUG("Sent MCTP_SPI_QUERY_BOOT_STATUS request successfully\n");
-    do {
-        timeout++;
 
-        if (timeout > 10) {
-            MCTP_CTRL_ERR("%s: Timedout[%d secs] Response message not available\n",
-                                                                    __func__, timeout);
-            return MCTP_SPI_FAILURE;
-        }
-
-        usleep(MCTP_SPI_CMD_DELAY);
-    } while (message_available_test != 1);
-
-    message_available_test = 0;
+    /* Wait for the message interrupt */
+    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
+        return MCTP_SPI_FAILURE;
+    }
 
     /* Call the receive procedure */
     status = spb_ap_recv(sizeof(mctp_spi_query_boot_status_cmd),

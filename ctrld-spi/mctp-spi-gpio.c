@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <poll.h>
 
+#include "mctp-spi-ctrl.h"
 #include "mctp-ctrl-cmdline.h"
 #include "mctp-spi-gpio.h"
 #include "mctp-ctrl-log.h"
@@ -27,7 +28,7 @@
 
 volatile unsigned int *g_gpio_intr_occured = NULL;
 
-extern volatile int message_available_test;
+extern volatile int message_available;
 extern SpbApStatus spb_ap_on_interrupt(int value);
 
 /****************************************************************
@@ -257,13 +258,10 @@ int gpio_poll_thread(void *data)
             //MCTP_CTRL_DEBUG("%s: poll() GPIO %d Intr occurred\n", __func__, gpio);
             *g_gpio_intr_occured = 1;
 
-#if 1
             if (spb_ap_on_interrupt(1) == SPB_AP_MESSAGE_AVAILABLE) {
-                MCTP_CTRL_DEBUG("Message available \n", __func__);
-                message_available_test = 1;
+                MCTP_CTRL_DEBUG("MCTP Rx Message available \n", __func__);
+                message_available = MCTP_RX_MSG_INTR;
             }
-#endif
-
 		}
 	}
 

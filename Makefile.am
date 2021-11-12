@@ -41,7 +41,7 @@ ctrld_mctp_ctrl_SOURCES = ctrld/mctp-ctrl.c \
 ctrld_spi_mctp_spi_ctrl_LDFLAGS = "-lsystemd -lpthread"
 
 ctrld_spi_mctp_spi_ctrl_SOURCES = ctrld-spi/mctp-spi-ctrl.c \
-                    ctrld-spi/mctp-spi-test.c \
+                    ctrld-spi/mctp-spi-cmds.c \
                     ctrld-spi/glacier-spb-ap.c \
                     ctrld-spi/mctp-spi-gpio.c \
                     ctrld-spi/ast-rwspi.c
