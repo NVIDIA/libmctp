@@ -26,7 +26,7 @@
 #include "mctp-ctrl-log.h"
 #include "glacier-spb-ap.h"
 
-volatile unsigned int *g_gpio_intr_occured = NULL;
+volatile unsigned int *g_gpio_intr = NULL;
 
 extern volatile int message_available;
 extern SpbApStatus spb_ap_on_interrupt(int value);
@@ -216,17 +216,17 @@ int gpio_poll_thread(void *data)
     mctp_spi_cmdline_args_t *cmdline;
     cmdline = (mctp_spi_cmdline_args_t *) data;
 
-	gpio = 986;
+	gpio = SPB_GPIO_INTR_NUM;
 
     /* Alloc memory for global pointer */
-    g_gpio_intr_occured = (uint32_t*) malloc(sizeof(uint32_t));
+    g_gpio_intr = (uint32_t*) malloc(sizeof(uint32_t));
 
-    /* Clear the interrupt */
-    *g_gpio_intr_occured = 0;
+    /* Reset the interrupt */
+    *g_gpio_intr = SPB_GPIO_INTR_RESET;
 
+    /* Set GPIO params */
 	gpio_export(gpio);
 	gpio_set_dir(gpio, 0);
-	//gpio_set_edge(gpio, "rising");
 	gpio_set_edge(gpio, "falling");
 	gpio_fd = gpio_fd_open(gpio);
 
@@ -247,7 +247,7 @@ int gpio_poll_thread(void *data)
 		}
  
         /* check if thread need to be stopped */
-        if (*g_gpio_intr_occured == 0x1000) {
+        if (*g_gpio_intr == SPB_GPIO_INTR_STOP) {
             MCTP_CTRL_DEBUG("Exiting %s \n", __func__);
             break;
         }
@@ -256,7 +256,7 @@ int gpio_poll_thread(void *data)
 			lseek(fdset[0].fd, 0, SEEK_SET);
 			len = read(fdset[0].fd, buf, MAX_BUF);
             //MCTP_CTRL_DEBUG("%s: poll() GPIO %d Intr occurred\n", __func__, gpio);
-            *g_gpio_intr_occured = 1;
+            *g_gpio_intr = SPB_GPIO_INTR_OCCURED;
 
             if (spb_ap_on_interrupt(1) == SPB_AP_MESSAGE_AVAILABLE) {
                 MCTP_CTRL_DEBUG("MCTP Rx Message available \n", __func__);

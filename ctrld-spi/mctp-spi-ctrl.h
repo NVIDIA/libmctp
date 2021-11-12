@@ -35,6 +35,12 @@ extern "C" {
 #define MCTP_RX_MSG_INTR        1
 #define MCTP_RX_MSG_INTR_RST    0
 
+/* GPIO interrupt poll macros */
+#define SPB_GPIO_INTR_NUM       986
+#define SPB_GPIO_INTR_OCCURED   1
+#define SPB_GPIO_INTR_RESET     0
+#define SPB_GPIO_INTR_STOP      0x1000
+
 struct mctp_binding_spi {
 	struct mctp_binding     binding;
 	int                     in_fd;

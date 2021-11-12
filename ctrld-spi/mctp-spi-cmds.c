@@ -95,7 +95,7 @@ static int      mctp_spi_xfer(int sendLen, uint8_t* sbuf,
                          bool deassert);
 
 /* External variables */
-extern volatile uint32_t *g_gpio_intr_occured;
+extern volatile uint32_t *g_gpio_intr;
 
 
 static uint8_t g_spi_hdr_default[MCTP_SPI_HDR_LEN] = {
@@ -267,47 +267,16 @@ void mctp_spi_print_msg(const char *str, uint8_t *msg, int len)
     MCTP_CTRL_DEBUG("\n----------------------------------------------------------\n");
 }
 
-int convert_gpio_to_num(const char* gpio)
-{
-	size_t len = strlen(gpio);
-	if (len < 2) {
-		fprintf(stderr, "Invalid GPIO name %s\n", gpio);
-		return -1;
-	}
-
-	/* Read the offset from the last character */
-	if (!isdigit(gpio[len-1])) {
-		fprintf(stderr, "Invalid GPIO offset in GPIO %s\n", gpio);
-		return -1;
-	}
-
-	int offset = gpio[len-1] - '0';
-
-	/* Read the port from the second to last character */
-	if (!isalpha(gpio[len-2])) {
-		fprintf(stderr, "Invalid GPIO port in GPIO %s\n", gpio);
-		return -1;
-	}
-	int port = toupper(gpio[len-2]) - 'A';
-
-	/* Check for a 2 character port, like AA */
-	if ((len == 3) && isalpha(gpio[len-3])) {
-		port += 26 * (toupper(gpio[len-3]) - 'A' + 1);
-	}
-
-	return (port * AST_GPIO_PORT_OFFSET) + offset + AST_BASE_GPIO_ADDR;
-}
-
 static int ast_gpio_read_interrupt_pin()
 {
     int rc;
     char buf[8];
 
-    if (*g_gpio_intr_occured) {
+    if (*g_gpio_intr) {
         MCTP_CTRL_DEBUG("%s: AST_GPIO_EROT_AP_GNT_IN event occured..\n", __func__);
 
         /* Clear the interrupt */
-        *g_gpio_intr_occured = 0;
+        *g_gpio_intr = SPB_GPIO_INTR_RESET;
 
         return AST_GPIO_POLL_HIGH;
     }

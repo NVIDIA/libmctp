@@ -72,7 +72,7 @@ static int          g_socket_fd = -1;
 static int          spi_fd = -1;
 static pthread_t    g_gpio_poll;
 
-extern volatile uint32_t *g_gpio_intr_occured;
+extern volatile uint32_t *g_gpio_intr;
 
 const char mctp_spi_help_str[] =
 "Various command line options mentioned below\n"
@@ -124,7 +124,7 @@ void mctp_ctrl_clean_up(void)
     /* Close the socket connection */
     close(g_socket_fd);
 
-    *g_gpio_intr_occured = 0x1000;
+    *g_gpio_intr = SPB_GPIO_INTR_STOP;
     pthread_join(g_gpio_poll, NULL);
 
     /* De init SPI interface */
@@ -497,7 +497,7 @@ int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdlin
          */
          sleep(MCTP_SPI_HEARTBEAT_DELAY);
 
-        if (*g_gpio_intr_occured == 0x1000) {
+        if (*g_gpio_intr == SPB_GPIO_INTR_STOP) {
             MCTP_CTRL_DEBUG("%s: Done sending Heatbeat events [%d]\n", __func__, count++);
             break;
         }
@@ -663,7 +663,7 @@ int main (int argc, char * const *argv)
     if (cmdline.mode == MCTP_SPI_MODE_TEST) {
         mctp_spi_test_cmd(&cmdline);
 
-        *g_gpio_intr_occured = 0x1000;
+        *g_gpio_intr = SPB_GPIO_INTR_STOP;
         MCTP_CTRL_DEBUG("%s: Stopping gpio thread...\n", __func__);
         pthread_join(gpio_poll, NULL);
 
@@ -688,7 +688,7 @@ int main (int argc, char * const *argv)
     rc = mctp_spi_socket_init(mctp_ctrl);
     if (MCTP_REQUESTER_OPEN_FAIL == rc) {
         MCTP_CTRL_ERR("Failed to open mctp socket\n");
-        *g_gpio_intr_occured = 0x1000;
+        *g_gpio_intr = SPB_GPIO_INTR_STOP;
         pthread_join(gpio_poll, NULL);
 
         /* De init SPI interface */
@@ -705,7 +705,7 @@ int main (int argc, char * const *argv)
     close(mctp_ctrl->sock);
 #endif
 
-    *g_gpio_intr_occured = 0x1000;
+    *g_gpio_intr = SPB_GPIO_INTR_STOP;
     pthread_join(gpio_poll, NULL);
 
     /* De init SPI interface */
