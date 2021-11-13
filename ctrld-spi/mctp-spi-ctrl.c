@@ -87,6 +87,9 @@ const char mctp_spi_help_str[] =
  0 - Resvd,\
  6 - SPI\n"
 
+"\t-d\tDelay:\
+ 10 - Default delay value\n"
+
 "\t-b\tBinding data (pvt)\n"
 
 "\t-i\tNVIDIA IANA VDM commands:\
@@ -309,6 +312,7 @@ static const struct option g_options[] = {
     { "eid",            required_argument,  0, 'e' },
     { "mode",           required_argument,  0, 'm' },
     { "type",           required_argument,  0, 't' },
+    { "delay",          required_argument,  0, 'd' },
     { "cmd_mode",       required_argument,  0, 'x' },
     { "mctp-iana-vdm",  required_argument,  0, 'i' },
     { "tx",             required_argument,  0, 's' },
@@ -318,7 +322,7 @@ static const struct option g_options[] = {
     { 0 },
 };
 
-const char * const short_options = "v:e:m:t:x:i:s:b:r:h";
+const char * const short_options = "v:e:m:t:d:x:i:s:b:r:h";
 
 int mctp_spi_cmdline_exec (mctp_spi_cmdline_args_t  *cmd, int sock_fd)
 {
@@ -521,6 +525,7 @@ int main (int argc, char * const *argv)
     cmdline.device_id       = -1;
     cmdline.verbose         = 1;
     cmdline.binding_type    = MCTP_BINDING_SPI;
+    cmdline.delay           = MCTP_SPI_CTRL_DELAY_DEFAULT;
     cmdline.read            = 0;
     cmdline.write           = 0;
     cmdline.use_socket      = 0;
@@ -554,6 +559,9 @@ int main (int argc, char * const *argv)
             case 't':
                 cmdline.binding_type = (uint8_t) atoi(optarg);
                 break;
+            case 'd':
+                cmdline.delay = (int) atoi(optarg);
+                break;
             case 'x':
                 cmdline.cmd_mode = (uint8_t) atoi(optarg);
                 break;
@@ -577,6 +585,9 @@ int main (int argc, char * const *argv)
                 return EXIT_FAILURE;
         }
     }
+
+    /* sleep before starting the daemon */
+    sleep(cmdline.delay);
 
 #ifdef MCTP_SPI_SPB_INTERFACE
     /* Unbind Flash driver and load Raw SPI driver */

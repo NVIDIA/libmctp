@@ -389,27 +389,27 @@ int mctp_load_spi_driver(void)
     if (ret > 0) {
         memset(cmd, '\0', MCTP_SPI_LOAD_CMD_SIZE);
         sprintf(cmd, "%s", MCTP_SPI_FLASH_DRIVER_UNLOAD_CMD);
-        MCTP_CTRL_DEBUG("%s: Unloading Flash driver: %s\n", __func__, cmd);
+        MCTP_CTRL_INFO("%s: Unloading Flash driver: %s\n", __func__, cmd);
         ret = system(cmd);
         if (ret > 0) {
             MCTP_CTRL_ERR("%s: Cannot open spi device\n", __func__);
             return MCTP_SPI_FAILURE;
         }
     } else {
-        MCTP_CTRL_DEBUG("%s: Flash driver already unloaded: %d\n", __func__, ret);
+        MCTP_CTRL_INFO("%s: Flash driver already unloaded: %d\n", __func__, ret);
     }
 
     /* Check Raw SPI driver is loaded */
     ret = mctp_check_spi_drv_exist();
     if (ret > 0) {
-        MCTP_CTRL_DEBUG("%s: Raw SPI driver already loaded: %d\n", __func__, ret);
+        MCTP_CTRL_INFO("%s: Raw SPI driver already loaded: %d\n", __func__, ret);
     } else {
         sleep(MCTP_SPI_LOAD_UNLOAD_DELAY);
         memset(cmd, '\0', MCTP_SPI_LOAD_CMD_SIZE);
         sprintf(cmd, "%s", MCTP_SPI_DRIVER_PATH);
         MCTP_CTRL_DEBUG("%s: Loading Raw SPI driver: %s\n", __func__, cmd);
         ret = system(cmd);
-        MCTP_CTRL_DEBUG("%s: Loaded Flash driver successfully: %d\n", __func__, ret);
+        MCTP_CTRL_INFO("%s: Loaded Raw SPI driver successfully: %d\n", __func__, ret);
         sleep(MCTP_SPI_LOAD_UNLOAD_DELAY);
     }
 }
@@ -905,7 +905,7 @@ int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdlin
     uint32_t                count = 0;
 
     if (ctrl->eid) {
-        MCTP_CTRL_DEBUG("%s: EID: %d\n", __func__, ctrl->eid);
+        MCTP_CTRL_INFO("%s: EID: 0x%x\n", __func__, ctrl->eid);
 
         /*
          * Update source EIDs for Boot complete, Heartbeat enable/disable
@@ -917,7 +917,7 @@ int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdlin
         mctp_spi_heartbeat_send_cmd[MCTP_SPI_SRC_EID_OFFSET] = ctrl->eid;
     }
 
-    MCTP_CTRL_DEBUG("%s: Send 'Boot complete' message\n", __func__);
+    MCTP_CTRL_INFO("%s: Send 'Boot complete' message\n", __func__);
     rc = mctp_spi_set_boot_complete(cmdline);
     if (rc != MCTP_SPI_SUCCESS) {
         MCTP_CTRL_ERR("%s: Failed to send 'Boot complete' message\n", __func__);
@@ -927,7 +927,7 @@ int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdlin
     /* Give some delay before sending next command */
     usleep(MCTP_SPI_CMD_DELAY);
 
-    MCTP_CTRL_DEBUG("%s: Send 'Enable Heartbeat' message\n", __func__);
+    MCTP_CTRL_INFO("%s: Send 'Enable Heartbeat' message\n", __func__);
     rc = mctp_spi_heartbeat_enable(cmdline, MCTP_SPI_HB_ENABLE_CMD);
     if (rc != MCTP_SPI_SUCCESS) {
         MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_ENABLE\n", __func__);
@@ -958,7 +958,7 @@ int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdlin
         }
     }
 
-    MCTP_CTRL_DEBUG("%s: Send 'Enable Heartbeat' message\n", __func__);
+    MCTP_CTRL_INFO("%s: Send 'Enable Heartbeat' message\n", __func__);
     rc = mctp_spi_heartbeat_enable(cmdline, MCTP_SPI_HB_DISABLE_CMD);
     if (rc != SPB_AP_OK) {
         MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_ENABLE\n", __func__);

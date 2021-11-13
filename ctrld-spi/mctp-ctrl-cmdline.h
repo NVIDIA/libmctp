@@ -157,6 +157,7 @@ typedef struct mctp_cmdline_args_ {
     int                     device_id;
     uint8_t                 verbose;
     mctp_binding_ids_t      binding_type;
+    int                     delay;
     mctp_spi_cmd_mode_t     cmd_mode;
     uint8_t                 bind_info[MCTP_PVT_BIND_BUFF_SIZE];
     int                     bind_len;
