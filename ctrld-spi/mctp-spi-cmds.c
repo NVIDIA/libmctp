@@ -79,13 +79,23 @@
 #define MCTP_SPI_MEDIUM_HDR_LEN         4
 #define MCTP_SPI_TRANSPORT_HDR_LEN      4
 
+/* MCTP-over-SPI offsets */
+#define MCTP_SPI_TARGET_MSG_CODE_OFFSET     0
+#define MCTP_SPI_MSG_SIZE_PARAM0_OFFSET     1
+#define MCTP_SPI_RSVD_PARAM1_OFFSET         2
+#define MCTP_SPI_RSVD_PARAM2_OFFSET         3
+#define MCTP_SPI_HDR_VERSION_OFFSET         4
+#define MCTP_SPI_DEST_EID_OFFSET            5
+#define MCTP_SPI_SRC_EID_OFFSET             6
+#define MCTP_SPI_SOM_EOM_OFFSET             7
+#define MCTP_SPI_IC_MSG_TYPE_OFFSET         8
+#define MCTP_SPI_MSG_HDR_DATA_OFFSET        9
 
 /* Static variables */
 static int      spi_fd = -1;
 volatile int    message_available = MCTP_RX_MSG_INTR_RST;
 static int      g_gpio_grant_fd = -1;
 static int      g_gpio_intr_fd = -1;
-
 
 /* Static function prototypes */
 static int      ast_gpio_read_interrupt_pin(void);
@@ -394,7 +404,7 @@ int mctp_spi_set_endpoint_id(mctp_spi_cmdline_args_t *cmd)
     status = spb_ap_recv(sizeof(mctp_spi_set_endpoint_id_cmd),
                             recv_buff);
     if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to receive Set EID complete msg\n");
+        MCTP_CTRL_ERR("%s: Failed to receive Set EID complete msg\n", __func__);
         return MCTP_SPI_FAILURE;
     }
 
@@ -800,6 +810,78 @@ int mctp_spi_query_boot_status(mctp_spi_cmdline_args_t *cmd)
 
     return MCTP_SPI_SUCCESS;
 }
+
+int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdline)
+{
+    mctp_requester_rc_t     mctp_ret;
+    size_t                  resp_msg_len;
+    int                     rc;
+    uint32_t                count = 0;
+
+    if (ctrl->eid) {
+        MCTP_CTRL_DEBUG("%s: EID: %d\n", __func__, ctrl->eid);
+
+        /*
+         * Update source EIDs for Boot complete, Heartbeat enable/disable
+         * and Heartbeat send command
+         */
+        mctp_spi_set_boot_complete_cmd[MCTP_SPI_SRC_EID_OFFSET] = ctrl->eid;
+        mctp_spi_heartbeat_enable_cmd[MCTP_SPI_SRC_EID_OFFSET] = ctrl->eid;
+        mctp_spi_heartbeat_disable_cmd[MCTP_SPI_SRC_EID_OFFSET] = ctrl->eid;
+        mctp_spi_heartbeat_send_cmd[MCTP_SPI_SRC_EID_OFFSET] = ctrl->eid;
+    }
+
+    MCTP_CTRL_DEBUG("%s: Send 'Boot complete' message\n", __func__);
+    rc = mctp_spi_set_boot_complete(cmdline);
+    if (rc != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed to send 'Boot complete' message\n", __func__);
+        return MCTP_SPI_FAILURE;
+    }
+
+    /* Give some delay before sending next command */
+    usleep(MCTP_SPI_CMD_DELAY);
+
+    MCTP_CTRL_DEBUG("%s: Send 'Enable Heartbeat' message\n", __func__);
+    rc = mctp_spi_heartbeat_enable(cmdline, MCTP_SPI_HB_ENABLE_CMD);
+    if (rc != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_ENABLE\n", __func__);
+        return MCTP_SPI_FAILURE;
+    }
+
+    /* Loop forever (Send Heartbeat signal to Glacier) */
+    while (1) {
+
+        /* Give some delay before sending next command */
+        usleep(MCTP_SPI_CMD_DELAY);
+
+        MCTP_CTRL_DEBUG("%s: Send 'Heartbeat'[%d] message\n", __func__, count++);
+        rc = mctp_spi_heartbeat_send(cmdline);
+        if (rc != MCTP_SPI_SUCCESS) {
+            MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_SEND [%d]\n", __func__, count);
+        }
+
+        /*
+         * sleep for 10 seconds (it should be less than 60 seconds as per Galcier
+         * firmware
+         */
+         sleep(MCTP_SPI_HEARTBEAT_DELAY);
+
+        if (*g_gpio_intr == SPB_GPIO_INTR_STOP) {
+            MCTP_CTRL_DEBUG("%s: Done sending Heatbeat events [%d]\n", __func__, count++);
+            break;
+        }
+    }
+
+    MCTP_CTRL_DEBUG("%s: Send 'Enable Heartbeat' message\n", __func__);
+    rc = mctp_spi_heartbeat_enable(cmdline, MCTP_SPI_HB_DISABLE_CMD);
+    if (rc != SPB_AP_OK) {
+        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_ENABLE\n", __func__);
+        return MCTP_SPI_FAILURE;
+    }
+
+    return MCTP_CMD_SUCCESS;
+}
+
 
 void mctp_spi_test_cmd(mctp_spi_cmdline_args_t *cmd)
 {

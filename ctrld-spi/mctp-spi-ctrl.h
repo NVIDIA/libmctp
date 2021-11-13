@@ -12,6 +12,9 @@ extern "C" {
 
 #include "libmctp.h"
 
+#include "mctp-ctrl.h"
+#include "mctp-ctrl-cmdline.h"
+
 #define MCTP_PAYLOAD_SIZE   64
 
 #define MCTP_HEADER_SIZE    4
@@ -41,6 +44,15 @@ extern "C" {
 #define SPB_GPIO_INTR_RESET     0
 #define SPB_GPIO_INTR_STOP      0x1000
 
+/* Enable thread to send boot complete and  periodic heartbeat */
+#define MCTP_SPI_SPB_INTERFACE          1
+
+/* Enable this only when user want to send via sockets */
+#define MCTP_SPI_USR_SOCKET_ENABLE      1
+
+/* Delay for Heartbeat signal */
+#define MCTP_SPI_HEARTBEAT_DELAY        10
+
 struct mctp_binding_spi {
 	struct mctp_binding     binding;
 	int                     in_fd;
@@ -64,6 +76,9 @@ struct mctp_spi_pkt_private {
     int gpio_lookup;
     uint8_t controller;
 } __attribute__((packed));
+
+/* Function prototypes */
+int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdline);
 
 #ifdef __cplusplus
 }

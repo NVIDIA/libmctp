@@ -48,15 +48,6 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #define __unused __attribute__((unused))
 
-/* Enable thread to send boot complete and  periodic heartbeat */
-#define MCTP_SPI_SPB_INTERFACE          1
-
-/* Enable this only when user want to send via sockets */
-#define MCTP_SPI_USR_SOCKET_ENABLE      1
-
-/* Delay for Heartbeat signal */
-#define MCTP_SPI_HEARTBEAT_DELAY        10
-
 /* Default socket path */
 #define MCTP_SOCK_PATH "\0mctp-mux";
 
@@ -455,64 +446,6 @@ int mctp_event_monitor (mctp_ctrl_t *mctp_evt)
     return MCTP_REQUESTER_SUCCESS;
 }
 
-int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdline)
-{
-    mctp_requester_rc_t     mctp_ret;
-    size_t                  resp_msg_len;
-    int                     rc;
-    uint32_t                count = 0;
-
-    MCTP_CTRL_DEBUG("%s: Send 'Boot complete' message\n", __func__);
-    rc = mctp_spi_set_boot_complete(cmdline);
-    if (rc != MCTP_SPI_SUCCESS) {
-        MCTP_CTRL_ERR("%s: Failed to send 'Boot complete' message\n", __func__);
-        return MCTP_SPI_FAILURE;
-    }
-
-    /* Give some delay before sending next command */
-    usleep(MCTP_SPI_CMD_DELAY);
-
-    MCTP_CTRL_DEBUG("%s: Send 'Enable Heartbeat' message\n", __func__);
-    rc = mctp_spi_heartbeat_enable(cmdline, MCTP_SPI_HB_ENABLE_CMD);
-    if (rc != MCTP_SPI_SUCCESS) {
-        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_ENABLE\n", __func__);
-        return MCTP_SPI_FAILURE;
-    }
-
-    /* Loop forever (Send Heartbeat signal to Glacier) */
-    while (1) {
-
-        /* Give some delay before sending next command */
-        usleep(MCTP_SPI_CMD_DELAY);
-
-        MCTP_CTRL_DEBUG("%s: Send 'Heartbeat'[%d] message\n", __func__, count++);
-        rc = mctp_spi_heartbeat_send(cmdline);
-        if (rc != MCTP_SPI_SUCCESS) {
-            MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_SEND [%d]\n", __func__, count);
-        }
-
-        /*
-         * sleep for 10 seconds (it should be less than 60 seconds as per Galcier
-         * firmware
-         */
-         sleep(MCTP_SPI_HEARTBEAT_DELAY);
-
-        if (*g_gpio_intr == SPB_GPIO_INTR_STOP) {
-            MCTP_CTRL_DEBUG("%s: Done sending Heatbeat events [%d]\n", __func__, count++);
-            break;
-        }
-    }
-
-    MCTP_CTRL_DEBUG("%s: Send 'Enable Heartbeat' message\n", __func__);
-    rc = mctp_spi_heartbeat_enable(cmdline, MCTP_SPI_HB_DISABLE_CMD);
-    if (rc != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_ENABLE\n", __func__);
-        return MCTP_SPI_FAILURE;
-    }
-
-    return MCTP_CMD_SUCCESS;
-}
-
 static int mctp_start_daemon (mctp_ctrl_t *ctrl)
 {
     int rc;
@@ -551,7 +484,6 @@ static int mctp_start_daemon (mctp_ctrl_t *ctrl)
     free(ctrl->pollfds);
     return rc;
 }
-
 
 int main (int argc, char * const *argv)
 {
