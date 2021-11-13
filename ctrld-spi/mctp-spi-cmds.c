@@ -328,6 +328,92 @@ static int mctp_spi_xfer(int sendLen, uint8_t* sbuf,
     return 0;
 }
 
+int mctp_check_spi_drv_exist(void)
+{
+
+    FILE *fp;
+    char buff[1035];
+ 
+    /* Open the command for reading. */
+    fp = popen("lsmod | grep fmc", "r");
+    if (fp == NULL) {
+        MCTP_CTRL_ERR("Failed to run command\n" );
+        return -1;
+    }
+ 
+    /* Read the output a line at a time - output it. */
+    while (fgets(buff, sizeof(buff), fp) != NULL) {
+        MCTP_CTRL_DEBUG("Raw SPI driver exist: %s", buff);
+        return 1;
+    }
+ 
+    /* close */
+    pclose(fp);
+ 
+    return 0;
+}
+
+int mctp_check_spi_flash_exist(void)
+{
+
+    FILE *fp;
+    char buff[1035];
+ 
+    /* Open the command for reading. */
+    fp = popen("cat /proc/mtd | grep mtd0", "r");
+    if (fp == NULL) {
+        MCTP_CTRL_ERR("Failed to run command\n" );
+        return -1;
+    }
+ 
+    /* Read the output a line at a time - output it. */
+    while (fgets(buff, sizeof(buff), fp) != NULL) {
+        MCTP_CTRL_DEBUG("Flash driver exist : %s", buff);
+        return 1;
+    }
+ 
+    /* close */
+    pclose(fp);
+ 
+    return 0;
+}
+
+
+int mctp_load_spi_driver(void)
+{
+    char cmd[MCTP_SPI_LOAD_CMD_SIZE];
+    int ret;
+
+    /* Check Flash driver is loaded */
+    ret = mctp_check_spi_flash_exist();
+    if (ret > 0) {
+        memset(cmd, '\0', MCTP_SPI_LOAD_CMD_SIZE);
+        sprintf(cmd, "%s", MCTP_SPI_FLASH_DRIVER_UNLOAD_CMD);
+        MCTP_CTRL_DEBUG("%s: Unloading Flash driver: %s\n", __func__, cmd);
+        ret = system(cmd);
+        if (ret > 0) {
+            MCTP_CTRL_ERR("%s: Cannot open spi device\n", __func__);
+            return MCTP_SPI_FAILURE;
+        }
+    } else {
+        MCTP_CTRL_DEBUG("%s: Flash driver already unloaded: %d\n", __func__, ret);
+    }
+
+    /* Check Raw SPI driver is loaded */
+    ret = mctp_check_spi_drv_exist();
+    if (ret > 0) {
+        MCTP_CTRL_DEBUG("%s: Raw SPI driver already loaded: %d\n", __func__, ret);
+    } else {
+        sleep(MCTP_SPI_LOAD_UNLOAD_DELAY);
+        memset(cmd, '\0', MCTP_SPI_LOAD_CMD_SIZE);
+        sprintf(cmd, "%s", MCTP_SPI_DRIVER_PATH);
+        MCTP_CTRL_DEBUG("%s: Loading Raw SPI driver: %s\n", __func__, cmd);
+        ret = system(cmd);
+        MCTP_CTRL_DEBUG("%s: Loaded Flash driver successfully: %d\n", __func__, ret);
+        sleep(MCTP_SPI_LOAD_UNLOAD_DELAY);
+    }
+}
+
 int mctp_spi_init(mctp_spi_cmdline_args_t *cmd)
 {
     /* Initialize SPI before doing any ops */

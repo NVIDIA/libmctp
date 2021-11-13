@@ -23,7 +23,19 @@ extern "C" {
 #include "mctp-ctrl-cmdline.h"
 
 /* Define Max buffer size */
-#define MCTP_RX_BUFFER_MAX_SIZE         64
+#define MCTP_RX_BUFFER_MAX_SIZE             64
+
+/* Driver location */
+#define MCTP_SPI_DRIVER_PATH                "insmod /lib/modules/*/kernel/drivers/spi/fmc_spi.ko"
+
+/* Unload flash driver command */
+#define MCTP_SPI_FLASH_DRIVER_UNLOAD_CMD    "echo 1e620000.spi > /sys/bus/platform/drivers/aspeed-smc/unbind"
+
+/* Delay after load/unload command */
+#define MCTP_SPI_LOAD_UNLOAD_DELAY          2
+
+/* Command size */
+#define MCTP_SPI_LOAD_CMD_SIZE              128
 
 typedef uint8_t mctp_eid_t;
 

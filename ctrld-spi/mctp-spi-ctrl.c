@@ -579,6 +579,9 @@ int main (int argc, char * const *argv)
     }
 
 #ifdef MCTP_SPI_SPB_INTERFACE
+    /* Unbind Flash driver and load Raw SPI driver */
+    mctp_load_spi_driver();
+
     /* Create independent threads each of which will execute function */
     rc = pthread_create( &gpio_poll, NULL, gpio_poll_thread, (void*) &cmdline);
 
