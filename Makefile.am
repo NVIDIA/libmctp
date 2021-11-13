@@ -25,7 +25,8 @@ if HAVE_SYSTEMD
 systemdsystemunit_DATA = \
 	systemd/system/mctp-demux.service \
 	systemd/system/mctp-demux.socket \
-	systemd/system/mctp-ctrl.service
+	systemd/system/mctp-ctrl.service \
+	systemd/system/mctp-spi-ctrl.service
 endif
 
 bin_PROGRAMS = utils/mctp-demux-daemon ctrld/mctp-ctrl ctrld-spi/mctp-spi-ctrl
