@@ -75,8 +75,25 @@
 #define AST_GPIO_PORT_OFFSET            8
 #define AST_BASE_GPIO_ADDR              816
 
+/* MCTP-over-SPI Header size */
+#define MCTP_SPI_MEDIUM_HDR_LEN         4
+#define MCTP_SPI_TRANSPORT_HDR_LEN      4
 
-static int spi_fd = -1;
+
+/* Static variables */
+static int      spi_fd = -1;
+volatile int    message_available_test = 0;
+static int      g_gpio_grant_fd = -1;
+static int      g_gpio_intr_fd = -1;
+
+
+/* Static function prototypes */
+static int      ast_gpio_read_interrupt_pin_test(void);
+static int      on_mode_change_test(bool quad, uint8_t waitCycles);
+static int      mctp_spi_xfer_test(int sendLen, uint8_t* sbuf,
+                         int recvLen, uint8_t* rbuf,
+                         bool deassert);
+
 
 static uint8_t g_spi_hdr_default[MCTP_SPI_HDR_LEN] = {
     MCTP_SPI_TARGET_COMMAND_CODE,
@@ -93,16 +110,18 @@ static uint8_t g_mctp_hdr_default[MCTP_TRANSPORT_HDR_LEN] = {
     MCTP_TRANSPORT_MESSAGE_TAG   
 };
 
-/* MCTP-over-SPI Header size */
-#define MCTP_SPI_MEDIUM_HDR_LEN         4
-#define MCTP_SPI_TRANSPORT_HDR_LEN      4
+static SpbAp nvda_spb_ap_test = {
+    .debug_level             = 0,
+    .use_interrupt           = 1,
+    .message_available       = &message_available_test,
+    .gpio_read_interrupt_pin = ast_gpio_read_interrupt_pin_test,
+    .on_mode_change          = on_mode_change_test,
+    .spi_xfer                = mctp_spi_xfer_test,
+};
 
 /* Set Endpoint ID test packet */
 
-//vec8 req{0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x27, 0xC8, 0x00, 0x80};
-//vec8 req{0x01, 0x00, 0x18};
-
-/* -----------  MCTP Base test commands start ------------ */
+/* -----------  MCTP Base commands start ------------ */
 static uint8_t mctp_spi_set_endpoint_id_cmd[] = {
     /* SPI Medium Header */
      SPB_MCTP, 0x09, 0x00, 0x00,
@@ -127,7 +146,7 @@ static uint8_t mctp_spi_get_endpoint_uuid_cmd[] = {
     /* MCTP transport header */
      0x01, 0x00, 0x09, 0xC8,
     /* MCTP pkt payload */
-    0x00, 0x80, MCTP_SPI_GET_ENDPOINT_UUID, 0x00, 0x2b
+    0x00, 0x80, MCTP_SPI_GET_ENDPOINT_UUID
 };
 
 static uint8_t mctp_spi_get_mctp_version_support_cmd[] = {
@@ -136,7 +155,7 @@ static uint8_t mctp_spi_get_mctp_version_support_cmd[] = {
     /* MCTP transport header */
      0x01, 0x00, 0x09, 0xC8,
     /* MCTP pkt payload */
-    0x00, 0x80, MCTP_SPI_GET_VERSION, 0x00, 0x2b
+    0x00, 0x80, MCTP_SPI_GET_VERSION, 0x00
 };
 
 static uint8_t mctp_spi_get_mctp_message_type_support_cmd[] = {
@@ -145,19 +164,19 @@ static uint8_t mctp_spi_get_mctp_message_type_support_cmd[] = {
     /* MCTP transport header */
      0x01, 0x00, 0x09, 0xC8,
     /* MCTP pkt payload */
-    0x00, 0x80, MCTP_SPI_GET_MESSAGE_TYPE, 0x00, 0x2b
+    0x00, 0x80, MCTP_SPI_GET_MESSAGE_TYPE
 };
-/* -----------  MCTP Base test commands end ------------ */
+/* -----------  MCTP Base commands end ------------ */
 
 
-/* -----------  Nvidia IANA VDM test commands start ------------ */
+/* -----------  Nvidia IANA VDM commands start ------------ */
 
 /* Set Endpoint UUID test packet */
 static uint8_t mctp_spi_set_ep_uuid_cmd[] = {
     /* SPI Medium Header */
      SPB_MCTP, 0x09, 0x00, 0x00,
     /* MCTP transport header */
-     0x01, 0x2b, 0x09, 0xC8,
+     0x01, 0x00, 0x09, 0xC8,
     /* MCTP pkt payload */
     0x00, MCTP_SPI_SET_ENDPOINT_UUID, 0x01, 0x00, 0x18
 };
@@ -167,7 +186,7 @@ static uint8_t mctp_spi_set_boot_complete_cmd[] = {
     /* SPI Medium Header */
      SPB_MCTP, 0x0d, 0x00, 0x00,
     /* MCTP transport header */
-     0x01, 0x2b, 0x09, 0xC8,
+     0x01, 0x00, 0x09, 0xC8,
     /* MCTP pkt payload */
     0x7f, 0x47, 0x16, 0x00, 0x00, 0x80, 0x01, MCTP_SPI_BOOT_COMPLETE, 0x1
 };
@@ -177,7 +196,7 @@ static uint8_t mctp_spi_heartbeat_enable_cmd[] = {
     /* SPI Medium Header */
      SPB_MCTP, 0x0e, 0x00, 0x00,
     /* MCTP transport header */
-     0x01, 0x2b, 0x09, 0xC8,
+     0x01, 0x00, 0x09, 0xC8,
     /* MCTP pkt payload */
     0x7f, 0x47, 0x16, 0x00, 0x00, 0x80, 0x01, MCTP_SPI_HEARTBEAT_ENABLE, 0x1, MCTP_SPI_HB_ENABLE_CMD
 };
@@ -187,7 +206,7 @@ static uint8_t mctp_spi_heartbeat_disable_cmd[] = {
     /* SPI Medium Header */
      SPB_MCTP, 0x0e, 0x00, 0x00,
     /* MCTP transport header */
-     0x01, 0x2b, 0x09, 0xC8,
+     0x01, 0x00, 0x09, 0xC8,
     /* MCTP pkt payload */
     0x7f, 0x47, 0x16, 0x00, 0x00, 0x80, 0x01, MCTP_SPI_HEARTBEAT_ENABLE, 0x1, MCTP_SPI_HB_DISABLE_CMD
 };
@@ -197,7 +216,7 @@ static uint8_t mctp_spi_heartbeat_send_cmd[] = {
     /* SPI Medium Header */
      SPB_MCTP, 0x0d, 0x00, 0x00,
     /* MCTP transport header */
-     0x01, 0x2b, 0x09, 0xC8,
+     0x01, 0x00, 0x09, 0xC8,
     /* MCTP pkt payload */
     0x7f, 0x47, 0x16, 0x00, 0x00, 0x80, 0x01, MCTP_SPI_HEARTBEAT_SEND, 0x1
 };
@@ -207,17 +226,12 @@ static uint8_t mctp_spi_query_boot_status_cmd[] = {
     /* SPI Medium Header */
      SPB_MCTP, 0x0d, 0x00, 0x00,
     /* MCTP transport header */
-     0x01, 0x2b, 0x09, 0xC8,
+     0x01, 0x00, 0x09, 0xC8,
     /* MCTP pkt payload */
     0x7f, 0x47, 0x16, 0x00, 0x00, 0x80, 0x01, MCTP_SPI_QUERY_BOOT_STATUS, 0x1
 };
-/* -----------  Nvidia IANA VDM test commands end ------------ */
+/* -----------  Nvidia IANA VDM commands end ------------ */
 
-
-volatile int message_available_test = 0;
-
-static int g_gpio_grant_fd = -1;
-static int g_gpio_intr_fd = -1;
 
 void mctp_spi_print_msg(const char *str, uint8_t *msg, int len)
 {
@@ -230,24 +244,24 @@ void mctp_spi_print_msg(const char *str, uint8_t *msg, int len)
         return;
     }
 
-    MCTP_CTRL_TRACE("\n------------ %s[%d] ------------ \n", str, len);
+    MCTP_CTRL_DEBUG("\n---------------- %s [%d] ---------------- \n", str, len+1);
 
-    MCTP_CTRL_TRACE("SPI Medium header\t: ");
+    MCTP_CTRL_DEBUG("SPI Medium header\t: ");
     for (int i = 0; i < MCTP_SPI_MEDIUM_HDR_LEN; i++) {
-        MCTP_CTRL_TRACE(" 0x%x ", msg[count++]);
+        MCTP_CTRL_DEBUG(" 0x%x ", msg[count++]);
     }
 
-    MCTP_CTRL_TRACE("\nMCTP Transport header\t: ");
+    MCTP_CTRL_DEBUG("\nMCTP Transport header\t: ");
     for (int i = 0; i < MCTP_SPI_TRANSPORT_HDR_LEN; i++) {
-        MCTP_CTRL_TRACE(" 0x%x ", msg[count++]);
+        MCTP_CTRL_DEBUG(" 0x%x ", msg[count++]);
     }
 
-    MCTP_CTRL_TRACE("\nMCTP Payload\t\t: ");
+    MCTP_CTRL_DEBUG("\nMCTP Payload\t\t: ");
     for (int i = payload_start; i < len; i++) {
-        MCTP_CTRL_TRACE(" 0x%x ", msg[count++]);
+        MCTP_CTRL_DEBUG(" 0x%x ", msg[count++]);
     }
 
-    MCTP_CTRL_TRACE("\n------------------------------------------------\n");
+    MCTP_CTRL_DEBUG("\n----------------------------------------------------------\n");
 }
 
 int convert_gpio_to_num(const char* gpio)
@@ -357,37 +371,29 @@ static int mctp_spi_xfer_test(int sendLen, uint8_t* sbuf,
     return 0;
 }
 
-static SpbAp nvda_spb_ap_test = {
-    .debug_level             = 0,
-    .use_interrupt           = 1,
-    .message_available       = &message_available_test,
-    .gpio_read_interrupt_pin = ast_gpio_read_interrupt_pin_test,
-    .on_mode_change          = on_mode_change_test,
-    .spi_xfer                = mctp_spi_xfer_test,
-};
-
-int mctp_spi_init_test(mctp_spi_cmdline_args_t *cmd)
+int mctp_spi_init(mctp_spi_cmdline_args_t *cmd)
 {
-    MCTP_CTRL_DEBUG("%s: \n", __func__);
-
     /* Initialize SPI before doing any ops */
     spi_fd = ast_spi_open(AST_MCTP_SPI_DEV_NUM,
                           AST_MCTP_SPI_CHANNEL_NUM, 0, 0, 0);
     if (spi_fd < 0) {
         MCTP_CTRL_ERR("%s: Cannot open spi device\n", __func__);
+        return MCTP_SPI_FAILURE;
     }
 
-    if ((cmd->cmd_mode == MCTP_SPI_RAW_READ) || (cmd->cmd_mode == MCTP_SPI_RAW_WRITE)) {
-        MCTP_CTRL_DEBUG("%s: SPB-AP init not required for raw access\n", __func__);
+    /* Initialize SPB AP Library */
+    if (spb_ap_initialize(&nvda_spb_ap_test) != SPB_AP_OK) {
+        MCTP_CTRL_ERR("%s: Cannot initialize SPB AP\n", __func__);
     }
+
+    /* Give few milli-secs delay after init */
+    usleep(MCTP_SPI_CMD_DELAY);
 
     return MCTP_SPI_SUCCESS;
 }
 
-int mctp_spi_deinit_test(void)
+int mctp_spi_deinit(void)
 {
-    MCTP_CTRL_DEBUG("%s: \n", __func__);
-
     /* Close the SPI dev */
     ast_spi_close(spi_fd);
 
@@ -400,11 +406,9 @@ int mctp_spi_set_endpoint_id(mctp_spi_cmdline_args_t *cmd)
     int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_set_endpoint_id_cmd)];
 
-    MCTP_CTRL_DEBUG("%s: \n", __func__);
-
     mctp_spi_print_msg("MCTP_SPI_SET_ENDPOINT_ID",
                         mctp_spi_set_endpoint_id_cmd,
-                        sizeof(mctp_spi_set_endpoint_id_cmd));
+                        sizeof(mctp_spi_set_endpoint_id_cmd) - 1);
 
     status = spb_ap_send(sizeof(mctp_spi_set_endpoint_id_cmd),
                             mctp_spi_set_endpoint_id_cmd);
@@ -413,7 +417,7 @@ int mctp_spi_set_endpoint_id(mctp_spi_cmdline_args_t *cmd)
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_SET_ENDPOINT_ID request successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Sent MCTP_SPI_SET_ENDPOINT_ID request successfully\n");
     do {
         timeout++;
 
@@ -423,7 +427,7 @@ int mctp_spi_set_endpoint_id(mctp_spi_cmdline_args_t *cmd)
             return MCTP_SPI_FAILURE;
         }
 
-        sleep(1);
+        usleep(MCTP_SPI_CMD_DELAY);
     } while (message_available_test != 1);
 
     message_available_test = 0;
@@ -432,7 +436,7 @@ int mctp_spi_set_endpoint_id(mctp_spi_cmdline_args_t *cmd)
     status = spb_ap_recv(sizeof(mctp_spi_set_endpoint_id_cmd),
                             recv_buff);
     if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to receive Set EID complete msg\n", __func__);
+        MCTP_CTRL_ERR("%s: Failed to receive Set EID complete msg\n");
         return MCTP_SPI_FAILURE;
     }
 
@@ -450,11 +454,9 @@ int mctp_spi_get_endpoint_id(mctp_spi_cmdline_args_t *cmd)
     int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_get_endpoint_id_cmd)];
 
-    MCTP_CTRL_DEBUG("%s: \n", __func__);
-
     mctp_spi_print_msg("MCTP_SPI_GET_ENDPOINT_ID",
                         mctp_spi_get_endpoint_id_cmd,
-                        sizeof(mctp_spi_get_endpoint_id_cmd));
+                        sizeof(mctp_spi_get_endpoint_id_cmd) - 1);
 
     status = spb_ap_send(sizeof(mctp_spi_get_endpoint_id_cmd),
                             mctp_spi_get_endpoint_id_cmd);
@@ -463,7 +465,7 @@ int mctp_spi_get_endpoint_id(mctp_spi_cmdline_args_t *cmd)
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_ENDPOINT_ID request successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_ENDPOINT_ID request successfully\n");
     do {
         timeout++;
 
@@ -473,7 +475,7 @@ int mctp_spi_get_endpoint_id(mctp_spi_cmdline_args_t *cmd)
             return MCTP_SPI_FAILURE;
         }
 
-        sleep(1);
+        usleep(MCTP_SPI_CMD_DELAY);
     } while (message_available_test != 1);
 
     message_available_test = 0;
@@ -490,7 +492,7 @@ int mctp_spi_get_endpoint_id(mctp_spi_cmdline_args_t *cmd)
                         recv_buff,
                         sizeof(mctp_spi_get_endpoint_id_cmd));
 
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_GET_ENDPOINT_ID response successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Received MCTP_SPI_GET_ENDPOINT_ID response successfully\n");
     return MCTP_SPI_SUCCESS;
 }
 
@@ -500,11 +502,9 @@ int mctp_spi_get_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
     int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_get_endpoint_uuid_cmd)];
 
-    MCTP_CTRL_DEBUG("%s: \n", __func__);
-
     mctp_spi_print_msg("MCTP_SPI_GET_ENDPOINT_UUID",
                         mctp_spi_get_endpoint_uuid_cmd,
-                        sizeof(mctp_spi_get_endpoint_uuid_cmd));
+                        sizeof(mctp_spi_get_endpoint_uuid_cmd) - 1);
 
     status = spb_ap_send(sizeof(mctp_spi_get_endpoint_uuid_cmd),
                             mctp_spi_get_endpoint_uuid_cmd);
@@ -513,7 +513,7 @@ int mctp_spi_get_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_ENDPOINT_UUID request successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_ENDPOINT_UUID request successfully\n");
     do {
         timeout++;
 
@@ -523,7 +523,7 @@ int mctp_spi_get_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
             return MCTP_SPI_FAILURE;
         }
 
-        sleep(1);
+        usleep(MCTP_SPI_CMD_DELAY);
     } while (message_available_test != 1);
 
     message_available_test = 0;
@@ -540,7 +540,7 @@ int mctp_spi_get_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
                         recv_buff,
                         sizeof(mctp_spi_get_endpoint_uuid_cmd));
 
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_GET_ENDPOINT_UUID response successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Received MCTP_SPI_GET_ENDPOINT_UUID response successfully\n");
     return MCTP_SPI_SUCCESS;
 }
 
@@ -550,11 +550,9 @@ int mctp_spi_get_version_support(mctp_spi_cmdline_args_t *cmd)
     int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_get_mctp_version_support_cmd)];
 
-    MCTP_CTRL_DEBUG("%s: \n", __func__);
-
     mctp_spi_print_msg("MCTP_SPI_GET_VERSION",
                         mctp_spi_get_mctp_version_support_cmd,
-                        sizeof(mctp_spi_get_mctp_version_support_cmd));
+                        sizeof(mctp_spi_get_mctp_version_support_cmd) - 1);
 
     status = spb_ap_send(sizeof(mctp_spi_get_mctp_version_support_cmd),
                             mctp_spi_get_mctp_version_support_cmd);
@@ -563,7 +561,7 @@ int mctp_spi_get_version_support(mctp_spi_cmdline_args_t *cmd)
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_VERSION request successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_VERSION request successfully\n");
     do {
         timeout++;
 
@@ -573,7 +571,7 @@ int mctp_spi_get_version_support(mctp_spi_cmdline_args_t *cmd)
             return MCTP_SPI_FAILURE;
         }
 
-        sleep(1);
+        usleep(MCTP_SPI_CMD_DELAY);
     } while (message_available_test != 1);
 
     message_available_test = 0;
@@ -590,7 +588,7 @@ int mctp_spi_get_version_support(mctp_spi_cmdline_args_t *cmd)
                         recv_buff,
                         sizeof(mctp_spi_get_mctp_version_support_cmd));
 
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_GET_VERSION response successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Received MCTP_SPI_GET_VERSION response successfully\n");
     return MCTP_SPI_SUCCESS;
 }
 
@@ -601,20 +599,18 @@ int mctp_spi_get_message_type(mctp_spi_cmdline_args_t *cmd)
     int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_get_mctp_message_type_support_cmd)];
 
-    MCTP_CTRL_DEBUG("%s: \n", __func__);
-
-    mctp_spi_print_msg("MCTP_SPI_GET_VERSION",
+    mctp_spi_print_msg("MCTP_SPI_GET_MESSAGE_TYPE",
                         mctp_spi_get_mctp_message_type_support_cmd,
-                        sizeof(mctp_spi_get_mctp_message_type_support_cmd));
+                        sizeof(mctp_spi_get_mctp_message_type_support_cmd) - 1);
 
     status = spb_ap_send(sizeof(mctp_spi_get_mctp_message_type_support_cmd),
                             mctp_spi_get_mctp_message_type_support_cmd);
     if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to send MCTP_SPI_GET_VERSION msg\n", __func__);
+        MCTP_CTRL_ERR("%s: Failed to send MCTP_SPI_GET_MESSAGE_TYPE msg\n", __func__);
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_VERSION request successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_MESSAGE_TYPE request successfully\n");
     do {
         timeout++;
 
@@ -624,7 +620,7 @@ int mctp_spi_get_message_type(mctp_spi_cmdline_args_t *cmd)
             return MCTP_SPI_FAILURE;
         }
 
-        sleep(1);
+        usleep(MCTP_SPI_CMD_DELAY);
     } while (message_available_test != 1);
 
     message_available_test = 0;
@@ -633,15 +629,15 @@ int mctp_spi_get_message_type(mctp_spi_cmdline_args_t *cmd)
     status = spb_ap_recv(sizeof(mctp_spi_get_mctp_message_type_support_cmd),
                             recv_buff);
     if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to receive MCTP_SPI_GET_VERSION response msg\n", __func__);
+        MCTP_CTRL_ERR("%s: Failed to receive MCTP_SPI_GET_MESSAGE_TYPE response msg\n", __func__);
         return MCTP_SPI_FAILURE;
     }
 
-    mctp_spi_print_msg("MCTP_SPI_GET_VERSION",
+    mctp_spi_print_msg("MCTP_SPI_GET_MESSAGE_TYPE",
                         recv_buff,
                         sizeof(mctp_spi_get_mctp_message_type_support_cmd));
 
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_GET_VERSION response successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Received MCTP_SPI_GET_MESSAGE_TYPE response successfully\n");
     return MCTP_SPI_SUCCESS;
 }
 
@@ -656,7 +652,7 @@ int mctp_spi_set_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
 
     mctp_spi_print_msg("MCTP_SPI_SET_ENDPOINT_UUID",
                         mctp_spi_set_ep_uuid_cmd,
-                        sizeof(mctp_spi_set_ep_uuid_cmd));
+                        sizeof(mctp_spi_set_ep_uuid_cmd) - 1);
 
     status = spb_ap_send(sizeof(mctp_spi_set_ep_uuid_cmd),
                             mctp_spi_set_ep_uuid_cmd);
@@ -665,7 +661,7 @@ int mctp_spi_set_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_SET_ENDPOINT_UUID request successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Sent MCTP_SPI_SET_ENDPOINT_UUID request successfully\n");
     do {
         timeout++;
 
@@ -675,7 +671,7 @@ int mctp_spi_set_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
             return MCTP_SPI_FAILURE;
         }
 
-        sleep(1);
+        usleep(MCTP_SPI_CMD_DELAY);
     } while (message_available_test != 1);
 
     message_available_test = 0;
@@ -692,7 +688,7 @@ int mctp_spi_set_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
                         recv_buff,
                         sizeof(mctp_spi_set_ep_uuid_cmd));
 
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_SET_ENDPOINT_UUID response successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Received MCTP_SPI_SET_ENDPOINT_UUID response successfully\n");
     return MCTP_SPI_SUCCESS;
 }
 
@@ -703,11 +699,9 @@ int mctp_spi_set_boot_complete(mctp_spi_cmdline_args_t *cmd)
     int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_set_boot_complete_cmd)];
 
-    MCTP_CTRL_DEBUG("%s: \n", __func__);
-
     mctp_spi_print_msg("MCTP_SPI_BOOT_COMPLETE",
                         mctp_spi_set_boot_complete_cmd,
-                        sizeof(mctp_spi_set_boot_complete_cmd));
+                        sizeof(mctp_spi_set_boot_complete_cmd) - 1);
 
     status = spb_ap_send(sizeof(mctp_spi_set_boot_complete_cmd),
                             mctp_spi_set_boot_complete_cmd);
@@ -716,7 +710,7 @@ int mctp_spi_set_boot_complete(mctp_spi_cmdline_args_t *cmd)
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_BOOT_COMPLETE request successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Sent MCTP_SPI_BOOT_COMPLETE request successfully\n");
     do {
         timeout++;
 
@@ -726,7 +720,7 @@ int mctp_spi_set_boot_complete(mctp_spi_cmdline_args_t *cmd)
             return MCTP_SPI_FAILURE;
         }
 
-        sleep(1);
+        usleep(MCTP_SPI_CMD_DELAY);
     } while (message_available_test != 1);
 
     message_available_test = 0;
@@ -743,7 +737,7 @@ int mctp_spi_set_boot_complete(mctp_spi_cmdline_args_t *cmd)
                         recv_buff,
                         sizeof(mctp_spi_set_boot_complete_cmd));
 
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_BOOT_COMPLETE response successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Received MCTP_SPI_BOOT_COMPLETE response successfully\n");
     return MCTP_SPI_SUCCESS;
 }
 
@@ -753,11 +747,9 @@ int mctp_spi_heartbeat_send(mctp_spi_cmdline_args_t *cmd)
     int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_heartbeat_send_cmd)];
 
-    MCTP_CTRL_DEBUG("%s: \n", __func__);
-
     mctp_spi_print_msg("MCTP_SPI_HEARTBEAT_SEND",
                         mctp_spi_heartbeat_send_cmd,
-                        sizeof(mctp_spi_heartbeat_send_cmd));
+                        sizeof(mctp_spi_heartbeat_send_cmd) - 1);
 
     status = spb_ap_send(sizeof(mctp_spi_heartbeat_send_cmd),
                             mctp_spi_heartbeat_send_cmd);
@@ -766,7 +758,7 @@ int mctp_spi_heartbeat_send(mctp_spi_cmdline_args_t *cmd)
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_HEARTBEAT_SEND request successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Sent MCTP_SPI_HEARTBEAT_SEND request successfully\n");
     do {
         timeout++;
 
@@ -776,7 +768,7 @@ int mctp_spi_heartbeat_send(mctp_spi_cmdline_args_t *cmd)
             return MCTP_SPI_FAILURE;
         }
 
-        sleep(1);
+        usleep(MCTP_SPI_CMD_DELAY);
     } while (message_available_test != 1);
 
     message_available_test = 0;
@@ -793,7 +785,7 @@ int mctp_spi_heartbeat_send(mctp_spi_cmdline_args_t *cmd)
                         recv_buff,
                         sizeof(mctp_spi_heartbeat_send_cmd));
 
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_HEARTBEAT_SEND response successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Received MCTP_SPI_HEARTBEAT_SEND response successfully\n");
 
     return MCTP_SPI_SUCCESS;
 }
@@ -804,13 +796,11 @@ int mctp_spi_heartbeat_enable(mctp_spi_cmdline_args_t *cmd, mctp_spi_hrtb_ops_t 
     int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_heartbeat_enable_cmd) - 1];
 
-    MCTP_CTRL_DEBUG("%s: \n", __func__);
-
     if (enable) {
 
         mctp_spi_print_msg("MCTP_SPI_HB_ENABLE_CMD",
                             mctp_spi_heartbeat_enable_cmd,
-                            sizeof(mctp_spi_heartbeat_enable_cmd));
+                            sizeof(mctp_spi_heartbeat_enable_cmd) - 1);
 
         status = spb_ap_send(sizeof(mctp_spi_heartbeat_enable_cmd),
                                 mctp_spi_heartbeat_enable_cmd);
@@ -818,49 +808,76 @@ int mctp_spi_heartbeat_enable(mctp_spi_cmdline_args_t *cmd, mctp_spi_hrtb_ops_t 
             MCTP_CTRL_ERR("%s: Failed to Enable Heartbeat msg\n", __func__);
             return MCTP_SPI_FAILURE;
         }
+
+        MCTP_CTRL_DEBUG("Sent MCTP_SPI_HEARTBEAT_ENABLE request successfully\n");
+        do {
+            timeout++;
+ 
+            if (timeout > 10) {
+                MCTP_CTRL_ERR("%s: Timedout[%d secs] Response message not available\n",
+                                                                        __func__, timeout);
+                return MCTP_SPI_FAILURE;
+            }
+ 
+            usleep(MCTP_SPI_CMD_DELAY);
+        } while (message_available_test != 1);
+ 
+        message_available_test = 0;
+ 
+        /* Call the receive procedure */
+        status = spb_ap_recv((sizeof(mctp_spi_heartbeat_enable_cmd) - 1),
+                                recv_buff);
+        if (status != SPB_AP_OK) {
+            MCTP_CTRL_ERR("%s: Failed to receive MCTP_SPI_HEARTBEAT_ENABLE msg\n", __func__);
+            return MCTP_SPI_FAILURE;
+        }
+ 
+        mctp_spi_print_msg("MCTP_SPI_HEARTBEAT_ENABLE",
+                            recv_buff,
+                            (sizeof(mctp_spi_heartbeat_enable_cmd) - 1));
+        MCTP_CTRL_DEBUG("Received MCTP_SPI_HEARTBEAT_ENABLE response successfully\n");
+ 
     } else {
 
         mctp_spi_print_msg("MCTP_SPI_HB_DISABLE_CMD",
                             mctp_spi_heartbeat_disable_cmd,
-                            sizeof(mctp_spi_heartbeat_disable_cmd));
+                            sizeof(mctp_spi_heartbeat_disable_cmd) - 1);
 
-        status = spb_ap_send(sizeof(mctp_spi_heartbeat_disable_cmd),
+        status = spb_ap_send(sizeof(mctp_spi_heartbeat_disable_cmd) - 1,
                                 mctp_spi_heartbeat_disable_cmd);
         if (status != SPB_AP_OK) {
             MCTP_CTRL_ERR("%s: Failed to Disable Heartbeat msg\n", __func__);
             return MCTP_SPI_FAILURE;
         }
-    }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_HEARTBEAT_ENABLE/DISABLE request successfully\n", __func__);
-    do {
-        timeout++;
-
-        if (timeout > 10) {
-            MCTP_CTRL_ERR("%s: Timedout[%d secs] Response message not available\n",
-                                                                    __func__, timeout);
+        MCTP_CTRL_DEBUG("Sent MCTP_SPI_HEARTBEAT_DISABLE request successfully\n");
+        do {
+            timeout++;
+ 
+            if (timeout > 10) {
+                MCTP_CTRL_ERR("%s: Timedout[%d secs] Response message not available\n",
+                                                                        __func__, timeout);
+                return MCTP_SPI_FAILURE;
+            }
+ 
+            usleep(MCTP_SPI_CMD_DELAY);
+        } while (message_available_test != 1);
+ 
+        message_available_test = 0;
+ 
+        /* Call the receive procedure */
+        status = spb_ap_recv((sizeof(mctp_spi_heartbeat_disable_cmd) - 1),
+                                recv_buff);
+        if (status != SPB_AP_OK) {
+            MCTP_CTRL_ERR("%s: Failed to receive MCTP_SPI_HEARTBEAT_DISABLE msg\n", __func__);
             return MCTP_SPI_FAILURE;
         }
-
-        sleep(1);
-    } while (message_available_test != 1);
-
-    message_available_test = 0;
-
-    /* Call the receive procedure */
-    status = spb_ap_recv((sizeof(mctp_spi_heartbeat_enable_cmd) - 1),
-                            recv_buff);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to receive MCTP_SPI_HEARTBEAT_ENABLE/DISABLE msg\n", __func__);
-        return MCTP_SPI_FAILURE;
+ 
+        mctp_spi_print_msg("MCTP_SPI_HEARTBEAT_DISABLE",
+                            recv_buff,
+                            (sizeof(mctp_spi_heartbeat_disable_cmd) - 1));
+        MCTP_CTRL_DEBUG("Received MCTP_SPI_HEARTBEAT_DISABLE response successfully\n");
     }
-
-    mctp_spi_print_msg("MCTP_SPI_HEARTBEAT_ENABLE/DISABLE",
-                        recv_buff,
-                        (sizeof(mctp_spi_heartbeat_enable_cmd) - 1));
-
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_HEARTBEAT_ENABLE/DISABLE response successfully\n", __func__);
-
 
     return MCTP_SPI_SUCCESS;
 }
@@ -871,11 +888,9 @@ int mctp_spi_query_boot_status(mctp_spi_cmdline_args_t *cmd)
     int             timeout = 0;
     uint8_t         recv_buff[sizeof(mctp_spi_query_boot_status_cmd)];
 
-    MCTP_CTRL_DEBUG("%s: \n", __func__);
-
     mctp_spi_print_msg("MCTP_SPI_QUERY_BOOT_STATUS",
                         mctp_spi_query_boot_status_cmd,
-                        sizeof(mctp_spi_query_boot_status_cmd));
+                        sizeof(mctp_spi_query_boot_status_cmd) - 1);
 
     status = spb_ap_send(sizeof(mctp_spi_query_boot_status_cmd),
                             mctp_spi_query_boot_status_cmd);
@@ -884,7 +899,7 @@ int mctp_spi_query_boot_status(mctp_spi_cmdline_args_t *cmd)
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_QUERY_BOOT_STATUS request successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Sent MCTP_SPI_QUERY_BOOT_STATUS request successfully\n");
     do {
         timeout++;
 
@@ -894,7 +909,7 @@ int mctp_spi_query_boot_status(mctp_spi_cmdline_args_t *cmd)
             return MCTP_SPI_FAILURE;
         }
 
-        sleep(1);
+        usleep(MCTP_SPI_CMD_DELAY);
     } while (message_available_test != 1);
 
     message_available_test = 0;
@@ -911,7 +926,7 @@ int mctp_spi_query_boot_status(mctp_spi_cmdline_args_t *cmd)
                         recv_buff,
                         sizeof(mctp_spi_query_boot_status_cmd));
 
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_QUERY_BOOT_STATUS response successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Received MCTP_SPI_QUERY_BOOT_STATUS response successfully\n");
 
 
     return MCTP_SPI_SUCCESS;
@@ -922,17 +937,6 @@ void mctp_spi_test_cmd(mctp_spi_cmdline_args_t *cmd)
     int                     rc;
     mctp_spi_iana_vdm_ops_t ops = cmd->vdm_ops;
     int                     status;
-
-    /* Initialize SPI Interface */
-    if (mctp_spi_init_test(cmd) != MCTP_SPI_SUCCESS) {
-        MCTP_CTRL_ERR("%s: Cannot initialize SPB AP\n", __func__);
-        return;
-    }
-
-    /* Initialize SPB AP Library */
-    if (spb_ap_initialize(&nvda_spb_ap_test) != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Cannot initialize SPB AP\n", __func__);
-    }
 
     /* Check for Raw Read/write access */
     if (cmd->cmd_mode) {

@@ -25,6 +25,9 @@ extern "C" {
 /* Poll timeout */
 #define MCTP_SPI_POLL_TIMEOUT   1000
 
+/* Delay for sending suqsequent commands */
+#define MCTP_SPI_CMD_DELAY      100000
+
 struct mctp_binding_spi {
 	struct mctp_binding     binding;
 	int                     in_fd;

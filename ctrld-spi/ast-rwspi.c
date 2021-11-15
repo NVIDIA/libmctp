@@ -24,6 +24,7 @@
 #include <asm/ioctl.h>
 #include <linux/spi/spidev.h>
 
+#include "mctp-ctrl-log.h"
 #include "ast-rwspi.h"
 
 static uint8_t     spiBPW   = 8;
@@ -37,17 +38,17 @@ static void ast_spi_print_tx_rx(unsigned char *txdata, int txlen,
 {
     int i;
 
-    printf("------------------------------------------------------\n");
-    printf("Tx [%d]: \t", (txlen - rxlen));
+    MCTP_CTRL_TRACE("------------------------------------------------------\n");
+    MCTP_CTRL_TRACE("Tx [%d]: \t", (txlen - rxlen));
     for (i = 0; i < (txlen - rxlen); i++) {
-        printf("0x%x ", txdata[i]);
+        MCTP_CTRL_TRACE("0x%x ", txdata[i]);
     }
-    printf("\n");
-    printf("Rx [%d]: \t", rxlen);
+    MCTP_CTRL_TRACE("\n");
+    MCTP_CTRL_TRACE("Rx [%d]: \t", rxlen);
     for (i = 0; i < rxlen; i++) {
-        printf("0x%x ", rxdata[i]);
+        MCTP_CTRL_TRACE("0x%x ", rxdata[i]);
     }
-    printf("\n------------------------------------------------------\n");
+    MCTP_CTRL_TRACE("\n------------------------------------------------------\n");
 }
 
 int ast_spi_xfer(int fd, unsigned char *txdata, int txlen,
@@ -68,7 +69,7 @@ int ast_spi_xfer(int fd, unsigned char *txdata, int txlen,
 
         ret = ioctl(fd, SPI_IOC_MESSAGE(1), &spi);
         if (ret < 0) {
-             printf("Cannot send message %s\n", strerror(errno));
+             MCTP_CTRL_ERR("Cannot send message %s\n", strerror(errno));
         }
 
         memset(&spi, 0, sizeof(spi));
@@ -83,7 +84,7 @@ int ast_spi_xfer(int fd, unsigned char *txdata, int txlen,
 
         ret = ioctl(fd, SPI_IOC_MESSAGE(1), &spi);
         if (ret < 0) {
-            printf("Cannot recv message: %s\n", strerror(errno));
+            MCTP_CTRL_ERR("Cannot recv message: %s\n", strerror(errno));
         }
     } else {
         memset (&spi, 0, sizeof (spi));
@@ -103,7 +104,7 @@ int ast_spi_xfer(int fd, unsigned char *txdata, int txlen,
 
         ret = ioctl(fd, SPI_IOC_MESSAGE(1), &spi);
         if (ret < 0) {
-            printf( "SPI Xfer data failure: %s\n", strerror(errno));
+            MCTP_CTRL_ERR( "SPI Xfer data failure: %s\n", strerror(errno));
         }
 
         ast_spi_print_tx_rx(txdata, txlen, rxdata, rxlen);
@@ -119,13 +120,13 @@ int ast_spi_set_speed(int fd, int speed)
     
     ret = ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
     if (ret < 0)  {
-        printf( "SPI WR Speed Change failure: %s\n", strerror(errno)) ;
+        MCTP_CTRL_ERR( "SPI WR Speed Change failure: %s\n", strerror(errno)) ;
         ret = -1;
     }
 
     ret = ioctl(fd, SPI_IOC_RD_MAX_SPEED_HZ, &speed);
     if (ret < 0)  {
-        printf( "SPI RD Speed Change failure: %s\n", strerror(errno)) ;
+        MCTP_CTRL_ERR( "SPI RD Speed Change failure: %s\n", strerror(errno)) ;
         ret = -1;
     }
     else 
@@ -141,12 +142,12 @@ int ast_spi_set_bpw(int fd, int bpw)
     
     ret = ioctl (fd, SPI_IOC_WR_MODE, &bpw);
     if (ret < 0) {
-        printf( "SPI WR BitPerWord Change failure: %s\n", strerror(errno));
+        MCTP_CTRL_ERR( "SPI WR BitPerWord Change failure: %s\n", strerror(errno));
         ret = -1;
     }
     ret = ioctl (fd, SPI_IOC_RD_MODE, &bpw);
     if (ret < 0) {
-        printf( "SPI RD BitPerWord Change failure: %s\n", strerror(errno));
+        MCTP_CTRL_ERR( "SPI RD BitPerWord Change failure: %s\n", strerror(errno));
         ret = -1;
     }
 
@@ -164,12 +165,12 @@ int ast_spi_set_mode(int fd, int mode)
     tryMode = spiMode | mode & 0x07;
     ret= ioctl(fd, SPI_IOC_WR_MODE, &tryMode);
     if (ret < 0) {
-        printf( "SPI WR Mode Change failure: %s\n", strerror(errno));
+        MCTP_CTRL_ERR( "SPI WR Mode Change failure: %s\n", strerror(errno));
         ret = -1;
     }
     ret= ioctl(fd, SPI_IOC_RD_MODE, &tryMode);
     if (ret < 0) {
-        printf( "SPI RD Mode Change failure: %s\n", strerror(errno));
+        MCTP_CTRL_ERR( "SPI RD Mode Change failure: %s\n", strerror(errno));
         ret = -1;
     }
 
@@ -193,7 +194,7 @@ int ast_spi_open(int dev, int channel, int mode, int disableCS, int singleMode)
 
     snprintf(spiDev, 31, "/dev/spidev%d.%d", dev, channel);
     if ((fd = open(spiDev, O_RDWR)) < 0) {
-        printf( "Unable to open SPI device: %s\n", strerror(errno));
+        MCTP_CTRL_ERR( "Unable to open SPI device: %s\n", strerror(errno));
         return -1;
     }
 
@@ -204,34 +205,6 @@ int ast_spi_open(int dev, int channel, int mode, int disableCS, int singleMode)
 
     if (disableCS) 
         spiMode  |= SPI_NO_CS;
-
-#if 0
-    // Set SPI parameters ...
-    if (ioctl(fd, SPI_IOC_WR_MODE, &spiMode) < 0) {
-        printf("SPI WR Mode %d Change failure: %s\n",  spiMode, strerror(errno));
-        ret = -1;
-    }
-    if (ioctl(fd, SPI_IOC_RD_MODE, &spiMode) < 0) {
-        printf("SPI RD Mode %d Change failure: %s\n",  spiMode, strerror(errno));
-        ret = -1;
-    }
-    if (ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &spiBPW) < 0){
-        printf("SPI WR BPW Change failure: %s\n", strerror(errno));
-        ret = -1;
-    }
-    if (ioctl(fd, SPI_IOC_RD_BITS_PER_WORD, &spiBPW) < 0){
-        printf("SPI RD BPW Change failure: %s\n", strerror(errno));
-        ret = -1;
-    }
-    if (ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &spiSpeed) < 0) {
-        printf("SPI WR Speed Change failure: %s\n", strerror(errno));
-        ret = -1;
-    }
-    if (ioctl(fd, SPI_IOC_RD_MAX_SPEED_HZ, &spiSpeed) < 0) {
-        printf("SPI RD Speed Change failure: %s\n", strerror(errno));
-        ret = -1;
-    }
-#endif
 
     if (ret) {
         close(fd);
@@ -244,7 +217,7 @@ int ast_spi_open(int dev, int channel, int mode, int disableCS, int singleMode)
 int ast_spi_close(int fd)
 {
     if (close(fd) < 0) {  
-        printf("Unable to close SPI device %s\n", strerror(errno));
+        MCTP_CTRL_ERR("Unable to close SPI device %s\n", strerror(errno));
         return -1;
     }
    

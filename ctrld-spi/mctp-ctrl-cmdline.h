@@ -155,7 +155,7 @@ typedef struct {
 typedef struct mctp_cmdline_args_ {
     char                    name[10];
     int                     device_id;
-    bool                    verbose;
+    uint8_t                 verbose;
     mctp_binding_ids_t      binding_type;
     mctp_spi_cmd_mode_t     cmd_mode;
     uint8_t                 bind_info[MCTP_PVT_BIND_BUFF_SIZE];
@@ -185,8 +185,8 @@ int mctp_spi_heartbeat_send(mctp_spi_cmdline_args_t *cmd);
 int mctp_spi_heartbeat_enable(mctp_spi_cmdline_args_t *cmd, mctp_spi_hrtb_ops_t enable);
 int mctp_spi_query_boot_status(mctp_spi_cmdline_args_t *cmd);
 
-int mctp_spi_init_test(mctp_spi_cmdline_args_t *cmd);
-int mctp_spi_deinit_test(void);
+int mctp_spi_init(mctp_spi_cmdline_args_t *cmd);
+int mctp_spi_deinit(void);
 void mctp_spi_test_cmd(mctp_spi_cmdline_args_t *cmd);
 
 #endif /* __MCTP_CMDLINE_H */

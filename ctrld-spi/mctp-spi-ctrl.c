@@ -49,10 +49,13 @@
 #define __unused __attribute__((unused))
 
 /* Enable thread to send boot complete and  periodic heartbeat */
-#define MCTP_SPI_HEARTBEAT_PING_ENABLE  1 
+#define MCTP_SPI_SPB_INTERFACE          1
+
+/* Enable this only when user want to send via sockets */
+#define MCTP_SPI_USR_SOCKET_ENABLE      1
 
 /* Delay for Heartbeat signal */
-#define MCTP_SPI_HEARTBEAT_DELAY        40
+#define MCTP_SPI_HEARTBEAT_DELAY        10
 
 /* Default socket path */
 #define MCTP_SOCK_PATH "\0mctp-mux";
@@ -64,9 +67,10 @@ uint8_t g_verbose_level = 0;
 const uint8_t MCTP_MSG_TYPE_HDR = 0;
 const uint8_t MCTP_CTRL_MSG_TYPE = 0;
 
-static int g_socket_fd = -1;
-
-static int spi_fd = -1;
+/* Static variables */
+static int          g_socket_fd = -1;
+static int          spi_fd = -1;
+static pthread_t    g_gpio_poll;
 
 extern volatile uint32_t *g_gpio_intr_occured;
 
@@ -119,6 +123,12 @@ void mctp_ctrl_clean_up(void)
 {
     /* Close the socket connection */
     close(g_socket_fd);
+
+    *g_gpio_intr_occured = 0x1000;
+    pthread_join(g_gpio_poll, NULL);
+
+    /* De init SPI interface */
+    mctp_spi_deinit();
 }
 
 /* Signal handler for MCTP client app - can be called asynchronously */
@@ -169,6 +179,9 @@ mctp_requester_rc_t mctp_spi_socket_init(mctp_ctrl_t *mctp_ctrl)
         return MCTP_REQUESTER_OPEN_FAIL;
     }
  
+    /* Update global socket pointer */
+    g_socket_fd = mctp_ctrl->sock;
+
     return MCTP_REQUESTER_SUCCESS;
 }
 
@@ -442,7 +455,7 @@ int mctp_event_monitor (mctp_ctrl_t *mctp_evt)
     return MCTP_REQUESTER_SUCCESS;
 }
 
-int mctp_spi_heartbeat_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdline)
+int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdline)
 {
     mctp_requester_rc_t     mctp_ret;
     size_t                  resp_msg_len;
@@ -451,31 +464,43 @@ int mctp_spi_heartbeat_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdlin
 
     MCTP_CTRL_DEBUG("%s: Send 'Boot complete' message\n", __func__);
     rc = mctp_spi_set_boot_complete(cmdline);
-    if (rc == MCTP_SPI_FAILURE) {
-        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_ENDPOINT_UUID\n", __func__);
+    if (rc != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed to send 'Boot complete' message\n", __func__);
+        return MCTP_SPI_FAILURE;
     }
+
+    /* Give some delay before sending next command */
+    usleep(MCTP_SPI_CMD_DELAY);
 
     MCTP_CTRL_DEBUG("%s: Send 'Enable Heartbeat' message\n", __func__);
     rc = mctp_spi_heartbeat_enable(cmdline, MCTP_SPI_HB_ENABLE_CMD);
-    if (rc != SPB_AP_OK) {
+    if (rc != MCTP_SPI_SUCCESS) {
         MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_ENABLE\n", __func__);
         return MCTP_SPI_FAILURE;
     }
 
     /* Loop forever (Send Heartbeat signal to Glacier) */
     while (1) {
+
+        /* Give some delay before sending next command */
+        usleep(MCTP_SPI_CMD_DELAY);
+
         MCTP_CTRL_DEBUG("%s: Send 'Heartbeat'[%d] message\n", __func__, count++);
         rc = mctp_spi_heartbeat_send(cmdline);
-        if (rc != SPB_AP_OK) {
-            MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_ENABLE\n", __func__);
-            return MCTP_SPI_FAILURE;
+        if (rc != MCTP_SPI_SUCCESS) {
+            MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_SEND [%d]\n", __func__, count);
         }
 
         /*
-         * sleep for 40 seconds (it should be less than 60 seconds as per Galcier
+         * sleep for 10 seconds (it should be less than 60 seconds as per Galcier
          * firmware
          */
-        sleep(MCTP_SPI_HEARTBEAT_DELAY);
+         sleep(MCTP_SPI_HEARTBEAT_DELAY);
+
+        if (*g_gpio_intr_occured == 0x1000) {
+            MCTP_CTRL_DEBUG("%s: Done sending Heatbeat events [%d]\n", __func__, count++);
+            break;
+        }
     }
 
     MCTP_CTRL_DEBUG("%s: Send 'Enable Heartbeat' message\n", __func__);
@@ -544,7 +569,7 @@ int main (int argc, char * const *argv)
     mctp_spi_cmdline_args_t cmdline;
     mctp_spi_cmd_mode_t     cmd_mode;
 
-    pthread_t               thread;
+    pthread_t               gpio_poll;
 
 
     /* Initialize MCTP ctrl structure */
@@ -557,15 +582,12 @@ int main (int argc, char * const *argv)
     /* Register signals */
     signal(SIGINT, mctp_signal_handler);
 
-    /* Create independent threads each of which will execute function */
-    rc = pthread_create( &thread, NULL, gpio_poll_thread, (void*) &cmdline);
-
     /* Update the cmdline sturcture with default values */
     const char * const mctp_ctrl_name = argv[0];
     strncpy (cmdline.name, mctp_ctrl_name, sizeof(mctp_ctrl_name)-1);
 
     cmdline.device_id       = -1;
-    cmdline.verbose         = false;
+    cmdline.verbose         = 1;
     cmdline.binding_type    = MCTP_BINDING_SPI;
     cmdline.read            = 0;
     cmdline.write           = 0;
@@ -584,16 +606,16 @@ int main (int argc, char * const *argv)
 
         switch (rc) {
             case 'v':
-                cmdline.verbose = true;
+                cmdline.verbose = (uint8_t) atoi(optarg);
                 MCTP_CTRL_DEBUG("%s: Verbose level:%d", __func__, cmdline.verbose);
                 g_verbose_level = cmdline.verbose;
                 break;
             case 'e':
-                cmdline.dest_eid = (uint8_t) atoi(optarg);;
+                cmdline.dest_eid = (uint8_t) atoi(optarg);
                 mctp_ctrl->eid = cmdline.dest_eid;
                 break;
             case 'm':
-                cmdline.mode = (uint8_t) atoi(optarg);;
+                cmdline.mode = (uint8_t) atoi(optarg);
                 MCTP_CTRL_DEBUG("%s: Mode :%s", __func__,
                                             cmdline.mode? "Daemon mode":"Command line mode");
                 break;
@@ -624,17 +646,41 @@ int main (int argc, char * const *argv)
         }
     }
 
+#ifdef MCTP_SPI_SPB_INTERFACE
+    /* Create independent threads each of which will execute function */
+    rc = pthread_create( &gpio_poll, NULL, gpio_poll_thread, (void*) &cmdline);
+
+    /* Initialize SPI Interface */
+    if (mctp_spi_init(&cmdline) != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Cannot initialize SPB AP\n", __func__);
+        return;
+    }
+
+    /* update global thread pointer */
+    g_gpio_poll = gpio_poll;
+
     /* Check for test mode */
     if (cmdline.mode == MCTP_SPI_MODE_TEST) {
         mctp_spi_test_cmd(&cmdline);
 
         *g_gpio_intr_occured = 0x1000;
-        MCTP_CTRL_DEBUG("%s: Stopping Interrupt thread...\n", __func__);
-        pthread_exit(NULL);
+        MCTP_CTRL_DEBUG("%s: Stopping gpio thread...\n", __func__);
+        pthread_join(gpio_poll, NULL);
 
         /* De init SPI interface */
-        mctp_spi_deinit_test();
+        mctp_spi_deinit();
 
+        return EXIT_SUCCESS;
+    }
+
+    ret = mctp_spi_keepalive_event(mctp_ctrl, &cmdline);
+    if (ret == MCTP_SPI_FAILURE) {
+        MCTP_CTRL_ERR("%s: Failed to send MCTP command\n", __func__);
+    }
+#else
+    /* Run this application only if set as daemon mode */
+    if (!cmdline.mode) {
+        mctp_spi_cmdline_exec(&cmdline, mctp_ctrl->sock);
         return EXIT_SUCCESS;
     }
 
@@ -643,40 +689,27 @@ int main (int argc, char * const *argv)
     if (MCTP_REQUESTER_OPEN_FAIL == rc) {
         MCTP_CTRL_ERR("Failed to open mctp socket\n");
         *g_gpio_intr_occured = 0x1000;
-        pthread_exit(NULL);
+        pthread_join(gpio_poll, NULL);
 
         /* De init SPI interface */
-        mctp_spi_deinit_test();
+        mctp_spi_deinit();
 
         return EXIT_FAILURE;
     }
 
-    /* Update global socket pointer */
-    g_socket_fd = mctp_ctrl->sock;
-
-    /* Run this application only if set as daemon mode */
-    if (!cmdline.mode) {
-        mctp_spi_cmdline_exec(&cmdline, mctp_ctrl->sock);
-    } else {
-        mctp_ret_codes_t mctp_err_ret;
-
-#ifdef MCTP_SPI_HEARTBEAT_PING_ENABLE
-        ret = mctp_spi_heartbeat_event(mctp_ctrl, &cmdline);
-#endif
-
-        /* Start MCTP control daemon */
-        MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....", __func__);
-        mctp_start_daemon(mctp_ctrl);
-    }
+    /* Start MCTP control daemon */
+    MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....", __func__);
+    mctp_start_daemon(mctp_ctrl);
 
     /* Close the socket connection */
     close(mctp_ctrl->sock);
+#endif
 
     *g_gpio_intr_occured = 0x1000;
-    pthread_exit(NULL);
+    pthread_join(gpio_poll, NULL);
 
     /* De init SPI interface */
-    mctp_spi_deinit_test();
+    mctp_spi_deinit();
 
     return EXIT_SUCCESS;
 }
