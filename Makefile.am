@@ -28,7 +28,7 @@ systemdsystemunit_DATA = \
 	systemd/system/mctp-ctrl.service
 endif
 
-bin_PROGRAMS = utils/mctp-demux-daemon ctrld/mctp-ctrl
+bin_PROGRAMS = utils/mctp-demux-daemon ctrld/mctp-ctrl ctrld-spi/mctp-spi-ctrl
 utils_mctp_demux_daemon_LDADD = libmctp.la
 
 ctrld_mctp_ctrl_LDFLAGS = "-lsystemd"
@@ -37,6 +37,14 @@ ctrld_mctp_ctrl_SOURCES = ctrld/mctp-ctrl.c \
                     ctrld/mctp-discovery.c \
                     ctrld/mctp-encode.c \
                     ctrld/mctp-sdbus.c
+
+ctrld_spi_mctp_spi_ctrl_LDFLAGS = "-lsystemd -lpthread"
+
+ctrld_spi_mctp_spi_ctrl_SOURCES = ctrld-spi/mctp-spi-ctrl.c \
+                    ctrld-spi/mctp-spi-test.c \
+                    ctrld-spi/glacier-spb-ap.c \
+                    ctrld-spi/mctp-spi-gpio.c \
+                    ctrld-spi/ast-rwspi.c
 
 pkgconfig_DATA = libmctp.pc
 

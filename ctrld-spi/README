@@ -1,0 +1,112 @@
+MCTP SPI Control Application overview
+--------------------------------------
+This application could run as a standalone commandline mode
+as well as in daemon mode.
+
+In commandline mode, the user could send/receive raw SPI data as well
+as some of the Glacier specific (SPB) commands.
+
+Whereas in daemon mode, it is mainly used for sending periodic
+Heartbeat signal to the end device (Glacier)
+
+
+All the test options are mentioned below:
+
+Raw read/write commands:
+------------------------
+    - MCTP_SPI_RAW_READ             :   Raw SPI read access
+    - MCTP_SPI_RAW_WRITE            :   Raw SPI write access
+
+Glacier specific (SPB) commands:
+--------------------------------
+    - MCTP_SPI_MAILBOX_WRITE        :   Send Mailbox write to Glacier
+    - MCTP_SPI_MAILBOX_READ_READY   :   Read Mailbox ready from Glacier
+    - MCTP_SPI_MAILBOX_READ_DONE    :   Read Mailbox read done from Glacier
+    - MCTP_SPI_MAILBOX_SPB_RESET    :   Send Mailbox messgae to reset SPB
+    - MCTP_SPI_POST_READ            :   Read posted read command from Glacier
+    - MCTP_SPI_POST_WRITE           :   Send posted write command to Glacier
+
+Read GPIO pin status:
+---------------------
+    - MCTP_SPI_GPIO_READ            :   To read the GPIO status driven from Glacier
+
+MCTP NVIDIA IANA VDM verification commands:
+-------------------------------------------
+    - MCTP_SPI_SET_ENDPOINT_UUID    :   Set Endpoint UUID
+    - MCTP_SPI_BOOT_COMPLETE        :   Send Boot complete message
+    - MCTP_SPI_HEARTBEAT_SEND       :   Send Heartbeat signal
+    - MCTP_SPI_HEARTBEAT_ENABLE     :   Enable Heartbeat message
+    - MCTP_SPI_QUERY_BOOT_STATUS    :   Query boot status of device
+
+Enable/Disable option for Heartbeat messages:
+---------------------------------------------
+The MCTP_SPI_HEARTBEAT_ENABLE macro can be used for sending periodic
+Heartbeat messages from Host to Glacier device. Once enabled, it
+follows the below sequence:
+    1. Send 'Boot complete' message
+    2. Send 'Enable Heartbeat' message
+    3. Send 'Heartbeat' message
+    4. Wait/Sleep till timeout (currently set as 40 seconds)
+        NOTE: The delay can be customized using MCTP_SPI_HEARTBEAT_DELAY
+    5. Go to step-3 after timeout (loop continues)
+
+Commandline options:
+--------------------
+It is also featured with lot of commandline options as mentioned below
+Various command line options mentioned below:
+        -v      Verbose level
+
+        -e      Target Endpoint Id
+
+        -m      Mode:  0 - Commandline mode,
+                       1 - daemon mode,
+                       2 - Test mode
+
+        -x      CMD Mode: 0 - Raw Read,
+                          1 - Raw Write,
+                          2 - IANA-VDM-Read,
+                          3 - IANA-VDM-Write,
+                          4 - VDM-Read,
+                          5 - VDM-Write
+
+        -t      Binding Type: 0 - Resvd,
+                              6 - SPI
+
+        -b      Binding data (pvt)
+
+        -i      NVIDIA IANA VDM commands: 1 - Set EP UUID,
+                                          2 - Boot complete,
+                                          3 - Heartbeat,
+                                          4 - Enable Heartbeat,
+                                          5 - Query boot status
+
+        -s      Tx data (MCTP packet payload: [Req-dgram]-[cmd-code]--)
+        -h      Prints this message
+
+Example commands:
+-----------------
+    Some of the example commands are shown below:
+    -> To send Boot complete command:
+        mctp-spi-ctrl -i 2 -t 6 -m 2 -v 2
+    -> To send Enable Heartbeat command:
+        mctp-spi-ctrl -i 4 -t 6 -m 2 -v 2
+    -> To send Heartbeat (ping) command:
+        mctp-spi-ctrl -i 3 -t 6 -m 2 -v 2
+
+
+Folder/File definitions :
+-------------------------
+    Folder/File structure with some major file definitions mentioned below:
+    
+    - ctrld-spi/                (main directory)
+        - ast-rwspi.c           (Low level SPI read/write API's)
+        - ast-rwspi.h
+
+        - glacier-spb-ap.c      (SPB protocol - Nvidia proprietary)
+        - glacier-spb-ap.h
+
+        - mctp-spi-test.c       (main file)
+        - mctp-spi-test.h
+
+        - mctp-spi-test.c       (Test APIs)
+
