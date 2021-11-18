@@ -91,6 +91,18 @@
 #define MCTP_SPI_IC_MSG_TYPE_OFFSET         8
 #define MCTP_SPI_MSG_HDR_DATA_OFFSET        9
 
+/* MCTP Response Packet sizes */
+#define MCTP_SPI_SET_EID_RX_SIZE            14
+#define MCTP_SPI_GET_EID_RX_SIZE            15
+#define MCTP_SPI_GET_UUID_RX_SIZE           28
+#define MCTP_SPI_GET_VERSION_RX_SIZE        17
+#define MCTP_SPI_GET_MSG_TYPE_RX_SIZE       16
+#define MCTP_SPI_SET_ENDPOINT_UUID_RX_SIZE  18
+#define MCTP_SPI_BOOT_COMPLETE_RX_SIZE      18
+#define MCTP_SPI_HEARTBEAT_ENABLE_RX_SIZE   18
+#define MCTP_SPI_HEARTBEAT_SEND_RX_SIZE     18
+#define MCTP_SPI_QUERY_BOOT_STATUS_RX_SIZE  26
+
 /* Static variables */
 static int      spi_fd = -1;
 volatile int    message_available = MCTP_RX_MSG_INTR_RST;
@@ -146,16 +158,16 @@ static uint8_t mctp_spi_set_endpoint_id_cmd[] = {
 
 static uint8_t mctp_spi_get_endpoint_id_cmd[] = {
     /* SPI Medium Header */
-     SPB_MCTP, 0x09, 0x00, 0x00,
+     SPB_MCTP, 0x07, 0x00, 0x00,
     /* MCTP transport header */
      0x01, 0x00, 0x09, 0xC8,
     /* MCTP pkt payload */
-    0x00, 0x80, MCTP_SPI_GET_ENDPOINT_ID, 0x00, 0x2b
+    0x00, 0x80, MCTP_SPI_GET_ENDPOINT_ID
 };
 
 static uint8_t mctp_spi_get_endpoint_uuid_cmd[] = {
     /* SPI Medium Header */
-     SPB_MCTP, 0x09, 0x00, 0x00,
+     SPB_MCTP, 0x07, 0x00, 0x00,
     /* MCTP transport header */
      0x01, 0x00, 0x09, 0xC8,
     /* MCTP pkt payload */
@@ -164,11 +176,11 @@ static uint8_t mctp_spi_get_endpoint_uuid_cmd[] = {
 
 static uint8_t mctp_spi_get_mctp_version_support_cmd[] = {
     /* SPI Medium Header */
-     SPB_MCTP, 0x09, 0x00, 0x00,
+     SPB_MCTP, 0x07, 0x00, 0x00,
     /* MCTP transport header */
      0x01, 0x00, 0x09, 0xC8,
     /* MCTP pkt payload */
-    0x00, 0x80, MCTP_SPI_GET_VERSION, 0x00
+    0x00, 0x80, MCTP_SPI_GET_VERSION
 };
 
 static uint8_t mctp_spi_get_mctp_message_type_support_cmd[] = {
@@ -177,7 +189,7 @@ static uint8_t mctp_spi_get_mctp_message_type_support_cmd[] = {
     /* MCTP transport header */
      0x01, 0x00, 0x09, 0xC8,
     /* MCTP pkt payload */
-    0x00, 0x80, MCTP_SPI_GET_MESSAGE_TYPE
+    0x00, 0x80, MCTP_SPI_GET_MESSAGE_TYPE, 0x0
 };
 /* -----------  MCTP Base commands end ------------ */
 
@@ -257,7 +269,7 @@ void mctp_spi_print_msg(const char *str, uint8_t *msg, int len)
         return;
     }
 
-    MCTP_CTRL_DEBUG("\n---------------- %s [%d] ---------------- \n", str, len+1);
+    MCTP_CTRL_DEBUG("\n---------------- %s [%d] ---------------- \n", str, len);
 
     MCTP_CTRL_DEBUG("SPI Medium header\t: ");
     for (int i = 0; i < MCTP_SPI_MEDIUM_HDR_LEN; i++) {
@@ -270,7 +282,7 @@ void mctp_spi_print_msg(const char *str, uint8_t *msg, int len)
     }
 
     MCTP_CTRL_DEBUG("\nMCTP Payload\t\t: ");
-    for (int i = payload_start; i < len; i++) {
+    for (int i = payload_start; i < (len-1); i++) {
         MCTP_CTRL_DEBUG(" 0x%x ", msg[count++]);
     }
 
@@ -279,7 +291,6 @@ void mctp_spi_print_msg(const char *str, uint8_t *msg, int len)
 
 static int ast_gpio_read_interrupt_pin()
 {
-    int rc;
     char buf[8];
 
     if (*g_gpio_intr) {
@@ -308,10 +319,8 @@ static int mctp_spi_xfer(int sendLen, uint8_t* sbuf,
                          int recvLen, uint8_t* rbuf,
                          bool deassert)
 {
-    int status;
-
-    // sbuf and rbuf must be the same size
-    int len = sendLen + recvLen;
+    int     status = 0;
+    int     len = sendLen + recvLen; // sbuf and rbuf must be the same size
     uint8_t rbuf2[len];
     uint8_t sbuf2[len];
 
@@ -321,6 +330,10 @@ static int mctp_spi_xfer(int sendLen, uint8_t* sbuf,
     memcpy(sbuf2, sbuf, sendLen);
 
     status = ast_spi_xfer(spi_fd, sbuf2, len, rbuf2, recvLen, deassert);
+    if (status < 0) {
+        MCTP_CTRL_ERR("ast_spi_xfer failed: %d\n", status);
+        return -1;
+    }
 
     // shift out send section
     memcpy(rbuf, rbuf2, recvLen);
@@ -331,8 +344,8 @@ static int mctp_spi_xfer(int sendLen, uint8_t* sbuf,
 int mctp_check_spi_drv_exist(void)
 {
 
-    FILE *fp;
-    char buff[1035];
+    FILE *fp = NULL;
+    char buff[MCTP_SYSTEM_CMD_BUFF_SIZE];
  
     /* Open the command for reading. */
     fp = popen("lsmod | grep fmc", "r");
@@ -344,6 +357,7 @@ int mctp_check_spi_drv_exist(void)
     /* Read the output a line at a time - output it. */
     while (fgets(buff, sizeof(buff), fp) != NULL) {
         MCTP_CTRL_DEBUG("Raw SPI driver exist: %s", buff);
+        pclose(fp);
         return 1;
     }
  
@@ -356,8 +370,8 @@ int mctp_check_spi_drv_exist(void)
 int mctp_check_spi_flash_exist(void)
 {
 
-    FILE *fp;
-    char buff[1035];
+    FILE *fp = NULL;
+    char buff[MCTP_SYSTEM_CMD_BUFF_SIZE];
  
     /* Open the command for reading. */
     fp = popen("cat /proc/mtd | grep mtd0", "r");
@@ -369,6 +383,7 @@ int mctp_check_spi_flash_exist(void)
     /* Read the output a line at a time - output it. */
     while (fgets(buff, sizeof(buff), fp) != NULL) {
         MCTP_CTRL_DEBUG("Flash driver exist : %s", buff);
+        pclose(fp);
         return 1;
     }
  
@@ -379,10 +394,10 @@ int mctp_check_spi_flash_exist(void)
 }
 
 
-int mctp_load_spi_driver(void)
+void mctp_load_spi_driver(void)
 {
     char cmd[MCTP_SPI_LOAD_CMD_SIZE];
-    int ret;
+    int ret = 0;
 
     /* Check Flash driver is loaded */
     ret = mctp_check_spi_flash_exist();
@@ -410,6 +425,8 @@ int mctp_load_spi_driver(void)
         MCTP_CTRL_DEBUG("%s: Loading Raw SPI driver: %s\n", __func__, cmd);
         ret = system(cmd);
         MCTP_CTRL_INFO("%s: Loaded Raw SPI driver successfully: %d\n", __func__, ret);
+
+        /* Need some wait time to complete the FMC Raw SPI driver initialization */
         sleep(MCTP_SPI_LOAD_UNLOAD_DELAY);
     }
 }
@@ -463,23 +480,21 @@ static inline int mctp_rx_wait_time(int threshold)
     return MCTP_SPI_SUCCESS;
 }
 
-int mctp_spi_set_endpoint_id(mctp_spi_cmdline_args_t *cmd)
+int mctp_ctrl_cmd_send_recv(char *str, uint8_t *tx_cmd, int tx_len, uint8_t *rx_cmd, int rx_len)
 {
-    SpbApStatus     status;
-    uint8_t         recv_buff[sizeof(mctp_spi_set_endpoint_id_cmd)];
+    SpbApStatus     status = SPB_AP_OK;
 
-    mctp_spi_print_msg("MCTP_SPI_SET_ENDPOINT_ID",
-                        mctp_spi_set_endpoint_id_cmd,
-                        sizeof(mctp_spi_set_endpoint_id_cmd) - 1);
+    /* Trace Tx */
+    mctp_spi_print_msg(str, tx_cmd, tx_len - 1);
 
-    status = spb_ap_send(sizeof(mctp_spi_set_endpoint_id_cmd),
-                            mctp_spi_set_endpoint_id_cmd);
+    /* Call the send procedure */
+    status = spb_ap_send(tx_len, tx_cmd);
     if (status != SPB_AP_OK) {
         MCTP_CTRL_ERR("%s: Failed to send Set Endpoint ID msg\n", __func__);
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_SET_ENDPOINT_ID request successfully\n");
+    MCTP_CTRL_DEBUG("Sent %s request successfully\n", str);
 
     /* Wait for the message interrupt */
     if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
@@ -487,421 +502,230 @@ int mctp_spi_set_endpoint_id(mctp_spi_cmdline_args_t *cmd)
     }
 
     /* Call the receive procedure */
-    status = spb_ap_recv(sizeof(mctp_spi_set_endpoint_id_cmd),
-                            recv_buff);
+    status = spb_ap_recv(rx_len, rx_cmd);
     if (status != SPB_AP_OK) {
         MCTP_CTRL_ERR("%s: Failed to receive Set EID complete msg\n", __func__);
         return MCTP_SPI_FAILURE;
     }
 
-    mctp_spi_print_msg("MCTP_SPI_SET_ENDPOINT_ID",
-                        recv_buff,
-                        sizeof(mctp_spi_set_endpoint_id_cmd));
+    /* Trace Rx */
+    mctp_spi_print_msg(str, rx_cmd, rx_len);
 
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_SET_ENDPOINT_ID response successfully\n", __func__);
+    MCTP_CTRL_DEBUG("Received %s response successfully\n", str);
+    return MCTP_SPI_SUCCESS;
+}
+
+int mctp_spi_set_endpoint_id(mctp_spi_cmdline_args_t *cmd)
+{
+    SpbApStatus     status = SPB_AP_OK;
+    int             len = sizeof(mctp_spi_set_endpoint_id_cmd);
+    uint8_t         recv_buff[MCTP_SPI_SET_EID_RX_SIZE];
+
+    status = mctp_ctrl_cmd_send_recv("MCTP_SPI_SET_ENDPOINT_ID",
+                                     mctp_spi_set_endpoint_id_cmd,
+                                     len,
+                                     recv_buff,
+                                     MCTP_SPI_SET_EID_RX_SIZE);
+    if (status != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_SET_ENDPOINT_ID cmd\n", __func__);
+        return MCTP_SPI_FAILURE;
+    }
+
     return MCTP_SPI_SUCCESS;
 }
 
 int mctp_spi_get_endpoint_id(mctp_spi_cmdline_args_t *cmd)
 {
-    SpbApStatus     status;
-    uint8_t         recv_buff[sizeof(mctp_spi_get_endpoint_id_cmd)];
+    SpbApStatus     status = SPB_AP_OK;
+    int             len = sizeof(mctp_spi_get_endpoint_id_cmd);
+    uint8_t         recv_buff[MCTP_SPI_GET_EID_RX_SIZE];
 
-    mctp_spi_print_msg("MCTP_SPI_GET_ENDPOINT_ID",
-                        mctp_spi_get_endpoint_id_cmd,
-                        sizeof(mctp_spi_get_endpoint_id_cmd) - 1);
-
-    status = spb_ap_send(sizeof(mctp_spi_get_endpoint_id_cmd),
-                            mctp_spi_get_endpoint_id_cmd);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to send Set Endpoint ID msg\n", __func__);
+    status = mctp_ctrl_cmd_send_recv("MCTP_SPI_GET_ENDPOINT_ID",
+                                     mctp_spi_get_endpoint_id_cmd,
+                                     len,
+                                     recv_buff,
+                                     MCTP_SPI_GET_EID_RX_SIZE);
+    if (status != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_GET_ENDPOINT_ID cmd\n", __func__);
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_ENDPOINT_ID request successfully\n");
-
-    /* Wait for the message interrupt */
-    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
-        return MCTP_SPI_FAILURE;
-    }
-
-    /* Call the receive procedure */
-    status = spb_ap_recv(sizeof(mctp_spi_get_endpoint_id_cmd),
-                            recv_buff);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to receive Set EID complete msg\n", __func__);
-        return MCTP_SPI_FAILURE;
-    }
-
-    mctp_spi_print_msg("MCTP_SPI_GET_ENDPOINT_ID",
-                        recv_buff,
-                        sizeof(mctp_spi_get_endpoint_id_cmd));
-
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_GET_ENDPOINT_ID response successfully\n");
     return MCTP_SPI_SUCCESS;
 }
 
 int mctp_spi_get_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
 {
-    SpbApStatus     status;
-    uint8_t         recv_buff[sizeof(mctp_spi_get_endpoint_uuid_cmd)];
+    SpbApStatus     status = SPB_AP_OK;
+    int             tx_len = sizeof(mctp_spi_get_endpoint_uuid_cmd);
+    uint8_t         recv_buff[MCTP_SPI_GET_UUID_RX_SIZE];
 
-    mctp_spi_print_msg("MCTP_SPI_GET_ENDPOINT_UUID",
-                        mctp_spi_get_endpoint_uuid_cmd,
-                        sizeof(mctp_spi_get_endpoint_uuid_cmd) - 1);
-
-    status = spb_ap_send(sizeof(mctp_spi_get_endpoint_uuid_cmd),
-                            mctp_spi_get_endpoint_uuid_cmd);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to send Get Endpoint UUID msg\n", __func__);
+    status = mctp_ctrl_cmd_send_recv("MCTP_SPI_GET_ENDPOINT_UUID",
+                                     mctp_spi_get_endpoint_uuid_cmd,
+                                     tx_len,
+                                     recv_buff,
+                                     MCTP_SPI_GET_UUID_RX_SIZE);
+    if (status != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_GET_ENDPOINT_UUID cmd\n", __func__);
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_ENDPOINT_UUID request successfully\n");
-
-    /* Wait for the message interrupt */
-    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
-        return MCTP_SPI_FAILURE;
-    }
-
-    /* Call the receive procedure */
-    status = spb_ap_recv(sizeof(mctp_spi_get_endpoint_uuid_cmd),
-                            recv_buff);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to receive Get Endpoint UUID response msg\n", __func__);
-        return MCTP_SPI_FAILURE;
-    }
-
-    mctp_spi_print_msg("MCTP_SPI_GET_ENDPOINT_UUID",
-                        recv_buff,
-                        sizeof(mctp_spi_get_endpoint_uuid_cmd));
-
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_GET_ENDPOINT_UUID response successfully\n");
     return MCTP_SPI_SUCCESS;
 }
 
 int mctp_spi_get_version_support(mctp_spi_cmdline_args_t *cmd)
 {
-    SpbApStatus     status;
-    uint8_t         recv_buff[sizeof(mctp_spi_get_mctp_version_support_cmd)];
+    SpbApStatus     status = SPB_AP_OK;
+    int             tx_len = sizeof(mctp_spi_get_mctp_version_support_cmd);
+    uint8_t         recv_buff[MCTP_SPI_GET_VERSION_RX_SIZE];
 
-    mctp_spi_print_msg("MCTP_SPI_GET_VERSION",
-                        mctp_spi_get_mctp_version_support_cmd,
-                        sizeof(mctp_spi_get_mctp_version_support_cmd) - 1);
-
-    status = spb_ap_send(sizeof(mctp_spi_get_mctp_version_support_cmd),
-                            mctp_spi_get_mctp_version_support_cmd);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to send MCTP_SPI_GET_VERSION msg\n", __func__);
+    status = mctp_ctrl_cmd_send_recv("MCTP_SPI_GET_VERSION",
+                                     mctp_spi_get_mctp_version_support_cmd,
+                                     tx_len,
+                                     recv_buff,
+                                     MCTP_SPI_GET_VERSION_RX_SIZE);
+    if (status != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_GET_VERSION cmd\n", __func__);
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_VERSION request successfully\n");
-
-    /* Wait for the message interrupt */
-    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
-        return MCTP_SPI_FAILURE;
-    }
-
-    /* Call the receive procedure */
-    status = spb_ap_recv(sizeof(mctp_spi_get_mctp_version_support_cmd),
-                            recv_buff);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to receive MCTP_SPI_GET_VERSION response msg\n", __func__);
-        return MCTP_SPI_FAILURE;
-    }
-
-    mctp_spi_print_msg("MCTP_SPI_GET_VERSION",
-                        recv_buff,
-                        sizeof(mctp_spi_get_mctp_version_support_cmd));
-
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_GET_VERSION response successfully\n");
     return MCTP_SPI_SUCCESS;
 }
 
 
 int mctp_spi_get_message_type(mctp_spi_cmdline_args_t *cmd)
 {
-    SpbApStatus     status;
-    uint8_t         recv_buff[sizeof(mctp_spi_get_mctp_message_type_support_cmd)];
+    SpbApStatus     status = SPB_AP_OK;
+    int             tx_len = sizeof(mctp_spi_get_mctp_message_type_support_cmd);
+    uint8_t         recv_buff[MCTP_SPI_GET_MSG_TYPE_RX_SIZE];
 
-    mctp_spi_print_msg("MCTP_SPI_GET_MESSAGE_TYPE",
-                        mctp_spi_get_mctp_message_type_support_cmd,
-                        sizeof(mctp_spi_get_mctp_message_type_support_cmd) - 1);
-
-    status = spb_ap_send(sizeof(mctp_spi_get_mctp_message_type_support_cmd),
-                            mctp_spi_get_mctp_message_type_support_cmd);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to send MCTP_SPI_GET_MESSAGE_TYPE msg\n", __func__);
+    status = mctp_ctrl_cmd_send_recv("MCTP_SPI_GET_MESSAGE_TYPE",
+                                     mctp_spi_get_mctp_message_type_support_cmd,
+                                     tx_len,
+                                     recv_buff,
+                                     MCTP_SPI_GET_MSG_TYPE_RX_SIZE);
+    if (status != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_GET_MESSAGE_TYPE cmd\n", __func__);
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_GET_MESSAGE_TYPE request successfully\n");
-
-    /* Wait for the message interrupt */
-    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
-        return MCTP_SPI_FAILURE;
-    }
-
-    /* Call the receive procedure */
-    status = spb_ap_recv(sizeof(mctp_spi_get_mctp_message_type_support_cmd),
-                            recv_buff);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to receive MCTP_SPI_GET_MESSAGE_TYPE response msg\n", __func__);
-        return MCTP_SPI_FAILURE;
-    }
-
-    mctp_spi_print_msg("MCTP_SPI_GET_MESSAGE_TYPE",
-                        recv_buff,
-                        sizeof(mctp_spi_get_mctp_message_type_support_cmd));
-
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_GET_MESSAGE_TYPE response successfully\n");
     return MCTP_SPI_SUCCESS;
 }
 
 /* Nvidia IANA specific functions */
 int mctp_spi_set_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
 {
-    SpbApStatus     status;
-    uint8_t         recv_buff[sizeof(mctp_spi_set_ep_uuid_cmd)];
+    SpbApStatus     status = SPB_AP_OK;
+    int             len = sizeof(mctp_spi_set_ep_uuid_cmd);
+    uint8_t         recv_buff[MCTP_SPI_SET_ENDPOINT_UUID_RX_SIZE];
 
-    MCTP_CTRL_DEBUG("%s: \n", __func__);
-
-    mctp_spi_print_msg("MCTP_SPI_SET_ENDPOINT_UUID",
-                        mctp_spi_set_ep_uuid_cmd,
-                        sizeof(mctp_spi_set_ep_uuid_cmd) - 1);
-
-    status = spb_ap_send(sizeof(mctp_spi_set_ep_uuid_cmd),
-                            mctp_spi_set_ep_uuid_cmd);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to send Boot complete msg\n", __func__);
+    status = mctp_ctrl_cmd_send_recv("MCTP_SPI_SET_ENDPOINT_UUID",
+                                     mctp_spi_set_ep_uuid_cmd,
+                                     len,
+                                     recv_buff,
+                                     MCTP_SPI_SET_ENDPOINT_UUID_RX_SIZE);
+    if (status != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_SET_ENDPOINT_UUID cmd\n", __func__);
         return MCTP_SPI_FAILURE;
     }
 
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_SET_ENDPOINT_UUID request successfully\n");
-
-    /* Wait for the message interrupt */
-    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
-        return MCTP_SPI_FAILURE;
-    }
-
-    /* Call the receive procedure */
-    status = spb_ap_recv(sizeof(mctp_spi_set_ep_uuid_cmd),
-                            recv_buff);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to receive Boot complete msg\n", __func__);
-        return MCTP_SPI_FAILURE;
-    }
-
-    mctp_spi_print_msg("MCTP_SPI_SET_ENDPOINT_UUID",
-                        recv_buff,
-                        sizeof(mctp_spi_set_ep_uuid_cmd));
-
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_SET_ENDPOINT_UUID response successfully\n");
     return MCTP_SPI_SUCCESS;
 }
 
 
 int mctp_spi_set_boot_complete(mctp_spi_cmdline_args_t *cmd)
 {
-    SpbApStatus     status;
-    uint8_t         recv_buff[sizeof(mctp_spi_set_boot_complete_cmd)];
+    SpbApStatus     status = SPB_AP_OK;
+    int             len = sizeof(mctp_spi_set_boot_complete_cmd);
+    uint8_t         recv_buff[MCTP_SPI_BOOT_COMPLETE_RX_SIZE];
 
-    mctp_spi_print_msg("MCTP_SPI_BOOT_COMPLETE",
-                        mctp_spi_set_boot_complete_cmd,
-                        sizeof(mctp_spi_set_boot_complete_cmd) - 1);
-
-    status = spb_ap_send(sizeof(mctp_spi_set_boot_complete_cmd),
-                            mctp_spi_set_boot_complete_cmd);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to send Boot complete msg\n", __func__);
+    status = mctp_ctrl_cmd_send_recv("MCTP_SPI_BOOT_COMPLETE",
+                                     mctp_spi_set_boot_complete_cmd,
+                                     len,
+                                     recv_buff,
+                                     MCTP_SPI_BOOT_COMPLETE_RX_SIZE);
+    if (status != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_BOOT_COMPLETE cmd\n", __func__);
         return MCTP_SPI_FAILURE;
     }
-
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_BOOT_COMPLETE request successfully\n");
-
-    /* Wait for the message interrupt */
-    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
-        return MCTP_SPI_FAILURE;
-    }
-
-    /* Call the receive procedure */
-    status = spb_ap_recv(sizeof(mctp_spi_set_boot_complete_cmd),
-                            recv_buff);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to receive Boot complete msg\n", __func__);
-        return MCTP_SPI_FAILURE;
-    }
-
-    mctp_spi_print_msg("MCTP_SPI_BOOT_COMPLETE",
-                        recv_buff,
-                        sizeof(mctp_spi_set_boot_complete_cmd));
-
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_BOOT_COMPLETE response successfully\n");
-    return MCTP_SPI_SUCCESS;
-}
-
-int mctp_spi_heartbeat_send(mctp_spi_cmdline_args_t *cmd)
-{
-    SpbApStatus     status;
-    uint8_t         recv_buff[sizeof(mctp_spi_heartbeat_send_cmd)];
-
-    mctp_spi_print_msg("MCTP_SPI_HEARTBEAT_SEND",
-                        mctp_spi_heartbeat_send_cmd,
-                        sizeof(mctp_spi_heartbeat_send_cmd) - 1);
-
-    status = spb_ap_send(sizeof(mctp_spi_heartbeat_send_cmd),
-                            mctp_spi_heartbeat_send_cmd);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to send Heartbeat msg\n", __func__);
-        return MCTP_SPI_FAILURE;
-    }
-
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_HEARTBEAT_SEND request successfully\n");
-
-    /* Wait for the message interrupt */
-    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
-        return MCTP_SPI_FAILURE;
-    }
-
-    /* Call the receive procedure */
-    status = spb_ap_recv(sizeof(mctp_spi_heartbeat_send_cmd),
-                            recv_buff);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to receive MCTP_SPI_HEARTBEAT_SEND msg\n", __func__);
-        return MCTP_SPI_FAILURE;
-    }
-
-    mctp_spi_print_msg("MCTP_SPI_HEARTBEAT_SEND",
-                        recv_buff,
-                        sizeof(mctp_spi_heartbeat_send_cmd));
-
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_HEARTBEAT_SEND response successfully\n");
 
     return MCTP_SPI_SUCCESS;
 }
 
 int mctp_spi_heartbeat_enable(mctp_spi_cmdline_args_t *cmd, mctp_spi_hrtb_ops_t enable)
 {
-    SpbApStatus     status;
-    uint8_t         recv_buff[sizeof(mctp_spi_heartbeat_enable_cmd) - 1];
+    SpbApStatus     status = SPB_AP_OK;
+    int             tx_len = sizeof(mctp_spi_heartbeat_enable_cmd);
+    uint8_t         recv_buff[MCTP_SPI_HEARTBEAT_ENABLE_RX_SIZE];
 
     if (enable) {
-
-        mctp_spi_print_msg("MCTP_SPI_HB_ENABLE_CMD",
-                            mctp_spi_heartbeat_enable_cmd,
-                            sizeof(mctp_spi_heartbeat_enable_cmd) - 1);
-
-        status = spb_ap_send(sizeof(mctp_spi_heartbeat_enable_cmd),
-                                mctp_spi_heartbeat_enable_cmd);
-        if (status != SPB_AP_OK) {
-            MCTP_CTRL_ERR("%s: Failed to Enable Heartbeat msg\n", __func__);
+        status = mctp_ctrl_cmd_send_recv("MCTP_SPI_HEARTBEAT_ENABLE",
+                                         mctp_spi_heartbeat_enable_cmd,
+                                         tx_len,
+                                         recv_buff,
+                                         MCTP_SPI_HEARTBEAT_ENABLE_RX_SIZE);
+        if (status != MCTP_SPI_SUCCESS) {
+            MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_ENABLE cmd\n", __func__);
             return MCTP_SPI_FAILURE;
         }
-
-        MCTP_CTRL_DEBUG("Sent MCTP_SPI_HEARTBEAT_ENABLE request successfully\n");
-
-        /* Wait for the message interrupt */
-        if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
-            return MCTP_SPI_FAILURE;
-        }
- 
-        /* Call the receive procedure */
-        status = spb_ap_recv((sizeof(mctp_spi_heartbeat_enable_cmd) - 1),
-                                recv_buff);
-        if (status != SPB_AP_OK) {
-            MCTP_CTRL_ERR("%s: Failed to receive MCTP_SPI_HEARTBEAT_ENABLE msg\n", __func__);
-            return MCTP_SPI_FAILURE;
-        }
- 
-        mctp_spi_print_msg("MCTP_SPI_HEARTBEAT_ENABLE",
-                            recv_buff,
-                            (sizeof(mctp_spi_heartbeat_enable_cmd) - 1));
-        MCTP_CTRL_DEBUG("Received MCTP_SPI_HEARTBEAT_ENABLE response successfully\n");
- 
     } else {
-
-        mctp_spi_print_msg("MCTP_SPI_HB_DISABLE_CMD",
-                            mctp_spi_heartbeat_disable_cmd,
-                            sizeof(mctp_spi_heartbeat_disable_cmd) - 1);
-
-        status = spb_ap_send(sizeof(mctp_spi_heartbeat_disable_cmd) - 1,
-                                mctp_spi_heartbeat_disable_cmd);
+        status = mctp_ctrl_cmd_send_recv("MCTP_SPI_HEARTBEAT_DISABLE",
+                                         mctp_spi_heartbeat_disable_cmd,
+                                         tx_len,
+                                         recv_buff,
+                                         MCTP_SPI_HEARTBEAT_ENABLE_RX_SIZE);
         if (status != SPB_AP_OK) {
-            MCTP_CTRL_ERR("%s: Failed to Disable Heartbeat msg\n", __func__);
+            MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_DISABLE cmd\n", __func__);
             return MCTP_SPI_FAILURE;
         }
-
-        MCTP_CTRL_DEBUG("Sent MCTP_SPI_HEARTBEAT_DISABLE request successfully\n");
-
-        /* Wait for the message interrupt */
-        if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
-            return MCTP_SPI_FAILURE;
-        }
- 
-        /* Call the receive procedure */
-        status = spb_ap_recv((sizeof(mctp_spi_heartbeat_disable_cmd) - 1),
-                                recv_buff);
-        if (status != SPB_AP_OK) {
-            MCTP_CTRL_ERR("%s: Failed to receive MCTP_SPI_HEARTBEAT_DISABLE msg\n", __func__);
-            return MCTP_SPI_FAILURE;
-        }
- 
-        mctp_spi_print_msg("MCTP_SPI_HEARTBEAT_DISABLE",
-                            recv_buff,
-                            (sizeof(mctp_spi_heartbeat_disable_cmd) - 1));
-        MCTP_CTRL_DEBUG("Received MCTP_SPI_HEARTBEAT_DISABLE response successfully\n");
     }
 
     return MCTP_SPI_SUCCESS;
 }
 
+int mctp_spi_heartbeat_send(mctp_spi_cmdline_args_t *cmd)
+{
+    SpbApStatus     status = SPB_AP_OK;
+    int             len = sizeof(mctp_spi_heartbeat_send_cmd);
+    uint8_t         recv_buff[MCTP_SPI_HEARTBEAT_SEND_RX_SIZE];
+
+    status = mctp_ctrl_cmd_send_recv("MCTP_SPI_HEARTBEAT_SEND",
+                                     mctp_spi_heartbeat_send_cmd,
+                                     len,
+                                     recv_buff,
+                                     MCTP_SPI_HEARTBEAT_SEND_RX_SIZE);
+    if (status != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_SEND cmd\n", __func__);
+        return MCTP_SPI_FAILURE;
+    }
+
+    return MCTP_SPI_SUCCESS;
+}
+
+
 int mctp_spi_query_boot_status(mctp_spi_cmdline_args_t *cmd)
 {
-    SpbApStatus     status;
-    uint8_t         recv_buff[sizeof(mctp_spi_query_boot_status_cmd)];
+    SpbApStatus     status = SPB_AP_OK;
+    int             len = sizeof(mctp_spi_query_boot_status_cmd);
+    uint8_t         recv_buff[MCTP_SPI_QUERY_BOOT_STATUS_RX_SIZE];
 
-    mctp_spi_print_msg("MCTP_SPI_QUERY_BOOT_STATUS",
-                        mctp_spi_query_boot_status_cmd,
-                        sizeof(mctp_spi_query_boot_status_cmd) - 1);
-
-    status = spb_ap_send(sizeof(mctp_spi_query_boot_status_cmd),
-                            mctp_spi_query_boot_status_cmd);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to query boot status msg\n", __func__);
+    status = mctp_ctrl_cmd_send_recv("MCTP_SPI_QUERY_BOOT_STATUS",
+                                     mctp_spi_query_boot_status_cmd,
+                                     len,
+                                     recv_buff,
+                                     MCTP_SPI_QUERY_BOOT_STATUS_RX_SIZE);
+    if (status != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_QUERY_BOOT_STATUS cmd\n", __func__);
         return MCTP_SPI_FAILURE;
     }
-
-    MCTP_CTRL_DEBUG("Sent MCTP_SPI_QUERY_BOOT_STATUS request successfully\n");
-
-    /* Wait for the message interrupt */
-    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
-        return MCTP_SPI_FAILURE;
-    }
-
-    /* Call the receive procedure */
-    status = spb_ap_recv(sizeof(mctp_spi_query_boot_status_cmd),
-                            recv_buff);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to receive MCTP_SPI_QUERY_BOOT_STATUS msg\n", __func__);
-        return MCTP_SPI_FAILURE;
-    }
-
-    mctp_spi_print_msg("MCTP_SPI_QUERY_BOOT_STATUS",
-                        recv_buff,
-                        sizeof(mctp_spi_query_boot_status_cmd));
-
-    MCTP_CTRL_DEBUG("Received MCTP_SPI_QUERY_BOOT_STATUS response successfully\n");
-
 
     return MCTP_SPI_SUCCESS;
 }
 
 int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdline)
 {
-    mctp_requester_rc_t     mctp_ret;
-    size_t                  resp_msg_len;
-    int                     rc;
+    mctp_requester_rc_t     mctp_ret = 0;
+    size_t                  resp_msg_len = 0;
+    int                     rc = 0;
     uint32_t                count = 0;
 
     if (ctrl->eid) {
@@ -944,6 +768,7 @@ int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdlin
         rc = mctp_spi_heartbeat_send(cmdline);
         if (rc != MCTP_SPI_SUCCESS) {
             MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_SEND [%d]\n", __func__, count);
+            return MCTP_SPI_FAILURE;
         }
 
         /*
@@ -971,9 +796,9 @@ int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdlin
 
 void mctp_spi_test_cmd(mctp_spi_cmdline_args_t *cmd)
 {
-    int                     rc;
+    int                     rc = 0;
     mctp_spi_iana_vdm_ops_t ops = cmd->vdm_ops;
-    int                     status;
+    int                     status = 0;
 
     /* Check for Raw Read/write access */
     if (cmd->cmd_mode) {

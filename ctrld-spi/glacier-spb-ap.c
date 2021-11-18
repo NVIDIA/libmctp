@@ -43,14 +43,13 @@ static pthread_mutex_t spi_mutex = PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP;
 
 static inline uint64_t clock_msecs() 
 {
-    struct timespec ts;
+    struct timespec ts = {0};
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec * 1000ULL + ts.tv_nsec / 1000000ULL;
 }
 
 static inline SpbApStatus lock() 
 {
-#if 1
     if (_spb.use_interrupt) {
         uint64_t start = clock_msecs();
         while (pthread_mutex_trylock(&spi_mutex) != 0) {
@@ -59,16 +58,13 @@ static inline SpbApStatus lock()
             }
         }
     }
-#endif
     return SPB_AP_OK;
 }
 static inline SpbApStatus unlock()
 {
-#if 1
     return (!_spb.use_interrupt || pthread_mutex_unlock(&spi_mutex) == 0)
                ? SPB_AP_OK
                : SPB_AP_ERROR_UNKNOWN;
-#endif
     return SPB_AP_OK;
 }
 
@@ -225,7 +221,6 @@ SpbApStatus wait_for_ack()
     SpbApStatus status = SPB_AP_OK;
     uint64_t start = clock_msecs();
     if (_spb.use_interrupt) {
-        //MCTP_CTRL_DEBUG("VK: %s: _spb.use_interrupt: _ec2spimb: 0x%x\n", __func__, _ec2spimb);
         // simple implementation, could use signal/poll
         while (_ec2spimb != EC_ACK) {
             if (clock_msecs() - start > POLL_INT_TIMEOUT_MSECS)
@@ -238,12 +233,11 @@ SpbApStatus wait_for_ack()
             // wait for interrupt pin
             while (_spb.gpio_read_interrupt_pin() == 0) {
                 if (clock_msecs() - start > POLL_INT_TIMEOUT_MSECS) {
-                    //MCTP_CTRL_DEBUG("VK: TBD: %s: Failed (Timeout)\n", __func__);
+                    MCTP_CTRL_ERR("%s: Failed (Timeout)\n", __func__);
                     return SPB_AP_ERROR_TIMEOUT;
                 }
             }
             status = spb_ap_on_interrupt(1);
-            //MCTP_CTRL_DEBUG("VK: %s: status: %d\n", __func__, status);
             switch(status) {
                 case SPB_AP_MESSAGE_AVAILABLE:
                     *_spb.message_available = 1;
@@ -355,7 +349,6 @@ static SpbApStatus posted_read_helper(uint8_t cmd, uint8_t cmd2,
 
     // Initiate FIFO READ
     buf[0] = cmd2;
-    //MCTP_CTRL_DEBUG("VK: %s: Initiate FIFO READ [dont deassert]\n", __func__);
     spi_xfer(1, buf, TAR_CYCLES + 2, buf, false);
 
     // Check MemoryReadDone
@@ -366,7 +359,6 @@ static SpbApStatus posted_read_helper(uint8_t cmd, uint8_t cmd2,
         do {
             // read status until MemoryReadDone is set
             buf[0] = 0, buf[1] = 0;
-            //MCTP_CTRL_DEBUG("VK: %s: Read status until MemoryReadDone is set [dont deassert]\n", __func__);
             spi_xfer(0, buf, 2, buf, false);
             if (clock_msecs() - start > POLL_INT_TIMEOUT_MSECS) {
                 return SPB_AP_ERROR_TIMEOUT;
@@ -375,7 +367,6 @@ static SpbApStatus posted_read_helper(uint8_t cmd, uint8_t cmd2,
     }
 
     // Read actual data
-    //MCTP_CTRL_DEBUG("VK: %s: Read actual data [deassert]\n", __func__);
     spi_xfer(0, buf, bytes, buf, true);
 
     clear_memory_read_done();

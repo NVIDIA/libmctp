@@ -79,7 +79,7 @@ struct mctp_spi_pkt_private {
 
 /* Function prototypes */
 int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdline);
-int mctp_load_spi_driver(void);
+void mctp_load_spi_driver(void);
 
 #ifdef __cplusplus
 }

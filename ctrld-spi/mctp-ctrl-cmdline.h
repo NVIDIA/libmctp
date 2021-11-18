@@ -171,6 +171,7 @@ typedef struct mctp_cmdline_args_ {
     int                     mode;
     int                     list_device_op;
     mctp_cmdline_ops_t      ops;
+    mctp_eid_t              src_eid;
     mctp_eid_t              dest_eid;
     mctp_spi_iana_vdm_ops_t iana_vdm_ops;
     mctp_spi_vdm_ops_t      vdm_ops;

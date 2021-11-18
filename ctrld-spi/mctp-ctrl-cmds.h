@@ -29,6 +29,9 @@ typedef uint8_t mctp_eid_t;
 /* MCTP SPI Control daemon delay default */
 #define MCTP_SPI_CTRL_DELAY_DEFAULT                         10
 
+/* System command buffer size */
+#define MCTP_SYSTEM_CMD_BUFF_SIZE                           1035
+
 /* Baseline Transmission Unit and packet size */
 #define MCTP_BTU                                            64
 

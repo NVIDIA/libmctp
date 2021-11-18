@@ -36,7 +36,7 @@ static int         spiFd;
 static void ast_spi_print_tx_rx(unsigned char *txdata, int txlen,
                         unsigned char *rxdata, int rxlen)
 {
-    int i;
+    int i = 0;
 
     MCTP_CTRL_TRACE("------------------------------------------------------\n");
     MCTP_CTRL_TRACE("Tx [%d]: \t", (txlen - rxlen));
@@ -55,7 +55,7 @@ int ast_spi_xfer(int fd, unsigned char *txdata, int txlen,
                         unsigned char *rxdata, int rxlen, bool deassert)
 {
     struct spi_ioc_transfer spi={0};
-    int ret;
+    int ret = 0;
 
     if (spiMode & SPI_3WIRE) {
         // send
@@ -69,10 +69,10 @@ int ast_spi_xfer(int fd, unsigned char *txdata, int txlen,
 
         ret = ioctl(fd, SPI_IOC_MESSAGE(1), &spi);
         if (ret < 0) {
-             MCTP_CTRL_ERR("Cannot send message %s\n", strerror(errno));
+            MCTP_CTRL_ERR("Cannot send message %s\n", strerror(errno));
+            return ret;
         }
 
-        memset(&spi, 0, sizeof(spi));
         // recv
         spi.tx_buf = (unsigned long)NULL; // single wire recv, this must be null
         spi.rx_buf = (unsigned long)(rxdata);
@@ -85,11 +85,11 @@ int ast_spi_xfer(int fd, unsigned char *txdata, int txlen,
         ret = ioctl(fd, SPI_IOC_MESSAGE(1), &spi);
         if (ret < 0) {
             MCTP_CTRL_ERR("Cannot recv message: %s\n", strerror(errno));
+            return ret;
         }
     } else {
-        memset (&spi, 0, sizeof (spi));
 
-        if (txlen - rxlen) {
+        if ((txlen - rxlen) > 0) {
             spi.tx_buf        = (unsigned long)txdata;
         } else {
             spi.tx_buf        = (unsigned long)NULL;
@@ -105,10 +105,10 @@ int ast_spi_xfer(int fd, unsigned char *txdata, int txlen,
         ret = ioctl(fd, SPI_IOC_MESSAGE(1), &spi);
         if (ret < 0) {
             MCTP_CTRL_ERR( "SPI Xfer data failure: %s\n", strerror(errno));
+            return ret;
         }
 
         ast_spi_print_tx_rx(txdata, txlen, rxdata, rxlen);
-        return ret;
     }
     
     return ret;
@@ -116,7 +116,7 @@ int ast_spi_xfer(int fd, unsigned char *txdata, int txlen,
 
 int ast_spi_set_speed(int fd, int speed)
 {
-    int ret;
+    int ret = 0;
     
     ret = ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
     if (ret < 0)  {
@@ -189,7 +189,7 @@ int ast_spi_set_udelay(int usecond)
 
 int ast_spi_open(int dev, int channel, int mode, int disableCS, int singleMode)
 {
-    int     fd, ret = 0;
+    int     fd = 0, ret = 0;
     char    spiDev[32]  = "";
 
     snprintf(spiDev, 31, "/dev/spidev%d.%d", dev, channel);
@@ -205,11 +205,6 @@ int ast_spi_open(int dev, int channel, int mode, int disableCS, int singleMode)
 
     if (disableCS) 
         spiMode  |= SPI_NO_CS;
-
-    if (ret) {
-        close(fd);
-        return -1;
-    }
 
     return fd;
 }

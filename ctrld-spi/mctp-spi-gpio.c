@@ -36,7 +36,7 @@ extern SpbApStatus spb_ap_on_interrupt(int value);
  ****************************************************************/
 static int gpio_export(unsigned int gpio)
 {
-	int fd, len;
+	int fd = 0, len = 0;
 	char buf[MAX_BUF];
  
 	fd = open(SYSFS_GPIO_DIR "/export", O_WRONLY);
@@ -57,7 +57,7 @@ static int gpio_export(unsigned int gpio)
  ****************************************************************/
 static int gpio_unexport(unsigned int gpio)
 {
-	int fd, len;
+	int fd = 0, len = 0;
 	char buf[MAX_BUF];
  
 	fd = open(SYSFS_GPIO_DIR "/unexport", O_WRONLY);
@@ -77,7 +77,7 @@ static int gpio_unexport(unsigned int gpio)
  ****************************************************************/
 static int gpio_set_dir(unsigned int gpio, unsigned int out_flag)
 {
-	int fd, len;
+	int fd = 0, len = 0;
 	char buf[MAX_BUF];
  
 	len = snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR  "/gpio%d/direction", gpio);
@@ -102,7 +102,7 @@ static int gpio_set_dir(unsigned int gpio, unsigned int out_flag)
  ****************************************************************/
 static int gpio_set_value(unsigned int gpio, unsigned int value)
 {
-	int fd, len;
+	int fd = 0, len = 0;
 	char buf[MAX_BUF];
  
 	len = snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR "/gpio%d/value", gpio);
@@ -127,9 +127,9 @@ static int gpio_set_value(unsigned int gpio, unsigned int value)
  ****************************************************************/
 static int gpio_get_value(unsigned int gpio, unsigned int *value)
 {
-	int fd, len;
+	int fd = 0, len = 0;
 	char buf[MAX_BUF];
-	char ch;
+	char ch = 0;
 
 	len = snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR "/gpio%d/value", gpio);
  
@@ -139,7 +139,7 @@ static int gpio_get_value(unsigned int gpio, unsigned int *value)
 		return fd;
 	}
  
-	read(fd, &ch, 1);
+	len = read(fd, &ch, 1);
 
 	if (ch != '0') {
 		*value = 1;
@@ -158,7 +158,7 @@ static int gpio_get_value(unsigned int gpio, unsigned int *value)
 
 static int gpio_set_edge(unsigned int gpio, char *edge)
 {
-	int fd, len;
+	int fd = 0, len = 0;
 	char buf[MAX_BUF];
 
 	len = snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR "/gpio%d/edge", gpio);
@@ -180,14 +180,14 @@ static int gpio_set_edge(unsigned int gpio, char *edge)
 
 static int gpio_fd_open(unsigned int gpio)
 {
-	int fd, len;
+	int fd = 0, len = 0;
 	char buf[MAX_BUF];
 
 	len = snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR "/gpio%d/value", gpio);
  
 	fd = open(buf, O_RDONLY | O_NONBLOCK );
 	if (fd < 0) {
-		perror("gpio/fd_open");
+		MCTP_CTRL_ERR("GPIO fd_open error\n");
 	}
 	return fd;
 }
@@ -206,12 +206,12 @@ static int gpio_fd_close(int fd)
  ****************************************************************/
 int gpio_poll_thread(void *data)
 {
-	struct pollfd fdset[1];
-	int nfds = 1;
-	int gpio_fd, timeout, rc;
-	char *buf[MAX_BUF];
-	unsigned int gpio;
-	int len;
+	struct pollfd   fdset[1];
+	int             nfds = 1;
+	int             gpio_fd = 0, timeout = 0, rc = 0;
+	char            *buf[MAX_BUF];
+	unsigned int    gpio = 0;
+	int             len = 0;
 
     mctp_spi_cmdline_args_t *cmdline;
     cmdline = (mctp_spi_cmdline_args_t *) data;
@@ -255,11 +255,10 @@ int gpio_poll_thread(void *data)
 		if (fdset[0].revents & POLLPRI) {
 			lseek(fdset[0].fd, 0, SEEK_SET);
 			len = read(fdset[0].fd, buf, MAX_BUF);
-            //MCTP_CTRL_DEBUG("%s: poll() GPIO %d Intr occurred\n", __func__, gpio);
             *g_gpio_intr = SPB_GPIO_INTR_OCCURED;
 
             if (spb_ap_on_interrupt(1) == SPB_AP_MESSAGE_AVAILABLE) {
-                MCTP_CTRL_DEBUG("MCTP Rx Message available \n", __func__);
+                MCTP_CTRL_DEBUG("%s: MCTP Rx Message available \n", __func__);
                 message_available = MCTP_RX_MSG_INTR;
             }
 		}
