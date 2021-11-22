@@ -504,7 +504,7 @@ int mctp_ctrl_cmd_send_recv(char *str, uint8_t *tx_cmd, int tx_len, uint8_t *rx_
     /* Call the receive procedure */
     status = spb_ap_recv(rx_len, rx_cmd);
     if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to receive Set EID complete msg\n", __func__);
+        MCTP_CTRL_ERR("%s: Failed to receive %s\n", __func__, str);
         return MCTP_SPI_FAILURE;
     }
 

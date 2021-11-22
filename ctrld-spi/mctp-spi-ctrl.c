@@ -540,6 +540,7 @@ int main (int argc, char * const *argv)
     cmdline.list_device_op  = 0;
     cmdline.ops             = MCTP_CMDLINE_OP_NONE;
     cmdline.cmd_mode        = MCTP_SPI_NONE;
+    cmdline.mode            = -1;
  
     memset(&cmdline.tx_data, 0, MCTP_WRITE_DATA_BUFF_SIZE);
     memset(&cmdline.rx_data, 0, MCTP_READ_DATA_BUFF_SIZE);
@@ -596,6 +597,12 @@ int main (int argc, char * const *argv)
 
     /* sleep before starting the daemon */
     sleep(cmdline.delay);
+
+    /* Return if it is unknown mode */
+    if (cmdline.mode < 0) {
+        MCTP_CTRL_INFO("%s: Unsupported mode", __func__);
+        return EXIT_FAILURE;
+    }
 
 #ifdef MCTP_SPI_SPB_INTERFACE
     /* Unbind Flash driver and load Raw SPI driver */
