@@ -16,6 +16,8 @@
 extern "C" {
 #endif
 
+#define MCTP_DEVICE_DELAY_IN_SECS       1
+
 #define MCTP_ROUTING_TABLE_MAX_SIZE     0x200
 #define MCTP_MSG_TYPE_MAX_SIZE          0xff
 

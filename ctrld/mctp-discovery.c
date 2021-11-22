@@ -1400,7 +1400,9 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                  * to downstream devices
                  */
                 MCTP_CTRL_DEBUG("%s: MCTP_ALLOCATE_EP_ID_RESPONSE (sleep for a while..)\n", __func__);
-                sleep(2);
+
+                /* Sleep dynamically based on EID pool size */
+                sleep(g_eid_pool_size * MCTP_DEVICE_DELAY_IN_SECS);
 
                 break;
 

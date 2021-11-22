@@ -562,7 +562,7 @@ int main (int argc, char * const *argv)
                 cmdline.binding_type = (uint8_t) atoi(optarg);
                 break;
             case 'd':
-                cmdline.delay = (uint8_t) atoi(optarg);
+                cmdline.delay = (int) atoi(optarg);
                 break;
             case 'b':
                 cmdline.bind_len = mctp_cmdline_copy_tx_buff(optarg,

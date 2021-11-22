@@ -25,7 +25,7 @@ typedef struct mctp_cmdline_args_ {
     char                    name[10];
     int                     device_id;
     bool                    verbose;
-    uint8_t                 delay;
+    int                     delay;
     mctp_binding_ids_t      binding_type;
     uint8_t                 bind_info[MCTP_PVT_BIND_BUFF_SIZE];
     int                     bind_len;
