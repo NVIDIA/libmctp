@@ -704,6 +704,13 @@ int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
         /* Free Rx packet */
         free(mctp_resp_msg);
 
+        /* Check wheteher device is ready or not */
+        if (set_eid_resp.completion_code == MCTP_CONTROL_MSG_STATUS_ERROR_NOT_READY) {
+            MCTP_CTRL_DEBUG("%s: Device [eid: %d] is not ready yet..\n",
+                                                    __func__, set_eid_resp.eid_set);
+            return MCTP_RET_DEVICE_NOT_READY;
+        }
+
         return MCTP_RET_ENCODE_FAILED;
     }
 
@@ -1352,6 +1359,18 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                 /* Process the MCTP_SET_EP_RESPONSE */
                 mctp_ret = mctp_set_eid_get_response(mctp_resp_msg, resp_msg_len,
                                                      MCTP_FPGA_EID, &eid_count);
+
+                /* Retry if the device is not ready */
+                if (mctp_ret == MCTP_RET_DEVICE_NOT_READY) {
+
+                    /* Set the discover mode as MCTP_SET_EP_REQUEST */
+                    discovery_mode = MCTP_SET_EP_REQUEST;
+
+                    /* Sleep for a while */
+                    sleep(MCTP_DEVICE_READY_DELAY);
+                    break;
+                }
+
                 if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
                     MCTP_CTRL_ERR("%s: Failed MCTP_EP_DISCOVERY_RESPONSE\n", __func__);
                     return MCTP_RET_DISCOVERY_FAILED;

@@ -65,6 +65,7 @@ typedef enum {
         MCTP_RET_DECODE_FAILED,
         MCTP_RET_REQUEST_FAILED,
         MCTP_RET_DISCOVERY_FAILED,
+        MCTP_RET_DEVICE_NOT_READY,
 } mctp_ret_codes_t;
 
 /* Function prototypes */
