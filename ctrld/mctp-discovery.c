@@ -947,6 +947,16 @@ int mctp_get_routing_table_get_response(int sock_fd, mctp_eid_t eid,
     req_ret = mctp_decode_resp_get_routing_table(&routing_table);
     if (req_ret == false) {
         MCTP_CTRL_ERR("%s: Packet parsing failed\n", __func__);
+
+        /* Free Rx packet */
+        free(mctp_resp_msg);
+
+        /* Check wheteher device is ready or not */
+        if (routing_table.completion_code == MCTP_CONTROL_MSG_STATUS_ERROR_NOT_READY) {
+            MCTP_CTRL_DEBUG("%s: Device is not ready yet..\n", __func__);
+            return MCTP_RET_DEVICE_NOT_READY;
+        }
+
         return MCTP_RET_ENCODE_FAILED;
     }
 
@@ -1267,6 +1277,7 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
     size_t                      resp_msg_len; 
     int                         uuid_req_count = 0;
     int                         msg_type_req_count = 0;
+    int                         timeout = 0;
     mctp_routing_table_t        *routing_entry;
 
     /* Update Target BDF */
@@ -1363,18 +1374,31 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                 /* Retry if the device is not ready */
                 if (mctp_ret == MCTP_RET_DEVICE_NOT_READY) {
 
-                    /* Set the discover mode as MCTP_SET_EP_REQUEST */
-                    discovery_mode = MCTP_SET_EP_REQUEST;
+                    /* Make sure it's not timedout before continuing */
+                    if (timeout < MCTP_DEVICE_SET_EID_TIMEOUT) {
 
-                    /* Sleep for a while */
-                    sleep(MCTP_DEVICE_READY_DELAY);
-                    break;
+                        /* Increment the timeout */
+                        timeout += MCTP_DEVICE_READY_DELAY;
+
+                        /* Set the discover mode as MCTP_SET_EP_REQUEST */
+                        discovery_mode = MCTP_SET_EP_REQUEST;
+
+                        /* Sleep for a while */
+                        sleep(MCTP_DEVICE_READY_DELAY);
+                        break;
+                    }
+
+                    MCTP_CTRL_ERR("%s: Timedout[%d] MCTP_EP_DISCOVERY_RESPONSE\n", __func__, timeout);
+                    return MCTP_RET_DISCOVERY_FAILED;
                 }
 
                 if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
                     MCTP_CTRL_ERR("%s: Failed MCTP_EP_DISCOVERY_RESPONSE\n", __func__);
                     return MCTP_RET_DISCOVERY_FAILED;
                 }
+
+                /* Reset the timeout */
+                timeout = 0;
 
                 /* Next step is to Allocate endpoint IDs request */
                 discovery_mode = MCTP_ALLOCATE_EP_ID_REQUEST;
@@ -1418,10 +1442,14 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                  * Sleep for a while, since the device need to allocate EIDs
                  * to downstream devices
                  */
-                MCTP_CTRL_DEBUG("%s: MCTP_ALLOCATE_EP_ID_RESPONSE (sleep for a while..)\n", __func__);
+                MCTP_CTRL_DEBUG("%s: MCTP_ALLOCATE_EP_ID_RESPONSE (sleep %d secs)\n",
+                                                    __func__, MCTP_DEVICE_GET_ROUTING_DELAY);
 
-                /* Sleep dynamically based on EID pool size */
-                sleep(g_eid_pool_size * MCTP_DEVICE_DELAY_IN_SECS);
+                /*
+                 * Sleep for a while (this is needed for Bridge to prepare the
+                 * Routing table entries)
+                 */
+                sleep(MCTP_DEVICE_GET_ROUTING_DELAY);
 
                 break;
 
@@ -1443,6 +1471,32 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
 
                 /* Process the MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE */
                 mctp_ret = mctp_get_routing_table_get_response(ctrl->sock, eid, mctp_resp_msg, resp_msg_len);
+
+                /* Retry if the device is not ready */
+                if (mctp_ret == MCTP_RET_DEVICE_NOT_READY) {
+
+                    /* Make sure it's not timedout before continuing */
+                    if (timeout < MCTP_DEVICE_GET_ROUTING_TIMEOUT) {
+
+                        /* Increment the timeout */
+                        timeout += MCTP_DEVICE_READY_DELAY;
+
+                        /* Set the discover mode as MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST */
+                        discovery_mode = MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST;
+
+                        /* Sleep for a while */
+                        sleep(MCTP_DEVICE_READY_DELAY);
+                        break;
+                    }
+
+                    MCTP_CTRL_ERR("%s: Timedout[%d secs]  MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE\n",
+                                                                                        __func__, timeout);
+                    return MCTP_RET_DISCOVERY_FAILED;
+                }
+
+                /* Reset the timeout */
+                timeout = 0;
+
                 if (MCTP_RET_DISCOVERY_FAILED == mctp_ret) {
                     MCTP_CTRL_ERR("%s: Failed MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE\n", __func__);
                     return MCTP_RET_DISCOVERY_FAILED;
