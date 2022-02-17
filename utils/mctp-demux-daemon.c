@@ -3,6 +3,13 @@
 #define _GNU_SOURCE
 
 #include "config.h"
+
+#define SD_LISTEN_FDS_START 3
+
+#include "compiler.h"
+#include "libmctp.h"
+#include "libmctp-serial.h"
+#include "libmctp-astlpc.h"
 #include "utils/mctp-capture.h"
 
 #include <err.h>
@@ -31,7 +38,6 @@
 #include "libmctp-log.h"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
-#define __unused __attribute__((unused))
 
 #define MCTP_BIND_INFO_OFFSET (sizeof(uint8_t))
 #define MCTP_PCIE_EID_OFFSET                                                   \
@@ -84,6 +90,7 @@ struct ctx {
 	int sock;
 	struct pollfd *pollfds;
 
+	bool clients_changed;
 	struct client *clients;
 	int n_clients;
 
