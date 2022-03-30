@@ -118,8 +118,10 @@ void mctp_ctrl_clean_up(void)
     /* Close the socket connection */
     close(g_socket_fd);
 
+#ifdef MCTP_SPI_USE_THREAD
     *g_gpio_intr = SPB_GPIO_INTR_STOP;
     pthread_join(g_gpio_poll, NULL);
+#endif
 
     /* De init SPI interface */
     mctp_spi_deinit();
@@ -519,6 +521,7 @@ int main (int argc, char * const *argv)
     /* Initialize MCTP ctrl structure */
     mctp_ctrl = &_mctp_ctrl;
     mctp_ctrl->type = MCTP_MSG_TYPE_HDR;
+    mctp_ctrl->sock = -1;
 
     /* Initialize the cmdline structure */
     memset(&cmdline, 0, sizeof(cmdline));
@@ -595,9 +598,6 @@ int main (int argc, char * const *argv)
         }
     }
 
-    /* sleep before starting the daemon */
-    sleep(cmdline.delay);
-
     /* Return if it is unknown mode */
     if (cmdline.mode < 0) {
         MCTP_CTRL_INFO("%s: Unsupported mode", __func__);
@@ -606,10 +606,18 @@ int main (int argc, char * const *argv)
 
 #ifdef MCTP_SPI_SPB_INTERFACE
     /* Unbind Flash driver and load Raw SPI driver */
-    mctp_load_spi_driver();
+    if (mctp_load_spi_driver() != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed mctp_load_spi_driver\n", __func__);
+        return EXIT_FAILURE;
+    }
 
+#ifndef MCTP_SPI_USE_THREAD
+    /* GPIO Initialization */
+    gpio_intr_init();
+#else
     /* Create independent threads each of which will execute function */
     rc = pthread_create( &gpio_poll, NULL, gpio_poll_thread, (void*) &cmdline);
+#endif
 
     /* Initialize SPI Interface */
     if (mctp_spi_init(&cmdline) != MCTP_SPI_SUCCESS) {
@@ -637,6 +645,7 @@ int main (int argc, char * const *argv)
     ret = mctp_spi_keepalive_event(mctp_ctrl, &cmdline);
     if (ret == MCTP_SPI_FAILURE) {
         MCTP_CTRL_ERR("%s: Failed to send MCTP command\n", __func__);
+        return EXIT_FAILURE;
     }
 #else
     /* Run this application only if set as daemon mode */
@@ -666,8 +675,10 @@ int main (int argc, char * const *argv)
     close(mctp_ctrl->sock);
 #endif
 
+#ifdef MCTP_SPI_USE_THREAD
     *g_gpio_intr = SPB_GPIO_INTR_STOP;
     pthread_join(gpio_poll, NULL);
+#endif
 
     /* De init SPI interface */
     mctp_spi_deinit();

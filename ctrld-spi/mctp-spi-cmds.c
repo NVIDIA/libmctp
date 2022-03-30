@@ -9,7 +9,6 @@
  */
 
 #define _GNU_SOURCE
-
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
@@ -22,6 +21,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include <poll.h>
@@ -394,7 +394,7 @@ int mctp_check_spi_flash_exist(void)
 }
 
 
-void mctp_load_spi_driver(void)
+int mctp_load_spi_driver(void)
 {
     char cmd[MCTP_SPI_LOAD_CMD_SIZE];
     int ret = 0;
@@ -419,7 +419,7 @@ void mctp_load_spi_driver(void)
     if (ret > 0) {
         MCTP_CTRL_INFO("%s: Raw SPI driver already loaded: %d\n", __func__, ret);
     } else {
-        sleep(MCTP_SPI_LOAD_UNLOAD_DELAY);
+        sleep(MCTP_SPI_LOAD_UNLOAD_DELAY_SECS);
         memset(cmd, '\0', MCTP_SPI_LOAD_CMD_SIZE);
         sprintf(cmd, "%s", MCTP_SPI_DRIVER_PATH);
         MCTP_CTRL_DEBUG("%s: Loading Raw SPI driver: %s\n", __func__, cmd);
@@ -427,12 +427,16 @@ void mctp_load_spi_driver(void)
         MCTP_CTRL_INFO("%s: Loaded Raw SPI driver successfully: %d\n", __func__, ret);
 
         /* Need some wait time to complete the FMC Raw SPI driver initialization */
-        sleep(MCTP_SPI_LOAD_UNLOAD_DELAY);
+        sleep(MCTP_SPI_LOAD_UNLOAD_DELAY_SECS);
     }
+
+    return MCTP_SPI_SUCCESS;
 }
 
 int mctp_spi_init(mctp_spi_cmdline_args_t *cmd)
 {
+    int count = 0;
+
     /* Initialize SPI before doing any ops */
     spi_fd = ast_spi_open(AST_MCTP_SPI_DEV_NUM,
                           AST_MCTP_SPI_CHANNEL_NUM, 0, 0, 0);
@@ -441,13 +445,30 @@ int mctp_spi_init(mctp_spi_cmdline_args_t *cmd)
         return MCTP_SPI_FAILURE;
     }
 
-    /* Initialize SPB AP Library */
-    if (spb_ap_initialize(&nvda_spb_ap) != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Cannot initialize SPB AP\n", __func__);
+    while (1) {
+        /* Initialize SPB AP Library */
+        if (spb_ap_initialize(&nvda_spb_ap) != SPB_AP_OK) {
+
+            /* Increment the count */
+            count++;
+
+            MCTP_CTRL_ERR("%s: Cannot initialize SPB AP, retrying[%d]\n", __func__, count);
+            usleep(MCTP_SPI_CMD_DELAY_USECS);
+
+        } else {
+            MCTP_CTRL_INFO("%s: Initialized SPB interface successfully\n", __func__);
+            break;
+        }
+
+        /* Return Failure, Glacier could be in bad state */
+        if (count >= SPB_AP_INIT_THRESHOLD) {
+            MCTP_CTRL_ERR("%s: Unable to initialize Glacier module\n", __func__);
+            return MCTP_SPI_FAILURE;
+        }
     }
 
     /* Give few milli-secs delay after init */
-    usleep(MCTP_SPI_CMD_DELAY);
+    usleep(MCTP_SPI_CMD_DELAY_USECS);
 
     return MCTP_SPI_SUCCESS;
 }
@@ -457,22 +478,37 @@ int mctp_spi_deinit(void)
     /* Close the SPI dev */
     ast_spi_close(spi_fd);
 
+    /* Close GPIO fd */
+    gpio_fd_close();
+
     return MCTP_SPI_SUCCESS;
 }
 
-static inline int mctp_rx_wait_time(int threshold)
+static inline time_t clock_secs(void)
 {
-    int timeout = 0;
+    struct timespec ts = {0};
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec;
+}
+
+static inline int mctp_rx_wait_time(void)
+{
+    time_t start = clock_secs();
+
+    /* Initial delay before checking interrupts */
+    usleep(MCTP_SPI_CMD_DELAY_USECS);
 
     do {
-        timeout++;
-        if (timeout > threshold) {
-            MCTP_CTRL_ERR("%s: Timedout[%d sec] Response message not available\n",
-                                            __func__, (threshold * MCTP_SPI_CMD_DELAY)/1000);
+#ifndef MCTP_SPI_USE_THREAD
+        /* Check for interrupts */
+        gpio_intr_check();
+#endif
+        if ((clock_secs() - start) > MCTP_SPI_RESP_MAX_TIMEOUT_SECS) {
+            MCTP_CTRL_ERR("%s: Timedout[5 secs] Response message not available\n", __func__);
             return MCTP_SPI_FAILURE;
         }
 
-        usleep(MCTP_SPI_CMD_DELAY);
+        usleep(MCTP_SPI_RESP_INTR_TIMEOUT_MSECS * MCTP_SPI_MSECS_TO_USECS_UNIT);
     } while (message_available != MCTP_RX_MSG_INTR);
 
     /* Reset the status once consumed */
@@ -483,22 +519,50 @@ static inline int mctp_rx_wait_time(int threshold)
 int mctp_ctrl_cmd_send_recv(char *str, uint8_t *tx_cmd, int tx_len, uint8_t *rx_cmd, int rx_len)
 {
     SpbApStatus     status = SPB_AP_OK;
+    int             cmd_retry = 0;
+    struct timespec request = {0, MCTP_SPI_SEND_DELAY_NSECS};
 
     /* Trace Tx */
     mctp_spi_print_msg(str, tx_cmd, tx_len - 1);
 
-    /* Call the send procedure */
-    status = spb_ap_send(tx_len, tx_cmd);
-    if (status != SPB_AP_OK) {
-        MCTP_CTRL_ERR("%s: Failed to send Set Endpoint ID msg\n", __func__);
-        return MCTP_SPI_FAILURE;
+    while (1) {
+        /* Call the send procedure */
+        status = spb_ap_send(tx_len, tx_cmd);
+        if (status != SPB_AP_OK) {
+            if (++cmd_retry >= MCTP_SPI_REQ_RETRIES) {
+                MCTP_CTRL_ERR("%s: Failed to send %s\n", __func__, str);
+                return MCTP_SPI_FAILURE;
+            }
+
+            MCTP_CTRL_ERR("%s: Failed to send %s, Retrying[%d]\n",
+                                                __func__, str, cmd_retry);
+
+            /* Sleep for few nanosecs before calling send procedure */
+            nanosleep(&request, NULL);
+
+        } else {
+            break;
+        }
     }
 
     MCTP_CTRL_DEBUG("Sent %s request successfully\n", str);
 
-    /* Wait for the message interrupt */
-    if (mctp_rx_wait_time(MCTP_SPI_RX_TIMEOUT) != MCTP_SPI_SUCCESS) {
-        return MCTP_SPI_FAILURE;
+    /* Reset the retry count */
+    cmd_retry = 0;
+
+    while (1) {
+        /* Wait for the message interrupt */
+        if (mctp_rx_wait_time() != MCTP_SPI_SUCCESS) {
+            if (++cmd_retry >= MCTP_SPI_REQ_RETRIES) {
+                MCTP_CTRL_ERR("%s: Failed to recv interrupt %s\n", __func__, str);
+                return MCTP_SPI_FAILURE;
+            }
+
+            MCTP_CTRL_ERR("%s: Failed to receive intrrupt %s, Retrying[%d]\n",
+                                                __func__, str, cmd_retry);
+        } else {
+            break;
+        }
     }
 
     /* Call the receive procedure */
@@ -749,7 +813,7 @@ int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdlin
     }
 
     /* Give some delay before sending next command */
-    usleep(MCTP_SPI_CMD_DELAY);
+    usleep(MCTP_SPI_CMD_DELAY_USECS);
 
     MCTP_CTRL_INFO("%s: Send 'Enable Heartbeat' message\n", __func__);
     rc = mctp_spi_heartbeat_enable(cmdline, MCTP_SPI_HB_ENABLE_CMD);
@@ -762,7 +826,7 @@ int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdlin
     while (1) {
 
         /* Give some delay before sending next command */
-        usleep(MCTP_SPI_CMD_DELAY);
+        usleep(MCTP_SPI_CMD_DELAY_USECS);
 
         MCTP_CTRL_DEBUG("%s: Send 'Heartbeat'[%d] message\n", __func__, count++);
         rc = mctp_spi_heartbeat_send(cmdline);
@@ -775,7 +839,7 @@ int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdlin
          * sleep for 10 seconds (it should be less than 60 seconds as per Galcier
          * firmware
          */
-         sleep(MCTP_SPI_HEARTBEAT_DELAY);
+         sleep(MCTP_SPI_HEARTBEAT_DELAY_SECS);
 
         if (*g_gpio_intr == SPB_GPIO_INTR_STOP) {
             MCTP_CTRL_DEBUG("%s: Done sending Heatbeat events [%d]\n", __func__, count++);

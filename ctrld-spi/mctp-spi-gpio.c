@@ -31,6 +31,8 @@ volatile unsigned int *g_gpio_intr = NULL;
 extern volatile int message_available;
 extern SpbApStatus spb_ap_on_interrupt(int value);
 
+static int g_gpio_fd = -1;
+
 /****************************************************************
  * gpio_export
  ****************************************************************/
@@ -123,36 +125,6 @@ static int gpio_set_value(unsigned int gpio, unsigned int value)
 }
 
 /****************************************************************
- * gpio_get_value
- ****************************************************************/
-static int gpio_get_value(unsigned int gpio, unsigned int *value)
-{
-	int fd = 0, len = 0;
-	char buf[MAX_BUF];
-	char ch = 0;
-
-	len = snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR "/gpio%d/value", gpio);
- 
-	fd = open(buf, O_RDONLY);
-	if (fd < 0) {
-		perror("gpio/get-value");
-		return fd;
-	}
- 
-	len = read(fd, &ch, 1);
-
-	if (ch != '0') {
-		*value = 1;
-	} else {
-		*value = 0;
-	}
- 
-	close(fd);
-	return 0;
-}
-
-
-/****************************************************************
  * gpio_set_edge
  ****************************************************************/
 
@@ -196,9 +168,79 @@ static int gpio_fd_open(unsigned int gpio)
  * gpio_fd_close
  ****************************************************************/
 
-static int gpio_fd_close(int fd)
+int gpio_fd_close(void)
 {
-	return close(fd);
+
+	/* Free Global GPIO interrupt pointer */
+	free(g_gpio_intr);
+
+	return close(g_gpio_fd);
+}
+
+/****************************************************************
+ * GPIO Interrupt init
+ ****************************************************************/
+int gpio_intr_init(void)
+{
+    int             gpio_fd = 0;
+    unsigned int    gpio = 0;
+
+    gpio = SPB_GPIO_INTR_NUM;
+
+    /* Set GPIO params */
+    gpio_export(gpio);
+    gpio_set_dir(gpio, 0);
+    gpio_set_edge(gpio, "falling");
+    gpio_fd = gpio_fd_open(gpio);
+
+    /* Update global fd */
+    g_gpio_fd = gpio_fd;
+
+    /* Alloc memory for global pointer */
+    g_gpio_intr = (uint32_t*) malloc(sizeof(uint32_t));
+
+    return gpio_fd;
+}
+
+/****************************************************************
+ * GPIO Interrupt check
+ ****************************************************************/
+int gpio_intr_check(void)
+{
+    int             nfds = 1;
+    struct pollfd   fdset[1];
+    char            *buf[MAX_BUF];
+    int             gpio_fd = 0, timeout = 0, rc = 0;
+    int             len = 0;
+
+    /* Reset the interrupt */
+    *g_gpio_intr = SPB_GPIO_INTR_RESET;
+
+    memset((void*)fdset, 0, sizeof(fdset));
+
+    fdset[0].fd = g_gpio_fd;
+    fdset[0].events = POLLPRI;
+    rc = poll(fdset, nfds, timeout);
+
+    if (rc < 0) {
+        MCTP_CTRL_ERR("%s: Failed[rc=%d]: GPIO[%d] Interrupt polling failed\n",
+                                        __func__, rc, SPB_GPIO_INTR_NUM);
+        return -1;
+    }
+
+    if (fdset[0].revents & POLLPRI) {
+        lseek(fdset[0].fd, 0, SEEK_SET);
+        len = read(fdset[0].fd, buf, MAX_BUF);
+        *g_gpio_intr = SPB_GPIO_INTR_OCCURED;
+
+        if (spb_ap_on_interrupt(1) == SPB_AP_MESSAGE_AVAILABLE) {
+            MCTP_CTRL_DEBUG("%s: MCTP Rx Message available \n", __func__);
+            message_available = MCTP_RX_MSG_INTR;
+            return MCTP_RX_MSG_INTR;
+        }
+    }
+
+    return 0;
 }
 
 /****************************************************************
@@ -213,22 +255,7 @@ int gpio_poll_thread(void *data)
 	unsigned int    gpio = 0;
 	int             len = 0;
 
-    mctp_spi_cmdline_args_t *cmdline;
-    cmdline = (mctp_spi_cmdline_args_t *) data;
-
-	gpio = SPB_GPIO_INTR_NUM;
-
-    /* Alloc memory for global pointer */
-    g_gpio_intr = (uint32_t*) malloc(sizeof(uint32_t));
-
-    /* Reset the interrupt */
-    *g_gpio_intr = SPB_GPIO_INTR_RESET;
-
-    /* Set GPIO params */
-	gpio_export(gpio);
-	gpio_set_dir(gpio, 0);
-	gpio_set_edge(gpio, "falling");
-	gpio_fd = gpio_fd_open(gpio);
+	gpio_fd = gpio_intr_init();
 
 	timeout = POLL_TIMEOUT;
  
@@ -264,6 +291,8 @@ int gpio_poll_thread(void *data)
 		}
 	}
 
-	gpio_fd_close(gpio_fd);
+	gpio_fd_close();
 	return 0;
 }
+
+

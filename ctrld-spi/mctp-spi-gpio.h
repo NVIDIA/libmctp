@@ -21,7 +21,9 @@
 
 /* Function prototypes */
 int gpio_poll_thread(void *data);
-
+int gpio_intr_init(void);
+int gpio_intr_check(void);
+int gpio_fd_close(void);
 
 #endif /* __MCTP_SPI_GPIO_H__ */
 

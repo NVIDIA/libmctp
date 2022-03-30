@@ -20,11 +20,12 @@
 
 #include "libmctp.h"
 #include "mctp-ctrl-cmdline.h"
+#include "mctp-spi-gpio.h"
 #include "mctp-ctrl-log.h"
 
 #define POLL_SREG_TIMEOUT_MSECS 10000ULL
 #define POLL_LOCK_TIMEOUT_MSECS 10000ULL
-#define POLL_INT_TIMEOUT_MSECS  10000ULL
+#define POLL_INT_TIMEOUT_MSECS  100ULL
 #define MAX_BYTES_PER_TRANSACTION 32
 #define WAIT_CYCLES 0
 #define TAR_CYCLES 1 // 1 in single, 4 in quad
@@ -223,6 +224,12 @@ SpbApStatus wait_for_ack()
     if (_spb.use_interrupt) {
         // simple implementation, could use signal/poll
         while (_ec2spimb != EC_ACK) {
+
+#ifndef MCTP_SPI_USE_THREAD
+            /* Check for interrupts */
+            gpio_intr_check();
+#endif
+
             if (clock_msecs() - start > POLL_INT_TIMEOUT_MSECS)
                 return SPB_AP_ERROR_TIMEOUT;
         }
@@ -261,6 +268,12 @@ SpbApStatus wait_for_length(uint32_t *bytes)
 
     if (_spb.use_interrupt) {
         while ((_ec2spimb & 0xFF) == 0) {
+
+#ifndef MCTP_SPI_USE_THREAD
+            /* Check for interrupts */
+            gpio_intr_check();
+#endif
+
             if (clock_msecs() - start > POLL_INT_TIMEOUT_MSECS) {
                 return SPB_AP_ERROR_TIMEOUT;
             }

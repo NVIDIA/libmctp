@@ -47,7 +47,7 @@ follows the below sequence:
     2. Send 'Enable Heartbeat' message
     3. Send 'Heartbeat' message
     4. Wait/Sleep till timeout (currently set as 40 seconds)
-        NOTE: The delay can be customized using MCTP_SPI_HEARTBEAT_DELAY
+        NOTE: The delay can be customized using MCTP_SPI_HEARTBEAT_DELAY_SECS
     5. Go to step-3 after timeout (loop continues)
 
 Commandline options:
