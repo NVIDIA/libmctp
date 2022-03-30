@@ -10,6 +10,7 @@
 
 #define MCTP_CTRL_DELAY_DEFAULT     10
 
+
 /* Command line options for various operations */
 typedef enum mctp_cmdline_ops {
     MCTP_CMDLINE_OP_READ_DATA,
@@ -40,6 +41,12 @@ typedef struct mctp_cmdline_args_ {
     int                     list_device_op;
     mctp_cmdline_ops_t      ops;
     mctp_eid_t              dest_eid;
+    uint8_t                 pci_own_eid;
+    uint8_t                 i2c_own_eid;
+    uint8_t                 pci_bridge_eid;
+    uint8_t                 i2c_bridge_eid;
+    uint8_t                 pci_bridge_pool_start;
+    uint8_t                 i2c_bridge_pool_start;
 } mctp_cmdline_args_t;
 
 

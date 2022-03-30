@@ -53,6 +53,10 @@
 /* MCTP control retry threshold */
 #define MCTP_CTRL_CMD_RETRY_THRESHOLD       3
 
+/* MCTP Invalid EID's */
+#define MCTP_INVALID_EID_0                  0
+#define MCTP_INVALID_EID_FF                 0xFF
+
 /* Global definitions */
 uint8_t g_verbose_level = 0;
 
@@ -274,19 +278,28 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 }
 
 static const struct option g_options[] = {
-    { "verbose",    no_argument,        0, 'v' },
-    { "eid",        required_argument,  0, 'e' },
-    { "mode",       required_argument,  0, 'm' },
-    { "type",       required_argument,  0, 't' },
-    { "delay",      required_argument,  0, 'd' },
-    { "tx",         required_argument,  0, 's' },
-    { "rx",         required_argument,  0, 'r' },
-    { "bindinfo",   required_argument,  0, 'b' },
-    { "help",       no_argument,        0, 'h' },
+    { "verbose",            no_argument,        0, 'v' },
+    { "eid",                required_argument,  0, 'e' },
+    { "mode",               required_argument,  0, 'm' },
+    { "type",               required_argument,  0, 't' },
+    { "delay",              required_argument,  0, 'd' },
+    { "tx",                 required_argument,  0, 's' },
+    { "rx",                 required_argument,  0, 'r' },
+    { "bindinfo",           required_argument,  0, 'b' },
+
+    /* EID options */
+    { "pci_own_eid",            required_argument,  0, 'i' },
+    { "i2c_own_eid",            required_argument,  0, 'j' },
+    { "pci_bridge_eid",         required_argument,  0, 'p' },
+    { "i2c_bridge_eid",         required_argument,  0, 'q' },
+    { "pci_bridge_pool_start",  required_argument,  0, 'x' },
+    { "i2c_bridge_pool_start",  required_argument,  0, 'y' },
+
+    { "help",               no_argument,        0, 'h' },
     { 0 },
 };
 
-const char * const short_options = "v:e:m:t:d:s:b:r:h";
+const char * const short_options = "v:e:m:t:d:s:i:b:r:i:j:p:q:x:y:h";
 
 static int64_t mctp_millis()
 {
@@ -495,6 +508,48 @@ static int mctp_start_daemon (mctp_ctrl_t *ctrl)
 
 }
 
+/* Sanity check for PCIe Endpoint IDs */
+static int mctp_pcie_eids_sanity_check(uint8_t pci_own_eid,
+                                 uint8_t pci_bridge_eid,
+                                 uint8_t pci_bridge_pool_start)
+{
+    int rc = -1;
+
+    /* Check for PCIe own EID */
+    if ((pci_own_eid == MCTP_INVALID_EID_0) ||
+        (pci_own_eid == MCTP_INVALID_EID_FF)) {
+        MCTP_CTRL_ERR("%s: Invalid pci_own_eid: 0x%x\n",
+                                    __func__, pci_own_eid);
+        return rc;
+    }
+
+    /* Check for PCIe bridge EID */
+    if ((pci_bridge_eid == MCTP_INVALID_EID_0) ||
+        (pci_bridge_eid == MCTP_INVALID_EID_FF)) {
+        MCTP_CTRL_ERR("%s: Invalid pci_bridge_eid: 0x%x\n",
+                                    __func__, pci_bridge_eid);
+        return rc;
+    }
+
+    /* Check for PCIe bridge pool start EID */
+    if ((pci_bridge_pool_start == MCTP_INVALID_EID_0) ||
+        (pci_bridge_pool_start == MCTP_INVALID_EID_FF)) {
+        MCTP_CTRL_ERR("%s: Invalid pci_bridge_pool_start: 0x%x\n",
+                                    __func__, pci_bridge_pool_start);
+        return rc;
+    }
+
+    /* Also check for duplicate EID's if any */
+    if ((pci_own_eid == pci_bridge_eid) ||
+        (pci_own_eid == pci_bridge_pool_start) ||
+        (pci_bridge_eid == pci_bridge_pool_start)) {
+        MCTP_CTRL_ERR("%s: Duplicate EID's found\n", __func__);
+        return rc;
+    }
+
+    return 0;
+}
+
 int main (int argc, char * const *argv)
 {
 
@@ -573,6 +628,24 @@ int main (int argc, char * const *argv)
                 cmdline.tx_len = mctp_cmdline_copy_tx_buff(optarg,
                                             cmdline.tx_data, strlen(optarg));
                 break;
+            case 'i':
+                cmdline.pci_own_eid = (uint8_t) atoi(optarg);
+                break;
+            case 'j':
+                cmdline.i2c_own_eid = (uint8_t) atoi(optarg);
+                break;
+            case 'p':
+                cmdline.pci_bridge_eid = (uint8_t) atoi(optarg);
+                break;
+            case 'q':
+                cmdline.i2c_bridge_eid = (uint8_t) atoi(optarg);
+                break;
+            case 'x':
+                cmdline.pci_bridge_pool_start = (uint8_t) atoi(optarg);
+                break;
+            case 'y':
+                cmdline.i2c_bridge_pool_start = (uint8_t) atoi(optarg);
+                break;
             case 'h':
                 MCTP_CTRL_INFO("Various command line options mentioned below\n"
                                 "\t-v\tVerbose level\n"
@@ -582,6 +655,9 @@ int main (int argc, char * const *argv)
                                 "\t-b\tBinding data (pvt)\n"
                                 "\t-d\tDelay in seconds (for MCTP enumeration)\n"
                                 "\t-s\tTx data (MCTP packet payload: [Req-dgram]-[cmd-code]--)\n"
+                                "\t-i, -j\t PCIe eid, I2C eid\n"
+                                "\t-p, -q\t PCIe bridge eid, I2C bridge eid\n"
+                                "\t-x, -y\t PCIe bridge pool start eid, I2C bridge pool start eid\n"
                                 "\t-h\tPrints this message\n"
                                 "Eg: To send MCTP message of PCIe type:\n"
                                 "\tmctp-ctrl -s \"80 0b\" -t 2 -b \"03 00 00 00 01 12\" -e 255 -m 0");
@@ -610,6 +686,14 @@ int main (int argc, char * const *argv)
         mctp_cmdline_exec(&cmdline, mctp_ctrl->sock);
     } else {
         mctp_ret_codes_t mctp_err_ret;
+
+        /* Make sure all PCIe EID options are available from commandline */
+        if (mctp_pcie_eids_sanity_check(cmdline.pci_own_eid,
+                                  cmdline.pci_bridge_eid,
+                                  cmdline.pci_bridge_pool_start) < 0) {
+            MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
+            return EXIT_FAILURE;
+        }
 
         /* Discover endpoints */
         mctp_err_ret = mctp_discover_endpoints(&cmdline, mctp_ctrl);

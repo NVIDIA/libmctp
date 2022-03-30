@@ -55,23 +55,12 @@ int                     g_uuid_table_len = 0;
 /* Start point of Routing entry */
 const uint8_t           MCTP_ROUTING_ENTRY_START = 0;
 
-/* EID of the Endpoint to set */
-const uint8_t           MCTP_FPGA_EID = 0xEE;
-
-/* Default EID pools */
-const uint8_t           MCTP_FPGA_EID_POOL[] = {
-                                                0x20, 0x21, 0x22, 0x23,
-                                                0x24, 0x25, 0x26, 0x27,
-                                                0x28, 0x29, 0x2A, 0x2B,
-                                                0x2C, 0x2D, 0x2E, 0x2F,
-                                                0x30, 0x31, 0x32, 0x33,
-                                                0x34, 0x35, 0x36, 0x37,
-                                                0x38, 0x39, 0x3A, 0x3B,
-                                                0x3C, 0x3D, 0x3E, 0x3F,
-                                                };
-
 /* PCIe target bdf */
 static int              g_target_bdf = 0;
+
+/* The EIDs and pool start information would be obtaind from commandline */
+static uint8_t g_pci_bridge_eid, g_pci_own_eid, g_pci_bridge_pool_start;
+
 
 /* Map for Tracing ID and the message */
 mctp_discovery_message_table_t  msg_tbl[] = {
@@ -715,14 +704,12 @@ int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
     }
 
     /* Check whether the EID is accepted by the device or not */
-    if (set_eid_resp.eid_set != eid) {
-        MCTP_CTRL_DEBUG("%s: Set Endpoint id: 0x%x (Rejected by the device)\n",
-                                                            __func__, set_eid_resp.eid_set);
+    if (set_eid_resp.status & MCTP_SETEID_ASSIGN_STATUS_REJECTED) {
+        MCTP_CTRL_DEBUG("%s: Set Endpoint id: 0x%x, Status:0x%x (Rejected by the device)\n",
+                                            __func__, set_eid_resp.status, set_eid_resp.eid_set);
 
-        /* Free Rx packet */
-        free(mctp_resp_msg);
-
-        return MCTP_RET_REQUEST_FAILED;
+        /* Get the EID from the bridge (FPGA) */
+        g_pci_bridge_eid = set_eid_resp.eid_set;
     } else {
         MCTP_CTRL_DEBUG("%s: Set Endpoint id: 0x%x (Accepted by the device)\n",
                                                             __func__, set_eid_resp.eid_set);
@@ -736,19 +723,8 @@ int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
         /* Get the EID pool size from response */
         g_eid_pool_size = set_eid_resp.eid_pool_size;
 
-
-        /* Also, make sure the pool size is less than global pool buffer */
-        if (set_eid_resp.eid_pool_size < sizeof(MCTP_FPGA_EID_POOL)) {
-            /* update the eid_count pointer */
-            *eid_count = set_eid_resp.eid_pool_size;
-        } else {
-            MCTP_CTRL_ERR("%s: pool size req %d is greater than global pool %lu\n",
-                                                    __func__, g_eid_pool_size, sizeof(MCTP_FPGA_EID_POOL));
-            /* Free Rx packet */
-            free(mctp_resp_msg);
-
-            return MCTP_RET_REQUEST_FAILED;
-        }
+        /* update the eid_count pointer */
+        *eid_count = set_eid_resp.eid_pool_size;
 
         MCTP_CTRL_DEBUG("%s: g_eid_pool_size: 0x%x\n", __func__, g_eid_pool_size);
 
@@ -972,20 +948,26 @@ int mctp_get_routing_table_get_response(int sock_fd, mctp_eid_t eid,
                mctp_resp_msg + sizeof(struct mctp_ctrl_resp_get_routing_table),
                sizeof(struct get_routing_table_entry));
 
-        /* Add the entry to a linked list */
-        ret = mctp_routing_entry_add(&routing_table_entry);
-        if (ret < 0) {
-            MCTP_CTRL_ERR("%s: Failed to update global routing table..\n", __func__);
-            return MCTP_RET_REQUEST_FAILED;
+        /* Dont add the entry to the routing table if the EID is it's own */
+        if (routing_table_entry.starting_eid == g_pci_own_eid) {
+            MCTP_CTRL_DEBUG("%s: Found it's own eid: [%d] in the Routing table: %d\n",
+                                    __func__, routing_table_entry.starting_eid);
+        } else {
+            /* Add the entry to a linked list */
+            ret = mctp_routing_entry_add(&routing_table_entry);
+            if (ret < 0) {
+                MCTP_CTRL_ERR("%s: Failed to update global routing table..\n", __func__);
+                return MCTP_RET_REQUEST_FAILED;
+            }
+
+            /* Print the routing table entry */
+            mctp_print_routing_table_entry (g_routing_table_entries->id,
+                                            &routing_table_entry);
+
+            /* Length of the Routing table */
+            MCTP_CTRL_DEBUG("%s: EID: 0x%x, Routing table length: %d\n",
+                                    __func__, routing_table_entry.starting_eid, g_eid_pool_size);
         }
-
-        /* Print the routing table entry */
-        mctp_print_routing_table_entry (g_routing_table_entries->id,
-                                        &routing_table_entry);
-
-        /* Length of the Routing table */
-        MCTP_CTRL_DEBUG("%s: Routing table lenght: %d\n",
-                                __func__, g_eid_pool_size);
 
         /* Check if the next routing table exist.. */
         if (routing_table.next_entry_handle != 0xFF) {
@@ -1283,6 +1265,14 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
     /* Update Target BDF */
     g_target_bdf = mctp_ctrl_get_target_bdf (cmd);
 
+    /* Update the EID lists */
+    g_pci_own_eid = cmd->pci_own_eid;
+    g_pci_bridge_eid = cmd->pci_bridge_eid;
+    g_pci_bridge_pool_start = cmd->pci_bridge_pool_start;
+
+    MCTP_CTRL_INFO("%s: pci_own_eid: %d, pci_bridge_eid: %d, pci_bridge_pool_start: %d\n",
+                    __func__, g_pci_own_eid, g_pci_bridge_eid, g_pci_bridge_pool_start);
+
     do {
 
         /* Wait for MCTP response */
@@ -1290,12 +1280,26 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                                         ctrl->sock, &mctp_resp_msg, &resp_msg_len);
         if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
             MCTP_CTRL_ERR("%s: Failed to received message %d\n", __func__, mctp_ret);
-            return MCTP_RET_DISCOVERY_FAILED;
+
+            /*
+             * Dont return failure for Get EP UUID and Messgae types as it need to
+             * fetch the next data from the routing table entries.
+             * NOTE: In general it's very unlikely we hit this scenario. If such
+             * failure occurs, then it could be either a firmware issue or
+             * some Hardware issue.
+             */
+
+            if ((discovery_mode != MCTP_GET_EP_UUID_RESPONSE) &&
+                    (discovery_mode != MCTP_GET_MSG_TYPE_RESPONSE)) {
+                MCTP_CTRL_ERR("%s: Unexpected failure %d, mode[%d]\n",
+                                        __func__, mctp_ret, discovery_mode);
+                return MCTP_RET_DISCOVERY_FAILED;
+            }
         }
-       
+
         switch(discovery_mode) {
             case MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST:
-    
+
                 /* Send the prepare endpoint discovery message */
                 mctp_ret = mctp_prepare_ep_discovery_send_request(ctrl->sock);
                 if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
@@ -1351,7 +1355,7 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
 
                 /* Update the EID operation and EID number */
                 set_eid_op = set_eid;
-                eid = MCTP_FPGA_EID;
+                eid = g_pci_bridge_eid;
 
                 /* Send the MCTP_SET_EP_REQUEST */
                 mctp_ret = mctp_set_eid_send_request(ctrl->sock, set_eid_op, eid);
@@ -1369,7 +1373,7 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
 
                 /* Process the MCTP_SET_EP_RESPONSE */
                 mctp_ret = mctp_set_eid_get_response(mctp_resp_msg, resp_msg_len,
-                                                     MCTP_FPGA_EID, &eid_count);
+                                                     g_pci_bridge_eid, &eid_count);
 
                 /* Retry if the device is not ready */
                 if (mctp_ret == MCTP_RET_DEVICE_NOT_READY) {
@@ -1408,10 +1412,11 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
             case MCTP_ALLOCATE_EP_ID_REQUEST:
 
                 /* Update the Allocate EIDs operation, number of EIDs, Starting EID */
+                eid = g_pci_bridge_eid;
                 alloc_eid_op = alloc_req_eid;
 
                 /* Set the start of EID */
-                eid_start = MCTP_FPGA_EID_POOL[0];
+                eid_start = g_pci_bridge_pool_start;
 
                 /* Send the MCTP_ALLOCATE_EP_ID_REQUEST */
                 mctp_ret = mctp_alloc_eid_send_request(ctrl->sock, eid,

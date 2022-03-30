@@ -126,10 +126,10 @@ typedef uint8_t mctp_eid_t;
 #define MCTP_SETEID_ALLOC_STATUS_EID_POOL_ASSIGNED          2
 #define MCTP_SETEID_ALLOC_STATUS_EID_POOL_RESVD             3
 
-#define MCTP_SETEID_ASSIGN_STATUS_EID_POOL_NOT_REQ          0
-#define MCTP_SETEID_ASSIGN_STATUS_EID_POOL_REQ              (1<<4)
-#define MCTP_SETEID_ASSIGN_STATUS_EID_POOL_ASSIGNED         (2<<4)
-#define MCTP_SETEID_ASSIGN_STATUS_EID_POOL_RESVD            (3<<4)
+#define MCTP_SETEID_ASSIGN_STATUS_ACCEPTED                  0
+#define MCTP_SETEID_ASSIGN_STATUS_REJECTED                  (1<<4)
+#define MCTP_SETEID_ASSIGN_STATUS_RESVD                     (2<<4)
+#define MCTP_SETEID_ASSIGN_STATUS_RESVD                     (3<<4)
 
 /* For Allocate Endpoint IDs response param validation (as per DSP0236 Version 1.3.1) */
 #define MCTP_ALLOC_EID_ACCEPTED                             0

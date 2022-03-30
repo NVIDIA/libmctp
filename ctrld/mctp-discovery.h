@@ -31,6 +31,7 @@ extern "C" {
 #define MCTP_MSG_TYPE_DATA_LEN_OFFSET   0
 #define MCTP_MSG_TYPE_DATA_OFFSET       1
 
+
 //struct get_routing_table_entry g_routing_table[MCTP_ROUTING_TABLE_MAX_SIZE];
 
 /* Various discovery modes */
