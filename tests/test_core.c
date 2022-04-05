@@ -87,6 +87,9 @@ static void receive_ptkbuf(struct mctp_binding_test *binding,
 	rx_pkt = __mctp_alloc(sizeof(*rx_pkt) + MCTP_PACKET_SIZE(alloc_size));
 	assert(rx_pkt);
 
+	/* Initialize pvt binding as there is no pvt data available */
+	rx_pkt->msg_binding_private = NULL;
+
 	/* Preserve passed len parameter */
 	rx_pkt->size = MCTP_PACKET_SIZE(len);
 	rx_pkt->start = 0;
