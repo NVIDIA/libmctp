@@ -210,6 +210,10 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
         return 0;
     }
 
+    /* Update the Global BDF from pvt binding */
+    if ((pkt_prv) && (g_mctp_pkt_prv_default.remote_id == 0))
+        g_mctp_pkt_prv_default.remote_id = pkt_prv->remote_id;
+
     /* Reset the buffer */
 	memset(pcie_mctp_hdr_data, 0, (PCIE_VDM_HDR_SIZE + mctp_hdr_len));
 
