@@ -103,6 +103,10 @@
 #define MCTP_SPI_HEARTBEAT_SEND_RX_SIZE     18
 #define MCTP_SPI_QUERY_BOOT_STATUS_RX_SIZE  26
 
+/* MCTP Boot complete Version macros */
+#define MCTP_SPI_BOOT_COMPLETE_V1_CMD       1
+#define MCTP_SPI_BOOT_COMPLETE_V2_CMD       2
+
 /* Static variables */
 static int      spi_fd = -1;
 volatile int    message_available = MCTP_RX_MSG_INTR_RST;
@@ -206,14 +210,24 @@ static uint8_t mctp_spi_set_ep_uuid_cmd[] = {
     0x00, MCTP_SPI_SET_ENDPOINT_UUID, 0x01, 0x00, 0x18
 };
 
-/* Set Endpoint UUID test packet */
+/* Set Bootcomplete v1 test packet */
 static uint8_t mctp_spi_set_boot_complete_cmd[] = {
     /* SPI Medium Header */
      SPB_MCTP, 0x0d, 0x00, 0x00,
     /* MCTP transport header */
      0x01, 0x00, 0x09, 0xC8,
     /* MCTP pkt payload */
-    0x7f, 0x47, 0x16, 0x00, 0x00, 0x80, 0x01, MCTP_SPI_BOOT_COMPLETE, 0x1
+    0x7f, 0x47, 0x16, 0x00, 0x00, 0x80, 0x01, MCTP_SPI_BOOT_COMPLETE, MCTP_SPI_BOOT_COMPLETE_V1_CMD
+};
+
+/* Set Bootcomplete v2 test packet */
+static uint8_t mctp_spi_set_boot_complete_v2_cmd[] = {
+    /* SPI Medium Header */
+     SPB_MCTP, 0x0d, 0x00, 0x00,
+    /* MCTP transport header */
+     0x01, 0x00, 0x09, 0xC8,
+    /* MCTP pkt payload */
+    0x7f, 0x47, 0x16, 0x00, 0x00, 0x80, 0x01, MCTP_SPI_BOOT_COMPLETE, MCTP_SPI_BOOT_COMPLETE_V2_CMD, 0x0, 0x0, 0x0
 };
 
 /* Heartbeat Enable test packet */
@@ -715,6 +729,25 @@ int mctp_spi_set_boot_complete(mctp_spi_cmdline_args_t *cmd)
     return MCTP_SPI_SUCCESS;
 }
 
+int mctp_spi_set_boot_complete_v2(mctp_spi_cmdline_args_t *cmd)
+{
+    SpbApStatus     status = SPB_AP_OK;
+    int             len = sizeof(mctp_spi_set_boot_complete_v2_cmd);
+    uint8_t         recv_buff[MCTP_SPI_BOOT_COMPLETE_RX_SIZE];
+
+    status = mctp_ctrl_cmd_send_recv("MCTP_SPI_BOOT_COMPLETE_V2",
+                                     mctp_spi_set_boot_complete_v2_cmd,
+                                     len,
+                                     recv_buff,
+                                     MCTP_SPI_BOOT_COMPLETE_RX_SIZE);
+    if (status != MCTP_SPI_SUCCESS) {
+        MCTP_CTRL_ERR("%s: Failed MCTP_SPI_BOOT_COMPLETE_V2 cmd\n", __func__);
+        return MCTP_SPI_FAILURE;
+    }
+
+    return MCTP_SPI_SUCCESS;
+}
+
 int mctp_spi_heartbeat_enable(mctp_spi_cmdline_args_t *cmd, mctp_spi_hrtb_ops_t enable)
 {
     SpbApStatus     status = SPB_AP_OK;
@@ -800,13 +833,14 @@ int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmdlin
          * and Heartbeat send command
          */
         mctp_spi_set_boot_complete_cmd[MCTP_SPI_SRC_EID_OFFSET] = ctrl->eid;
+        mctp_spi_set_boot_complete_v2_cmd[MCTP_SPI_SRC_EID_OFFSET] = ctrl->eid;
         mctp_spi_heartbeat_enable_cmd[MCTP_SPI_SRC_EID_OFFSET] = ctrl->eid;
         mctp_spi_heartbeat_disable_cmd[MCTP_SPI_SRC_EID_OFFSET] = ctrl->eid;
         mctp_spi_heartbeat_send_cmd[MCTP_SPI_SRC_EID_OFFSET] = ctrl->eid;
     }
 
-    MCTP_CTRL_INFO("%s: Send 'Boot complete' message\n", __func__);
-    rc = mctp_spi_set_boot_complete(cmdline);
+    MCTP_CTRL_INFO("%s: Send 'Boot complete v2' message\n", __func__);
+    rc = mctp_spi_set_boot_complete_v2(cmdline);
     if (rc != MCTP_SPI_SUCCESS) {
         MCTP_CTRL_ERR("%s: Failed to send 'Boot complete' message\n", __func__);
         return MCTP_SPI_FAILURE;
