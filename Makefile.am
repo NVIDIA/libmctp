@@ -29,7 +29,7 @@ systemdsystemunit_DATA = \
 	systemd/system/mctp-spi-ctrl.service
 endif
 
-bin_PROGRAMS = utils/mctp-demux-daemon ctrld/mctp-ctrl ctrld-spi/mctp-spi-ctrl
+bin_PROGRAMS = utils/mctp-demux-daemon ctrld/mctp-ctrl ctrld-spi/mctp-spi-ctrl vdm/nvidia/mctp-vdm-util
 utils_mctp_demux_daemon_LDADD = libmctp.la
 
 ctrld_mctp_ctrl_LDFLAGS = "-lsystemd"
@@ -46,6 +46,12 @@ ctrld_spi_mctp_spi_ctrl_SOURCES = ctrld-spi/mctp-spi-ctrl.c \
                     ctrld-spi/glacier-spb-ap.c \
                     ctrld-spi/mctp-spi-gpio.c \
                     ctrld-spi/ast-rwspi.c
+
+vdm_nvidia_mctp_vdm_util_LDFLAGS = "-lsystemd"
+
+vdm_nvidia_mctp_vdm_util_SOURCES = vdm/nvidia/mctp-vdm-nvda.c \
+                    vdm/nvidia/mctp-vdm-encode.c \
+                    vdm/nvidia/mctp-vdm-connect.c
 
 pkgconfig_DATA = libmctp.pc
 

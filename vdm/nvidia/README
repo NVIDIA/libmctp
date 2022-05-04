@@ -1,0 +1,136 @@
+Introducing 'mctp-vdm-util' daemon to support MCTP-VDM commands (all Nvidia specific)
+
+Command format:
+--------------
+    The command format is shown below:
+        mctp-vdm-util -c <command-name> -t <target-eid>
+
+        Where,
+            - c is the command name options (which mentiond below)
+            - t is the Target Endpoint ID (in decimal format)
+
+Supported commands:
+------------------
+    The following Nvidia VDM commands are supported:
+             selftest
+             boot_complete_v1
+             boot_complete_v2_slot_0, boot_complete_v2_slot_1
+             set_heartbeat_enable, set_heartbeat_disable
+             heartbeat
+             query_boot_status
+             download_log
+             restart_notification
+             background_copy_init
+             background_copy_disable, background_copy_enable
+             background_copy_disable_one, background_copy_enable_one
+             background_copy_query_status, background_copy_query_progress
+
+Buffer allocation/deallocation: (implementation details)
+-------------------------------
+Tx buffer: The Tx buffer would be a stack variable from corresponding
+VDM function. So there won't be any dynamic memory allocation/deallocation
+for sending data.
+
+Rx buffer: The 'mctp_resp_msg' pointer would be sent from the caller
+'mctp_vdm_client_send_recv' function and the actual allocation would
+happen in 'mctp_vdm_recv' function.
+ - On successful response, the Rx buffer pointer would be returned back to
+   the corresponding VDM function. Once the data is consumed it gets
+   freed up in corresponding VDM function.
+ - On failure, it gets freed up in 'mctp_vdm_recv' function itself.
+
+Logging feature:
+----------------
+    Created below binary file to read MCTP-VDM outputs:
+
+    - Glacier response log will be stored in:
+        '/var/mctp-vdm-output.bin'
+
+        Expected output format: from '/var/mctp-vdm-output.bin' file
+        (hexdump of .bin file)
+
+        NOTE: The /var/mctp-vdm-output.bin file would have the output of last
+        VDM command i.e., whenever the mctp-vdm-util executed, the output file
+        would get updated accordingly with the recently executed command.
+
+        where,
+            - The first parameter is the response byte:
+                [ff]        for successful response
+                [1 - 131]   refers Linux standard error codes (errno)
+                [200 - 255] User defined error codes, currently 200 is set for Invalid length,
+                            other values are reserved for future.
+
+            - The remaining data (which is MCTP-VDM Response) can be extracted
+              based on the vdm command.
+
+              The format is as shown below:
+              [Nvidia Msg Type] [Nvidia Msg Command code] [Nvidia Msg version] [Nvidia Msg Payload]
+
+              NOTE: The remaining data starts from 'Nvidia Message type', everyting else
+              (MCTP headers, Msg type, IANA, Instance ID are stripped out).
+
+Sample output:
+--------------
+    - Query boot status: (Positive test case)
+        1. Run the Query boot status command:
+            root@e4830-bmc:~# mctp-vdm-util -c query_boot_status -t 13
+            Test item= query_boot_status
+            teid = 13
+            TX: 47 16 00 00 80 01 05 01
+            RX: 47 16 00 00 00 01 05 01 00 00 00 00 00 02 50 11 20
+            root@e4830-bmc:~#
+
+        2. Check the binary output file (mctp-vdm-output.bin) to see the response
+            root@e4830-bmc:~# hexdump -C /var/mctp-vdm-output.bin
+            00000000  ff 01 05 01 00 00 00 00  00 02 50 11 20           |..........P. |
+            0000000a
+            root@e4830-bmc:~#
+
+            NOTE: Here 'ff' refers to Successful response, the remaining data is
+                  MCTP-VDM command specific.
+
+    - Query boot status: (Negative test case - Timeout)
+        1. Run the Query boot status command:
+            root@e4830-bmc:~# mctp-vdm-util -c query_boot_status -t 1
+            Test item= query_boot_status
+            teid = 1
+            TX: 47 16 00 00 80 01 05 01
+            mctp_vdm_recv: [err: 11] Timedout [5 secs]
+            mctp_vdm_client_send_recv: MCTP-VDM Rx Command Timed out, retrying[1]
+            mctp_vdm_recv: [err: 11] Timedout [5 secs]
+            mctp_vdm_client_send_recv: MCTP-VDM Rx Command Timed out, retrying[2]
+            mctp_vdm_client_send_recv: fail to recv [rc: 11], Reached threshold[2]
+            query_boot_status: fail to recv [rc: 11] response
+            fail to send query_boot_status event: 11
+            root@e4830-bmc:~#
+
+        2. Check the binary output file (mctp-vdm-output.bin) to see the response
+            root@e4830-bmc:~# hexdump -C /var/mctp-vdm-output.bin
+            00000000  0b                                                |.|
+            00000001
+            root@e4830-bmc:~#
+
+            NOTE: Here '0b' refers to Timeout error (EAGAIN)
+
+    - Download log:
+        1. Run the download log command on the setup:
+            root@e4830-bmc:~# mctp-vdm-util -c downloadlog -t 14
+            Test item= downloadlog
+            teid = 14
+            root@e4830-bmc:~#
+            root@e4830-bmc:~# ls -l /var/mctp-vdm-output.bin
+            -rw-r--r--    1 root     root        372752 Mar 30 10:03 /var/mctp-vdm-output.bin
+            root@e4830-bmc:~#
+
+        2. Copy the binary file (/var/mctp-vdm-output.bin) to local system:
+            vrk@vrk:~$ scp root@10.32.204.203:/var/mctp-vdm-output.bin ~/
+
+        3. Use the parser utility to extract the data:
+            vrk@vrk:~$ python3 ./parse_ec_log.py mctp-vdm-output.bin | more
+            [0007667968] Common      : Unknown
+            [0000000103] Logger      : Logger task start: EC version is 00.00.0000.0000
+            [0000000156] SMBUS       : SMBUS task start
+            [0000000005] Logger      : Logger task start: EC version is 00.00.0000.0000
+            [0000000058] SMBUS       : SMBUS task start
+            [0000000005] Logger      : Logger task start: EC version is 00.00.0000.0000
+
