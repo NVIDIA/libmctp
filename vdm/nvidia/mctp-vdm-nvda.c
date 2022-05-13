@@ -753,5 +753,5 @@ exit:
         close(fd);
     }
 
-    return EXIT_SUCCESS;
+    return rc;
 }
