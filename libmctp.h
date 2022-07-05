@@ -108,6 +108,7 @@ typedef enum {
     MCTP_BINDING_USB,
     MCTP_BINDING_KCS,
     MCTP_BINDING_SERIAL,
+    MCTP_BINDING_SPI,
 
     /*Last is the vendor ID, all others reserved */
     MCTP_BINDING_VEDNOR = 0xff

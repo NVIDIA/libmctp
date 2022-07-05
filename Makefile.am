@@ -21,6 +21,13 @@ libmctp_la_SOURCES += astpcie.c
 include_HEADERS += libmctp-astpcie.h
 endif
 
+if LIBMCTP_BINDING_astspi
+libmctp_la_SOURCES += astspi.c
+libmctp_la_SOURCES += glacier-spb-ap.c
+include_HEADERS += libmctp-astspi.h
+include_HEADERS += glacier-spb-ap.h
+endif
+
 if HAVE_SYSTEMD
 systemdsystemunit_DATA = \
 	systemd/system/mctp-demux.service \

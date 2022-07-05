@@ -4,7 +4,6 @@
 
 #include "config.h"
 
-#include <assert.h>
 #include <err.h>
 #include <errno.h>
 #include <getopt.h>
@@ -25,16 +24,18 @@
 #include "libmctp-serial.h"
 #include "libmctp-astlpc.h"
 #include "libmctp-astpcie.h"
+#include "libmctp-astspi.h"
+#include "libmctp-log.h"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #define __unused __attribute__((unused))
 
-#define MCTP_BIND_INFO_OFFSET      (sizeof(uint8_t))
-#define MCTP_PCIE_EID_OFFSET       MCTP_BIND_INFO_OFFSET + \
-                                   sizeof(struct mctp_astpcie_pkt_private)
-#define MCTP_PCIE_MSG_OFFSET       MCTP_PCIE_EID_OFFSET + (sizeof(uint8_t))
-
-
+#define MCTP_BIND_INFO_OFFSET		(sizeof(uint8_t))
+#define MCTP_PCIE_EID_OFFSET		MCTP_BIND_INFO_OFFSET + \
+    sizeof(struct mctp_astpcie_pkt_private)
+#define MCTP_PCIE_MSG_OFFSET		MCTP_PCIE_EID_OFFSET + (sizeof(uint8_t))
+#define MCTP_SPI_MSG_OFFSET		MCTP_BIND_INFO_OFFSET + \
+    sizeof(struct mctp_astspi_pkt_private)
 
 #if HAVE_SYSTEMD_SD_DAEMON_H
 #include <systemd/sd-daemon.h>
@@ -46,7 +47,6 @@ static inline int sd_listen_fds(int i __unused)
 #endif
 
 static const mctp_eid_t local_eid_default = 8;
-static char sockname[] = "\0mctp-mux";
 
 struct binding {
 	const char	*name;
@@ -56,6 +56,12 @@ struct binding {
 	int		(*get_fd)(struct binding *binding);
 	int		(*process)(struct binding *binding);
 	void		*data;
+	char		*sockname;
+	/*
+	 * Events to monitor. Some bindings, e.g. SPI,
+	 * requires to monitor POLLPRI, not POLLIN.
+	 */
+	short		events;
 };
 
 struct client {
@@ -81,55 +87,59 @@ struct ctx {
 
 static void mctp_print_hex(uint8_t *data, size_t length)
 {
-    for (int i = 0; i < length; ++i) {
-        printf("%02X ", data[i]);
-    }
-    printf("\n");
+	for (int i = 0; i < length; ++i) {
+		printf("%02X ", data[i]);
+	}
+	printf("\n");
 }
 
 static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 {
-    int rc;
-    mctp_binding_ids_t bind_id;
-    struct mctp_astpcie_pkt_private pvt_binding = {0};
-    mctp_eid_t eid = 0;
+	int rc;
+	mctp_binding_ids_t bind_id;
+	union {
+		struct mctp_astpcie_pkt_private pcie;
+		struct mctp_astspi_pkt_private spi;
+	} pvt_binding = {0};
+	mctp_eid_t eid = 0;
 
-    /* Get the bus type (binding ID) */
-    bind_id = *((uint8_t *)msg);
+	/* Get the bus type (binding ID) */
+	bind_id = *((uint8_t *)msg);
 
-    /* Handle based on bind ID's */
-    switch (bind_id) {
-        case MCTP_BINDING_PCIE:
+	/* Handle based on bind ID's */
+	switch (bind_id) {
+	case MCTP_BINDING_PCIE:
+		/* Copy the binding information */
+		memcpy(&pvt_binding.pcie, (msg + MCTP_BIND_INFO_OFFSET),
+		    sizeof(struct mctp_astpcie_pkt_private));
+			/* Get target EID */
 
-            /* Copy the binding information */
-            memcpy(&pvt_binding, (msg + MCTP_BIND_INFO_OFFSET),
-                                sizeof(struct mctp_astpcie_pkt_private));
+		eid = *((uint8_t *)msg + MCTP_PCIE_EID_OFFSET);
+			/* Set MCTP payload size */
 
-            /* Get target EID */
-            eid = *((uint8_t *)msg + MCTP_PCIE_EID_OFFSET);
+		len = len - (MCTP_PCIE_MSG_OFFSET) - 1;
+		mctp_print_hex((uint8_t *)msg + MCTP_PCIE_MSG_OFFSET, len);
+		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, msg +
+		    MCTP_PCIE_MSG_OFFSET, len, (void *)&pvt_binding.pcie);
 
-            /* Set MCTP payload size */
-            len = len - (MCTP_PCIE_MSG_OFFSET) - 1;
-            mctp_print_hex((uint8_t *)msg + MCTP_PCIE_MSG_OFFSET, len);
+		if (ctx->verbose) {
+			printf("%s: BindID: %d, Target EID: %d, msg len: %zi,\
+			    Routing:%d remote_id: 0x%x\n", __func__, bind_id,
+			    eid, len, pvt_binding.pcie.routing,
+			    pvt_binding.pcie.remote_id);
+		}
+		break;
+	case MCTP_BINDING_SPI:
+		memcpy(&pvt_binding.spi, (msg + MCTP_BIND_INFO_OFFSET),
+		    sizeof(struct mctp_astspi_pkt_private));
+		break;
+	default:
+		warnx("Invalid/Unsupported binding ID %d", bind_id);
+		break;
+	}
 
-            break;
-
-        default:
-            warnx("Invalid/Unsupported binding ID %d", bind_id);
-            break;
-    }
-
-	if (ctx->verbose) {
-        printf("%s: BindID: %d, Target EID: %d, msg len: %lu,\
-                    Routing:%d remote_id: 0x%x\n",
-                    __func__, bind_id, eid, len, pvt_binding.routing,
-                    pvt_binding.remote_id);
-    }
-
-    rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, msg + MCTP_PCIE_MSG_OFFSET, len,
-                                     (void*) &pvt_binding);
-    if (rc)
-        warnx("Failed to send message: %d", rc);
+	if (rc)
+		warnx("Failed to send message: %d", rc);
 }
 
 static void tx_message(struct ctx *ctx, mctp_eid_t eid, void *msg, size_t len)
@@ -233,7 +243,7 @@ static int binding_serial_init(struct mctp *mctp, struct binding *binding,
 	path = params[0];
 
 	serial = mctp_serial_init();
-	assert(serial);
+	MCTP_ASSERT(serial != NULL, "serial is NULL");
 
 	rc = mctp_serial_open_path(serial, path);
 	if (rc)
@@ -257,8 +267,7 @@ static int binding_serial_process(struct binding *binding)
 }
 
 static int binding_astlpc_init(struct mctp *mctp, struct binding *binding,
-		mctp_eid_t eid, int n_params,
-		char * const *params __attribute__((unused)))
+    mctp_eid_t eid, int n_params, char * const *params __attribute__((unused)))
 {
 	struct mctp_binding_astlpc *astlpc;
 
@@ -290,8 +299,7 @@ static int binding_astlpc_process(struct binding *binding)
 }
 
 static int binding_astpcie_init(struct mctp *mctp, struct binding *binding,
-		mctp_eid_t eid, int n_params,
-		char * const *params __attribute__((unused)))
+    mctp_eid_t eid, int n_params, char * const *params __attribute__((unused)))
 {
 	struct mctp_binding_astpcie *astpcie;
 
@@ -319,16 +327,49 @@ static int binding_astpcie_get_fd(struct binding *binding)
 
 static int binding_astpcie_process(struct binding *binding)
 {
-    int rc;
+	int rc;
 
 	rc = mctp_astpcie_poll(binding->data, MCTP_ASTPCIE_POLL_TIMEOUT);
-    if (rc & POLLIN) {
-            rc = mctp_astpcie_rx(binding->data);
-            assert(rc == 0);
-    }
+	if (rc & POLLIN) {
+		rc = mctp_astpcie_rx(binding->data);
+		MCTP_ASSERT(rc == 0, "mctp_astpcie_rx returned %d", rc);
+	}
 
-    return rc;
+	return rc;
+}
 
+static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
+		mctp_eid_t eid, int n_params, char * const *params)
+{
+	struct mctp_binding_spi *astspi;
+
+	astspi = mctp_spi_bind_init();
+	MCTP_ASSERT(astspi != NULL, "mctp_spi_bind_init failed.");
+
+	mctp_register_bus(mctp, mctp_binding_astspi_core(astspi), eid);
+	binding->data = astspi;
+
+	return (0);
+}
+
+static int binding_astspi_get_fd(struct binding *binding)
+{
+	struct mctp_binding_spi *astspi = binding->data;
+
+	return (mctp_spi_get_fd(astspi));
+}
+
+static int binding_astspi_process(struct binding *binding)
+{
+	struct mctp_binding_spi *astspi = binding->data;
+
+	/*
+	 * We got interrupt on GPIO line. There may be several
+	 * reasons we got it, one of them is request to process
+	 * incoming data from remote device. Let's keep all
+	 * internal details within astspi implementation.
+	 */
+	return (mctp_spi_process(astspi));
 }
 
 struct binding bindings[] = {
@@ -341,20 +382,33 @@ struct binding bindings[] = {
 		.init = binding_serial_init,
 		.get_fd = binding_serial_get_fd,
 		.process = binding_serial_process,
+		.sockname = "\0mctp-serial-mux",
+		.events = POLLIN,
 	},
 	{
 		.name = "astlpc",
 		.init = binding_astlpc_init,
 		.get_fd = binding_astlpc_get_fd,
 		.process = binding_astlpc_process,
+		.sockname = "\0mctp-lpc-mux",
+		.events = POLLIN,
 	},
-    {
+	{
 		.name = "astpcie",
 		.init = binding_astpcie_init,
 		.get_fd = binding_astpcie_get_fd,
 		.process = binding_astpcie_process,
+		.sockname = "\0mctp-pcie-mux",
+		.events = POLLIN,
+	},
+	{
+		.name = "astspi",
+		.init = binding_astspi_init,
+		.get_fd = binding_astspi_get_fd,
+		.process = binding_astspi_process,
+		.sockname = "\0mctp-spi-mux",
+		.events = POLLPRI,
 	}
-
 };
 
 struct binding *binding_lookup(const char *name)
@@ -377,9 +431,19 @@ static int socket_init(struct ctx *ctx)
 	struct sockaddr_un addr;
 	int namelen, rc;
 
-	namelen = sizeof(sockname) - 1;
+	memset(&addr, 0, sizeof(addr));
+
+	if (ctx->binding->sockname[0] == '\0')
+	{
+		namelen = 1 + strlen(ctx->binding->sockname + 1);
+	}
+	else
+	{
+		namelen = strlen(ctx->binding->sockname);
+	}
+
 	addr.sun_family = AF_UNIX;
-	memcpy(addr.sun_path, sockname, namelen);
+	memcpy(addr.sun_path, ctx->binding->sockname, namelen);
 
 	ctx->sock = socket(AF_UNIX, SOCK_SEQPACKET, 0);
 	if (ctx->sock < 0) {
@@ -399,7 +463,6 @@ static int socket_init(struct ctx *ctx)
 		warn("can't listen on socket");
 		goto err_close;
 	}
-
 	return 0;
 
 err_close:
@@ -425,8 +488,8 @@ static int socket_process(struct ctx *ctx)
 	client->active = true;
 	client->sock = fd;
 
-    /* Reset client type to 0xff as type-0 is for MCTP ctrl */
-    client->type = 0xff;
+	/* Reset client type to 0xff as type-0 is for MCTP ctrl */
+	client->type = 0xff;
 
 	return 0;
 }
@@ -476,6 +539,7 @@ static int client_process_recv(struct ctx *ctx, int idx)
 
 	rc = recv(client->sock, ctx->buf, ctx->buf_size, 0);
 	if (rc < 0) {
+		mctp_prerr("recv(2) failed: %d", rc);
 		if (errno != ECONNRESET)
 			warn("can't receive from client");
 		rc = -1;
@@ -487,19 +551,19 @@ static int client_process_recv(struct ctx *ctx, int idx)
 		goto out_close;
 	}
 
-    /* Need a special handling for MCTP-Ctrl type
-     * as it will use different packet formatting as mentioned
-     * below:
-     * PKT-FORMAT:
-     *          [MCTP-BIND-ID]
-     *          [MCTP-PVT-BIND-INFO]
-     *          [MCTP-MSG-HDR]
-     *          [MCTP-MSG]
-     */
-    if (client->type == MCTP_MESSAGE_TYPE_MCTP_CTRL) {
-        tx_pvt_message(ctx, ctx->buf, rc);
-        return 0;
-    }
+	/* Need a special handling for MCTP-Ctrl type
+	 * as it will use different packet formatting as mentioned
+	 * below:
+	 * PKT-FORMAT:
+	 *          [MCTP-BIND-ID]
+	 *          [MCTP-PVT-BIND-INFO]
+	 *          [MCTP-MSG-HDR]
+	 *          [MCTP-MSG]
+	 */
+	if (client->type == MCTP_MESSAGE_TYPE_MCTP_CTRL) {
+		tx_pvt_message(ctx, ctx->buf, rc);
+		return 0;
+	}
 
 	eid = *(uint8_t *)ctx->buf;
 
@@ -533,7 +597,7 @@ static int binding_init(struct ctx *ctx, const char *name,
 	}
 
 	rc = ctx->binding->init(ctx->mctp, ctx->binding, ctx->local_eid,
-			argc, argv);
+	    argc, argv);
 	return rc;
 }
 
@@ -553,7 +617,7 @@ static int run_daemon(struct ctx *ctx)
 	if (ctx->binding->get_fd) {
 		ctx->pollfds[FD_BINDING].fd =
 			ctx->binding->get_fd(ctx->binding);
-		ctx->pollfds[FD_BINDING].events = POLLIN;
+		ctx->pollfds[FD_BINDING].events = ctx->binding->events;
 	} else {
 		ctx->pollfds[FD_BINDING].fd = -1;
 		ctx->pollfds[FD_BINDING].events = 0;
@@ -607,6 +671,7 @@ static int run_daemon(struct ctx *ctx)
 		}
 
 		if (ctx->pollfds[FD_SOCKET].revents) {
+
 			rc = socket_process(ctx);
 			if (rc)
 				break;
@@ -617,7 +682,6 @@ static int run_daemon(struct ctx *ctx)
 			client_remove_inactive(ctx);
 
 	}
-
 
 	free(ctx->pollfds);
 
@@ -682,7 +746,7 @@ int main(int argc, char * const *argv)
 	mctp_set_tracing_enabled(true);
 
 	ctx->mctp = mctp_init();
-	assert(ctx->mctp);
+	MCTP_ASSERT(ctx->mctp != NULL, "ctx->mctp is NULL");
 
 	rc = binding_init(ctx, argv[optind], argc - optind - 1, argv + optind + 1);
 	if (rc)
@@ -698,7 +762,5 @@ int main(int argc, char * const *argv)
 	}
 
 	rc = run_daemon(ctx);
-
 	return rc ? EXIT_FAILURE : EXIT_SUCCESS;
-
 }
