@@ -27,7 +27,7 @@ struct mctp_ctrl_resp {
         struct mctp_ctrl_cmd_msg_hdr hdr;
         uint8_t completion_code;
         uint8_t data[MCTP_BTU];
-} resp;
+} resp __attribute__((__packed__));
 
 /*
  * Global variable for user to check the Routing table 
@@ -101,19 +101,17 @@ static void mctp_print_resp_msg(struct mctp_ctrl_resp *ep_discovery_resp, const 
     /* Decrement the length by one */
     msg_len--;
 
-    if (ep_discovery_resp->data) {
 
-        MCTP_CTRL_TRACE("MCTP-RESP-DATA >> \n");
+    MCTP_CTRL_TRACE("MCTP-RESP-DATA >> \n");
 
-        /* Check if data available or not */
-        if (msg_len <= 0) {
-            MCTP_CTRL_TRACE("\t--------------<empty>-------------\n");
-        }
-
-        for (int i = 0; i < msg_len; i++)
-            MCTP_CTRL_TRACE("\tDATA[%d] \t\t: 0x%x\n", i, ep_discovery_resp->data[i]);
-        MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
+    /* Check if data available or not */
+    if (msg_len <= 0) {
+        MCTP_CTRL_TRACE("\t--------------<empty>-------------\n");
     }
+
+    for (int i = 0; i < msg_len; i++)
+        MCTP_CTRL_TRACE("\tDATA[%d] \t\t: 0x%x\n", i, ep_discovery_resp->data[i]);
+    MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
 }
 
 
@@ -134,19 +132,17 @@ static void mctp_print_req_msg(struct mctp_ctrl_req *ep_discovery_req, const cha
     MCTP_CTRL_TRACE("\trq_dgram_inst \t: 0x%x\n", ep_discovery_req->hdr.rq_dgram_inst);
     MCTP_CTRL_TRACE("\tcommand_code \t: 0x%x\n", ep_discovery_req->hdr.command_code);
 
-    if (ep_discovery_req->data) {
 
-        MCTP_CTRL_TRACE("MCTP-REQ-DATA >> \n");
+    MCTP_CTRL_TRACE("MCTP-REQ-DATA >> \n");
 
-        /* Check if data available or not */
-        if (msg_len <= 0) {
-            MCTP_CTRL_TRACE("\t--------------<empty>-------------\n");
-        }
-
-        for (int i = 0; i < msg_len; i++)
-            MCTP_CTRL_TRACE("\tDATA[%d] \t\t: 0x%x\n", i, ep_discovery_req->data[i]);
-        MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
+    /* Check if data available or not */
+    if (msg_len <= 0) {
+        MCTP_CTRL_TRACE("\t--------------<empty>-------------\n");
     }
+
+    for (int i = 0; i < msg_len; i++)
+        MCTP_CTRL_TRACE("\tDATA[%d] \t\t: 0x%x\n", i, ep_discovery_req->data[i]);
+    MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
 }
 
 /* Tracing function to print Routing table entry */
@@ -505,25 +501,21 @@ mctp_ret_codes_t mctp_prepare_ep_discovery_send_request(int sock_fd)
 mctp_ret_codes_t mctp_prepare_ep_discovery_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len)
 {
     bool                                        req_ret;
-    struct mctp_ctrl_resp_prepare_discovery     prep_ep_discovery_resp;
+    struct mctp_ctrl_resp_prepare_discovery     *prep_ep_discovery_resp;
 
     mctp_print_resp_msg((struct mctp_ctrl_resp *)mctp_resp_msg,
-                         "MCTP_PREPARE_FOR_EP_DISCOVERY_RESPONSE", resp_msg_len);
+                         "MCTP_PREPARE_FOR_EP_DISCOVERY_RESPONSE",
+                         resp_msg_len - sizeof(struct mctp_ctrl_cmd_msg_hdr));
 
-    /* Copy the Rx packet header */
-    memcpy(&prep_ep_discovery_resp, mctp_resp_msg,
-                    sizeof(struct mctp_ctrl_resp_prepare_discovery));
+    prep_ep_discovery_resp = (struct mctp_ctrl_resp_prepare_discovery *) mctp_resp_msg;
 
     /* Parse the endpoint discovery message */
-    req_ret = mctp_decode_resp_prepare_ep_discovery(&prep_ep_discovery_resp);
+    req_ret = mctp_decode_resp_prepare_ep_discovery(prep_ep_discovery_resp);
     if (req_ret == false) {
         MCTP_CTRL_ERR("%s: Packet parsing failed\n", __func__);
+
         return MCTP_RET_ENCODE_FAILED;
     }
-
-    /* Free Rx packet */
-    free(mctp_resp_msg);
-
     return MCTP_RET_REQUEST_SUCCESS;
 }
 
@@ -588,25 +580,20 @@ mctp_ret_codes_t mctp_ep_discovery_send_request(int sock_fd)
 int mctp_ep_discovery_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len)
 {
     bool                                        req_ret;
-    struct mctp_ctrl_resp_endpoint_discovery    ep_discovery_resp;
+    struct mctp_ctrl_resp_endpoint_discovery    *ep_discovery_resp;
 
     mctp_print_resp_msg((struct mctp_ctrl_resp *) mctp_resp_msg,
-                         "MCTP_EP_DISCOVERY_RESPONSE", resp_msg_len);
+                         "MCTP_EP_DISCOVERY_RESPONSE",
+                         resp_msg_len - sizeof(struct mctp_ctrl_cmd_msg_hdr));
 
-    /* Copy the Rx packet header */
-    memcpy(&ep_discovery_resp, mctp_resp_msg,
-                    sizeof(struct mctp_ctrl_resp_endpoint_discovery));
+    ep_discovery_resp = (struct mctp_ctrl_resp_endpoint_discovery *) mctp_resp_msg;
 
     /* Parse the endpoint discovery message */
-    req_ret = mctp_decode_resp_ep_discovery(&ep_discovery_resp);
+    req_ret = mctp_decode_resp_ep_discovery(ep_discovery_resp);
     if (req_ret == false) {
         MCTP_CTRL_ERR("%s: Packet parsing failed\n", __func__);
         return MCTP_RET_ENCODE_FAILED;
     }
-
-    /* Free Rx packet */
-    free(mctp_resp_msg);
-
     return MCTP_RET_REQUEST_SUCCESS;
 }
 
@@ -615,6 +602,7 @@ mctp_ret_codes_t mctp_set_eid_send_request(int sock_fd, mctp_ctrl_cmd_set_eid_op
 {
     bool                                req_ret;
     mctp_requester_rc_t                 mctp_ret;
+
     struct mctp_ctrl_cmd_set_eid        set_eid_req;
     struct mctp_ctrl_req                ep_req;
     size_t                              msg_len;
@@ -676,27 +664,23 @@ int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
                                                 uint8_t eid, uint8_t *eid_count)
 {
     bool                                req_ret;
-    struct mctp_ctrl_resp_set_eid       set_eid_resp;
+    struct mctp_ctrl_resp_set_eid       *set_eid_resp;
 
     mctp_print_resp_msg((struct mctp_ctrl_resp*) mctp_resp_msg,
                          "MCTP_SET_EP_RESPONSE",
-                         sizeof(struct mctp_ctrl_resp_set_eid) - sizeof(struct mctp_ctrl_cmd_msg_hdr));
+                          resp_msg_len - sizeof(struct mctp_ctrl_cmd_msg_hdr));
 
-    /* Copy the Rx packet header */
-    memcpy(&set_eid_resp, mctp_resp_msg, sizeof(struct mctp_ctrl_resp_set_eid));
+    set_eid_resp = (struct mctp_ctrl_resp_set_eid *) mctp_resp_msg;
 
     /* Parse the endpoint discovery message */
-    req_ret = mctp_decode_resp_set_eid(&set_eid_resp);
+    req_ret = mctp_decode_resp_set_eid(set_eid_resp);
     if (req_ret == false) {
         MCTP_CTRL_ERR("%s: Packet parsing failed\n", __func__);
 
-        /* Free Rx packet */
-        free(mctp_resp_msg);
-
         /* Check wheteher device is ready or not */
-        if (set_eid_resp.completion_code == MCTP_CONTROL_MSG_STATUS_ERROR_NOT_READY) {
+        if (set_eid_resp->completion_code == MCTP_CONTROL_MSG_STATUS_ERROR_NOT_READY) {
             MCTP_CTRL_DEBUG("%s: Device [eid: %d] is not ready yet..\n",
-                                                    __func__, set_eid_resp.eid_set);
+                                                    __func__, set_eid_resp->eid_set);
             return MCTP_RET_DEVICE_NOT_READY;
         }
 
@@ -704,40 +688,37 @@ int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
     }
 
     /* Check whether the EID is accepted by the device or not */
-    if (set_eid_resp.status & MCTP_SETEID_ASSIGN_STATUS_REJECTED) {
+    if (set_eid_resp->status & MCTP_SETEID_ASSIGN_STATUS_REJECTED) {
         MCTP_CTRL_DEBUG("%s: Set Endpoint id: 0x%x, Status:0x%x (Rejected by the device)\n",
-                                            __func__, set_eid_resp.status, set_eid_resp.eid_set);
+                                    __func__, set_eid_resp->status, set_eid_resp->eid_set);
 
         /* Get the EID from the bridge (FPGA) */
-        g_pci_bridge_eid = set_eid_resp.eid_set;
+        g_pci_bridge_eid = set_eid_resp->eid_set;
     } else {
         MCTP_CTRL_DEBUG("%s: Set Endpoint id: 0x%x (Accepted by the device)\n",
-                                                            __func__, set_eid_resp.eid_set);
+                                                   __func__, set_eid_resp->eid_set);
     }
 
     /* Check whether the device requires EID pool allocation or not */
-    if (set_eid_resp.status & MCTP_SETEID_ALLOC_STATUS_EID_POOL_REQ) {
+    if (set_eid_resp->status & MCTP_SETEID_ALLOC_STATUS_EID_POOL_REQ) {
         MCTP_CTRL_DEBUG("%s: Endpoint require EID pool allocation: 0x%x (status)\n",
-                                                            __func__, set_eid_resp.status);
+                                                            __func__, set_eid_resp->status);
 
         /* Get the EID pool size from response */
-        g_eid_pool_size = set_eid_resp.eid_pool_size;
+        g_eid_pool_size = set_eid_resp->eid_pool_size;
 
         /* update the eid_count pointer */
-        *eid_count = set_eid_resp.eid_pool_size;
+        *eid_count = set_eid_resp->eid_pool_size;
 
         MCTP_CTRL_DEBUG("%s: g_eid_pool_size: 0x%x\n", __func__, g_eid_pool_size);
 
     } else {
         MCTP_CTRL_DEBUG("%s: Endpoint doesn't require EID pool allocation: 0x%x (status)\n",
-                                            __func__, set_eid_resp.status);
+                                            __func__, set_eid_resp->status);
 
         /* Reset the EID pool size */
         g_eid_pool_size = 0;
     }
-
-    /* Free Rx packet */
-    free(mctp_resp_msg);
 
     return MCTP_RET_REQUEST_SUCCESS;
 }
@@ -807,36 +788,34 @@ mctp_ret_codes_t mctp_alloc_eid_send_request(int sock_fd, mctp_eid_t assigned_ei
 int mctp_alloc_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len)
 {
     bool                                req_ret;
-    struct mctp_ctrl_resp_alloc_eid     alloc_eid_resp;
+    struct mctp_ctrl_resp_alloc_eid     *alloc_eid_resp;
 
     mctp_print_resp_msg((struct mctp_ctrl_resp*) mctp_resp_msg,
                         "MCTP_ALLOCATE_EP_ID_RESPONSE",
-                        (sizeof(struct mctp_ctrl_resp_alloc_eid) - sizeof(struct mctp_ctrl_cmd_msg_hdr)));
+                         resp_msg_len - sizeof(struct mctp_ctrl_cmd_msg_hdr));
 
     /* Copy the Rx packet header */
-    memcpy(&alloc_eid_resp, mctp_resp_msg, sizeof(struct mctp_ctrl_resp_alloc_eid));
+   // memcpy(&alloc_eid_resp, mctp_resp_msg, sizeof(struct mctp_ctrl_resp_alloc_eid));
+    alloc_eid_resp = (struct mctp_ctrl_resp_alloc_eid *) mctp_resp_msg;
 
     /* Parse the endpoint discovery message */
-    req_ret = mctp_decode_resp_alloc_eid(&alloc_eid_resp);
+    req_ret = mctp_decode_resp_alloc_eid(alloc_eid_resp);
     if (req_ret == false) {
         MCTP_CTRL_ERR("%s: Packet parsing failed\n", __func__);
         return MCTP_RET_ENCODE_FAILED;
     }
 
     /* Check whether allocation was accepted or not */
-    if (alloc_eid_resp.alloc_status == MCTP_ALLOC_EID_REJECTED) {
+    if (alloc_eid_resp->alloc_status == MCTP_ALLOC_EID_REJECTED) {
         MCTP_CTRL_ERR("%s: Alloc Endpoint ID rejected/already allocated by another bus owner\n", __func__);
     }
 
     /* Get EID pool size and the EID start */
-    g_eid_pool_size = alloc_eid_resp.eid_pool_size;
-    g_eid_pool_start = alloc_eid_resp.eid_start;
+    g_eid_pool_size = alloc_eid_resp->eid_pool_size;
+    g_eid_pool_start = alloc_eid_resp->eid_start;
 
     MCTP_CTRL_DEBUG("%s: g_eid_pool_size: %d, eid_start: %d\n",
                                         __func__, g_eid_pool_size, g_eid_pool_start);
-
-    /* Free Rx packet */
-    free(mctp_resp_msg);
 
     return MCTP_RET_REQUEST_SUCCESS;
 }
@@ -908,39 +887,35 @@ int mctp_get_routing_table_get_response(int sock_fd, mctp_eid_t eid,
                                 uint8_t *mctp_resp_msg, size_t resp_msg_len)
 {
     bool                                        req_ret;
-    struct mctp_ctrl_resp_get_routing_table     routing_table;
+    struct mctp_ctrl_resp_get_routing_table     *routing_table;
     int                                         ret;
 
     MCTP_CTRL_TRACE("%s: Get EP reesponse\n", __func__);
 
     mctp_print_resp_msg((struct mctp_ctrl_resp*) mctp_resp_msg,
-                        "MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE", resp_msg_len);
+                        "MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE",
+                        resp_msg_len - sizeof(struct mctp_ctrl_cmd_msg_hdr));
 
-    /* Copy the Rx packet header */
-    memcpy(&routing_table, mctp_resp_msg, sizeof(struct mctp_ctrl_resp_get_routing_table));
+    routing_table = (struct mctp_ctrl_resp_get_routing_table *) mctp_resp_msg;
 
     /* Parse the endpoint discovery message */
-    req_ret = mctp_decode_resp_get_routing_table(&routing_table);
+    req_ret = mctp_decode_resp_get_routing_table(routing_table);
     if (req_ret == false) {
         MCTP_CTRL_ERR("%s: Packet parsing failed\n", __func__);
 
-        /* Free Rx packet */
-        free(mctp_resp_msg);
-
         /* Check wheteher device is ready or not */
-        if (routing_table.completion_code == MCTP_CONTROL_MSG_STATUS_ERROR_NOT_READY) {
+        if (routing_table->completion_code == MCTP_CONTROL_MSG_STATUS_ERROR_NOT_READY) {
             MCTP_CTRL_DEBUG("%s: Device is not ready yet..\n", __func__);
             return MCTP_RET_DEVICE_NOT_READY;
         }
-
         return MCTP_RET_ENCODE_FAILED;
     }
 
     MCTP_CTRL_DEBUG("%s: Next entry handle: %d, Number of entries: %d\n", __func__,
-                        routing_table.next_entry_handle, routing_table.number_of_entries);
+                   routing_table->next_entry_handle, routing_table->number_of_entries);
 
     /* Check if the routing table exist */
-    if (routing_table.number_of_entries) {
+    if (routing_table->number_of_entries) {
         struct get_routing_table_entry          routing_table_entry;
 
         /* Copy the routing table entries to local routing table */
@@ -950,7 +925,7 @@ int mctp_get_routing_table_get_response(int sock_fd, mctp_eid_t eid,
 
         /* Dont add the entry to the routing table if the EID is it's own */
         if (routing_table_entry.starting_eid == g_pci_own_eid) {
-            MCTP_CTRL_DEBUG("%s: Found it's own eid: [%d] in the Routing table: %d\n",
+            MCTP_CTRL_DEBUG("%s: Found it's own eid: [%d] in the Routing table\n",
                                     __func__, routing_table_entry.starting_eid);
         } else {
             /* Add the entry to a linked list */
@@ -970,18 +945,16 @@ int mctp_get_routing_table_get_response(int sock_fd, mctp_eid_t eid,
         }
 
         /* Check if the next routing table exist.. */
-        if (routing_table.next_entry_handle != 0xFF) {
+        if (routing_table->next_entry_handle != 0xFF) {
             MCTP_CTRL_DEBUG("%s: Next routing entry found %d\n",
-                                __func__, routing_table.next_entry_handle);
+                                __func__, routing_table->next_entry_handle);
+
             return MCTP_RET_ROUTING_TABLE_FOUND;
         } else {
             MCTP_CTRL_DEBUG("%s: No more routing entries %d\n",
-                                __func__, routing_table.next_entry_handle);
+                                __func__, routing_table->next_entry_handle);
         }
     }
-
-    /* Free Rx packet */
-    free(mctp_resp_msg);
 
     return MCTP_RET_REQUEST_SUCCESS;
 }
@@ -1048,19 +1021,19 @@ mctp_ret_codes_t mctp_get_endpoint_uuid_send_request(int sock_fd, mctp_eid_t eid
 int mctp_get_endpoint_uuid_response(mctp_eid_t eid, uint8_t *mctp_resp_msg, size_t resp_msg_len)
 {
     bool                                req_ret;
-    struct mctp_ctrl_resp_get_uuid      uuid_resp;
+    struct mctp_ctrl_resp_get_uuid      *uuid_resp;
     int                                 ret;
     mctp_uuid_table_t                   uuid_table;
 
     /* Trace the Rx message */
     mctp_print_resp_msg((struct mctp_ctrl_resp *) mctp_resp_msg,
-                        "MCTP_GET_EP_UUID_RESPONSE", resp_msg_len);
+                        "MCTP_GET_EP_UUID_RESPONSE",
+                        resp_msg_len - sizeof(struct mctp_ctrl_cmd_msg_hdr));
 
-    /* Copy the Rx packet header */
-    memcpy(&uuid_resp, mctp_resp_msg, sizeof(struct mctp_ctrl_resp_get_uuid));
+    uuid_resp = (struct mctp_ctrl_resp_get_uuid *) mctp_resp_msg;
 
     /* Parse the UUID response message */
-    req_ret = mctp_decode_resp_get_uuid(&uuid_resp);
+    req_ret = mctp_decode_resp_get_uuid(uuid_resp);
     if (req_ret == false) {
         MCTP_CTRL_ERR("%s: Packet parsing failed\n", __func__);
         return MCTP_RET_ENCODE_FAILED;
@@ -1068,7 +1041,8 @@ int mctp_get_endpoint_uuid_response(mctp_eid_t eid, uint8_t *mctp_resp_msg, size
 
     /* Update UUID private params to export to upper layer */
     uuid_table.eid = eid;
-    memcpy(&uuid_table.uuid.canonical, &uuid_resp.uuid.canonical, sizeof(guid_t));
+    memcpy(&uuid_table.uuid.canonical, &uuid_resp->uuid.canonical, sizeof(guid_t));
+    uuid_table.next = NULL;
 
     /* Create a new UUID entry and add to list */
     ret = mctp_uuid_entry_add(&uuid_table);
@@ -1076,9 +1050,6 @@ int mctp_get_endpoint_uuid_response(mctp_eid_t eid, uint8_t *mctp_resp_msg, size
         MCTP_CTRL_ERR("%s: Failed to update global UUID table..\n", __func__);
         return MCTP_RET_REQUEST_FAILED;
     }
-
-    /* Free Rx packet */
-    free(mctp_resp_msg);
 
     return MCTP_RET_REQUEST_SUCCESS;
 }
@@ -1147,22 +1118,18 @@ int mctp_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 {
     bool                                            req_ret;
     struct mctp_ctrl_resp                           ep_res;
-    struct mctp_ctrl_resp_get_msg_type_support      msg_type_resp;
+    struct mctp_ctrl_resp_get_msg_type_support      *msg_type_resp;
     int                                             ret;
     mctp_msg_type_table_t                           msg_type_table;
 
     mctp_print_resp_msg((struct mctp_ctrl_resp*) mctp_resp_msg,
-                        "MCTP_GET_MSG_TYPE_RESPONSE", resp_msg_len);
+                        "MCTP_GET_MSG_TYPE_RESPONSE",
+                         resp_msg_len - sizeof(struct mctp_ctrl_cmd_msg_hdr));
 
-    /* Copy the Rx packet header */
-    memcpy(&msg_type_resp, mctp_resp_msg,
-                sizeof(struct mctp_ctrl_resp_get_msg_type_support));
-
-    /* Copy the Rx packet header */
-    memcpy(&ep_res, mctp_resp_msg, resp_msg_len);
+    msg_type_resp = (struct mctp_ctrl_resp_get_msg_type_support *) mctp_resp_msg;
 
     /* Parse the Get message type buffer */
-    req_ret = mctp_decode_ctrl_cmd_get_msg_type_support(&msg_type_resp);
+    req_ret = mctp_decode_ctrl_cmd_get_msg_type_support(msg_type_resp);
     if (req_ret == false) {
         MCTP_CTRL_ERR("%s: Packet parsing failed\n", __func__);
         return MCTP_RET_ENCODE_FAILED;
@@ -1175,6 +1142,7 @@ int mctp_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
     msg_type_table.eid = eid;
     msg_type_table.data_len = ((struct mctp_ctrl_resp*)
                                 mctp_resp_msg)->data[MCTP_MSG_TYPE_DATA_LEN_OFFSET];
+    msg_type_table.next = NULL;
     memcpy(&msg_type_table.data,
             &((struct mctp_ctrl_resp*) mctp_resp_msg)->data[MCTP_MSG_TYPE_DATA_OFFSET],
             msg_type_table.data_len);
@@ -1185,9 +1153,6 @@ int mctp_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
         MCTP_CTRL_ERR("%s: Failed to update global routing table..\n", __func__);
         return MCTP_RET_REQUEST_FAILED;
     }
-
-    /* Free Rx packet */
-    free(mctp_resp_msg);
 
     return MCTP_RET_REQUEST_SUCCESS;
 }
@@ -1251,7 +1216,7 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
     mctp_ret_codes_t            mctp_ret;
     mctp_ctrl_cmd_set_eid_op    set_eid_op;
     mctp_ctrl_cmd_alloc_eid_op  alloc_eid_op;
-    uint8_t                     eid, eid_count, eid_start;
+    uint8_t                     eid = 0, eid_count = 0, eid_start = 0;
     uint8_t                     entry_hdl = MCTP_ROUTING_ENTRY_START;
     size_t                      mctp_resp_len;
     uint8_t                     *mctp_resp_msg;
@@ -1260,7 +1225,7 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
     int                         uuid_req_count = 0;
     int                         msg_type_req_count = 0;
     int                         timeout = 0;
-    mctp_routing_table_t        *routing_entry;
+    mctp_routing_table_t        *routing_entry = NULL;
 
     /* Update Target BDF */
     g_target_bdf = mctp_ctrl_get_target_bdf (cmd);
@@ -1316,6 +1281,10 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
 
                 /* Process the prepare endpoint discovery message */
                 mctp_ret = mctp_prepare_ep_discovery_get_response(mctp_resp_msg, resp_msg_len);
+
+                /* Free Rx packet */
+                free(mctp_resp_msg);
+
                 if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
                     MCTP_CTRL_ERR("%s: Failed MCTP_PREPARE_FOR_EP_DISCOVERY_RESPONSE\n", __func__);
                     return MCTP_RET_DISCOVERY_FAILED;
@@ -1323,7 +1292,8 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
 
                 /* Next step is to send endpoint Discovery request */
                 discovery_mode = MCTP_EP_DISCOVERY_REQUEST;
-    
+                break;
+
             case MCTP_EP_DISCOVERY_REQUEST:
 
                 /* Send the prepare endpoint message */
@@ -1335,13 +1305,16 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
 
                 /* Wait for the endpoint response */
                 discovery_mode = MCTP_EP_DISCOVERY_RESPONSE;
-
                 break;
 
             case MCTP_EP_DISCOVERY_RESPONSE:
 
                 /* Process the endpoint discovery message */
                 mctp_ret = mctp_ep_discovery_get_response(mctp_resp_msg, resp_msg_len);
+
+                /* Free Rx packet */
+                free(mctp_resp_msg);
+
                 if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
                     MCTP_CTRL_ERR("%s: Failed MCTP_EP_DISCOVERY_RESPONSE\n", __func__);
                     return MCTP_RET_DISCOVERY_FAILED;
@@ -1374,6 +1347,8 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                 /* Process the MCTP_SET_EP_RESPONSE */
                 mctp_ret = mctp_set_eid_get_response(mctp_resp_msg, resp_msg_len,
                                                      g_pci_bridge_eid, &eid_count);
+                /* Free Rx packet */
+                free(mctp_resp_msg);
 
                 /* Retry if the device is not ready */
                 if (mctp_ret == MCTP_RET_DEVICE_NOT_READY) {
@@ -1435,6 +1410,10 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
 
                 /* Process the MCTP_ALLOCATE_EP_ID_RESPONSE */
                 mctp_ret = mctp_alloc_eid_get_response(mctp_resp_msg, resp_msg_len);
+
+                /* Free Rx packet */
+                free(mctp_resp_msg);
+
                 if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
                     MCTP_CTRL_ERR("%s: Failed MCTP_ALLOCATE_EP_ID_RESPONSE\n", __func__);
                     return MCTP_RET_DISCOVERY_FAILED;
@@ -1476,6 +1455,9 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
 
                 /* Process the MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE */
                 mctp_ret = mctp_get_routing_table_get_response(ctrl->sock, eid, mctp_resp_msg, resp_msg_len);
+
+                /* Free Rx packet */
+                free(mctp_resp_msg);
 
                 /* Retry if the device is not ready */
                 if (mctp_ret == MCTP_RET_DEVICE_NOT_READY) {
@@ -1553,13 +1535,18 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                 } else {
                     /* Process the MCTP_GET_EP_UUID_RESPONSE */
                     mctp_ret = mctp_get_endpoint_uuid_response(eid_start, mctp_resp_msg, resp_msg_len);
+
                     if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
                         MCTP_CTRL_ERR("%s: MCTP_GET_EP_UUID_RESPONSE Failed\n", __func__);
                     }
+                    /* Free Rx packet */
+                    free(mctp_resp_msg);
                 }
 
                 /* Increment the routing entry */
-                routing_entry = routing_entry->next;
+                if (routing_entry) {
+                    routing_entry = routing_entry->next;
+                }
 
                 /* Continue probing all UUID requests */
                 if (routing_entry) {
@@ -1606,13 +1593,19 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
                 } else {
                     /* Process the MCTP_GET_MSG_TYPE_RESPONSE */
                     mctp_ret = mctp_get_msg_type_response(eid_start, mctp_resp_msg, resp_msg_len);
+
+                    /* Free Rx packet */
+                    free(mctp_resp_msg);
+
                     if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
                         MCTP_CTRL_ERR("%s: MCTP_GET_MSG_TYPE_RESPONSE Failed\n", __func__);
                     }
                 }
 
                 /* Increment the routing entry */
-                routing_entry = routing_entry->next;
+                if (routing_entry) {
+                    routing_entry = routing_entry->next;
+                }
 
                 /* Continue probing all Msg type requests */
                 if (routing_entry) {

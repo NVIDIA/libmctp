@@ -246,6 +246,7 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	write_len = write(astpcie->fd, pcie_mctp_hdr_data, len);
 	if (write_len < 0) {
 		mctp_prerr("TX error");
+        free(pcie_mctp_hdr_data);
 		return -1;
 	}
 
@@ -307,7 +308,8 @@ int mctp_astpcie_rx(struct mctp_binding_astpcie *astpcie)
 	struct mctp_pktbuf *pkt;
 	struct mctp_pcie_hdr *hdr;
 	struct mctp_hdr *mctp_hdr;
-	size_t read_len, payload_len;
+	size_t payload_len;
+    int read_len;
 	int rc;
 
 	read_len = read(astpcie->fd, &data, sizeof(data));
@@ -317,7 +319,7 @@ int mctp_astpcie_rx(struct mctp_binding_astpcie *astpcie)
 	}
 
 	if (read_len != ASTPCIE_PACKET_SIZE(MCTP_BTU)) {
-		mctp_prerr("Incorrect packet size: %zd", read_len);
+		mctp_prerr("Incorrect packet size: %d", read_len);
 		return -1;
 	}
 

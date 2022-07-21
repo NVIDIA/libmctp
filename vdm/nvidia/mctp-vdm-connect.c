@@ -66,6 +66,7 @@ int mctp_vdm_socket_init(const char *intf, uint8_t msgtype)
                 sizeof(timeout)) < 0) {
         fprintf(stderr, "%s: [err: %d] setsockopt failed\n",
                                             __func__, errno);
+        close(fd);
         return errno;
     }
 
@@ -74,6 +75,7 @@ int mctp_vdm_socket_init(const char *intf, uint8_t msgtype)
                 sizeof(timeout)) < 0) {
         fprintf(stderr, "%s: [err: %d] setsockopt failed\n",
                                             __func__, errno);
+        close(fd);
         return errno;
     }
 
@@ -91,7 +93,8 @@ int mctp_vdm_socket_init(const char *intf, uint8_t msgtype)
     rc = connect(fd, (struct sockaddr *)&addr, sizeof(addr.sun_family) + namelen);
     if (rc < 0) {
         fprintf(stderr, "%s: [err: %d] Socket connect failed\n",
-                                                    __func__, errno, fd);
+                                                    __func__, errno);
+        close(fd);
         return errno;
     }
 
@@ -99,7 +102,8 @@ int mctp_vdm_socket_init(const char *intf, uint8_t msgtype)
     rc = write(fd, &msgtype, sizeof(msgtype));
     if (rc < 0) {
         fprintf(stderr, "%s: [err: %d] Socket write failed\n",
-                                                    __func__, errno, fd);
+                                                    __func__, errno);
+        close(fd);
         return errno;
     }
 
@@ -137,7 +141,7 @@ int mctp_vdm_recv(mctp_eid_t eid, int mctp_fd, uint8_t msgtype,
                                             __func__, errno, MCTP_VDM_TXRX_TIMEOUT_SECS);
         return errno;
     } else if (length < min_len) {
-        fprintf(stderr, "%s: [err: %d] Invalid length [%d]\n",
+        fprintf(stderr, "%s: [err: %d] Invalid length [%lu]\n",
                                             __func__, errno, length);
         return MCTP_ERR_INVALID_LEN;
     } else {
@@ -155,6 +159,10 @@ int mctp_vdm_recv(mctp_eid_t eid, int mctp_fd, uint8_t msgtype,
 
         /* Allocate response buffer */
         *mctp_resp_msg = malloc(mctp_len);
+        if (*mctp_resp_msg == NULL) {
+            fprintf(stderr, "%s: Fail to allocate the memory.\n", __func__);
+            return errno;
+        }
 
         /* Update the response vectors */
         iov[MCTP_VDM_IO_VECTOR_1].iov_len = mctp_len;
@@ -168,7 +176,7 @@ int mctp_vdm_recv(mctp_eid_t eid, int mctp_fd, uint8_t msgtype,
 
         /* Make sure the length matches */
         if (length != bytes) {
-            fprintf(stderr, "%s: [err: %d] Recvd message with invalid length: %d\n",
+            fprintf(stderr, "%s: [err: %d] Recvd message with invalid length: %lu\n",
                                                   __func__, errno, length);
 
             /* Free Response buffer */

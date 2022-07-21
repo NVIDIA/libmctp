@@ -91,8 +91,8 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 {
     int rc;
     mctp_binding_ids_t bind_id;
-    struct mctp_astpcie_pkt_private pvt_binding;
-    mctp_eid_t eid;
+    struct mctp_astpcie_pkt_private pvt_binding = {0};
+    mctp_eid_t eid = 0;
 
     /* Get the bus type (binding ID) */
     bind_id = *((uint8_t *)msg);
@@ -120,7 +120,7 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
     }
 
 	if (ctx->verbose) {
-        printf("%s: BindID: %d, Target EID: %d, msg len: %d,\
+        printf("%s: BindID: %d, Target EID: %d, msg len: %lu,\
                     Routing:%d remote_id: 0x%x\n",
                     __func__, bind_id, eid, len, pvt_binding.routing,
                     pvt_binding.remote_id);
@@ -164,7 +164,7 @@ static void rx_message(uint8_t eid, void *data, void *msg, size_t len)
 	struct ctx *ctx = data;
 	struct iovec iov[2];
 	struct msghdr msghdr;
-	bool removed;
+	bool removed = false;
 	uint8_t type;
 	int i, rc;
 

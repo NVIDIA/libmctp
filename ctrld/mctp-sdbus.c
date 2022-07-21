@@ -94,7 +94,7 @@ static int mctp_ctrl_sdbus_get_nw_id(sd_bus *bus,
                                      sd_bus_error *error)
 {
     int                     r, i=0;
-    uint32_t                mctp_nw_id;
+    uint32_t                mctp_nw_id = 0;
     uint8_t                 eid_req = 0;
     mctp_msg_type_table_t   *entry = g_msg_type_entries;
 
@@ -126,7 +126,7 @@ static int mctp_ctrl_sdbus_get_endpoint(sd_bus *bus,
     int                     r, i=0;
     uint8_t                 eid_req = 0;
     mctp_msg_type_table_t   *entry = g_msg_type_entries;
-    uint32_t                get_eid;
+    uint32_t                get_eid = 0;
 
     eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
 

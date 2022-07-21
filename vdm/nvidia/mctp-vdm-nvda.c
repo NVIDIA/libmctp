@@ -114,7 +114,7 @@ static int vdm_resp_output(char *msg, int len, uint8_t result, bool enable)
 
     /* Open the Output file */
     fptr = fopen(MCTP_VDM_RESP_OUTPUT_FILE,"wb+");
-    if (fptr < 0) {
+    if (fptr == NULL) {
         fprintf(stderr, "%s: [err: %d] Unable to open %s\n",
                         __func__, errno, MCTP_VDM_RESP_OUTPUT_FILE);
         return errno;
@@ -478,9 +478,15 @@ static int download_log(int fd, uint8_t eid, char *dl_path)
     int                                 rc = 0, length = 0xFF;
     int                                 bytes_count = 0;
     size_t                              resp_len = 0;
-    FILE                                *fptr = fopen(dl_path,"wb+");
+    FILE                                *fptr = NULL;
     mctp_vdm_log_rep_hdr_t              *resp = NULL;
     struct mctp_vendor_cmd_downloadlog  req = {0};
+
+    fptr = fopen(dl_path,"wb+");
+    if (fptr == NULL) {
+        fprintf (stderr, " %s: Failed to open %s", __func__, dl_path);
+        return -1;
+    }
 
     while(length != 0) {
         /* Encode the VDM headers for Download log */
@@ -495,13 +501,18 @@ static int download_log(int fd, uint8_t eid, char *dl_path)
                                       (uint8_t**)&resp, &resp_len);
         if (rc != 0) {
             fprintf(stderr, "%s: fail to recv [rc: %d] response\n", __func__, rc);
-            free(resp);
+            fclose(fptr);
             return rc;
         }
 
+        /* Sanity check for resp which is allocated by mctp_vdm_client_send_recv */
+        if (!resp) {
+            fclose(fptr);
+            return -1;
+        }
         /* The verbose option can be enabled if user want to see each packet transfers */
         if (ctx.verbose) {
-            printf("resp_len: %d\n", resp_len);
+            printf("resp_len: %lu\n", resp_len);
             print_hex("Response for DownloadLog", (uint8_t*)resp, resp_len);
             printf("DL: cc is %d, session is %d, length is %d\n", resp->cc, resp->session, resp->length);
         }
@@ -510,6 +521,7 @@ static int download_log(int fd, uint8_t eid, char *dl_path)
         if(resp->cc != 0) {
             fprintf(stderr, "%s: Invalid cc[%d] DownloadLog fail\n", __func__, resp->cc);
             free(resp);
+            fclose(fptr);
             return -1;
         }
 
@@ -519,6 +531,7 @@ static int download_log(int fd, uint8_t eid, char *dl_path)
             fprintf(stderr, "%s: Bytes received [%d] is more than expected log size\n",
                                        __func__, bytes_count);
             free(resp);
+            fclose(fptr);
             return -1;
         }
 
@@ -586,7 +599,7 @@ int main(int argc, char * const *argv)
     int         rc = -1;
     uint8_t     teid = 0;
     char        item[MCTP_VDM_COMMAND_NAME_SIZE] = {'\0'};
-    int         fd = NULL;
+    int         fd = -1;
 
     for (;;) {
         rc = getopt_long(argc, argv, "vt:c:h", options, NULL);
@@ -602,7 +615,7 @@ int main(int argc, char * const *argv)
                 printf("teid = %d\n", teid);
                 break;
             case 'c':
-                strncpy(item, optarg, strlen(optarg));
+                snprintf(item, MCTP_VDM_COMMAND_NAME_SIZE, "%s", optarg);
                 printf("Test command = %s\n", item);
                 break;
             case 'h':

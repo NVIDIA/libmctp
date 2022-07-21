@@ -133,6 +133,7 @@ mctp_requester_rc_t mctp_usr_socket_init(mctp_ctrl_t *mctp_ctrl)
     rc = connect(fd, (struct sockaddr *)&addr,
                  sizeof(path) + sizeof(addr.sun_family) - 1);
     if (-1 == rc) {
+        close(fd);
         return MCTP_REQUESTER_OPEN_FAIL;
     }
  
@@ -229,7 +230,8 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
     } else if (length < min_len) {
         /* read and discard */
         uint8_t buf[length];
-        recv(mctp_fd, buf, length, 0);
+        int     len;
+        len = recv(mctp_fd, buf, length, 0);
         mctp_ctrl_print_buffer("mctp_recv_msg_invalid_len", buf, length);
         return MCTP_REQUESTER_INVALID_RECV_LEN;
     } else {

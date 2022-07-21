@@ -369,7 +369,10 @@ int mctp_register_bus(struct mctp *mctp,
 			mctp->n_busses = 0;
 		}
 	}
-
+    /* Suppress the coverity errors
+     * CID 3469746 (#1 of 1): Failure to restore non-local value (MISSING_RESTORE)
+     */
+    /* coverity[end_of_path:SUPPRESS] */
 	return rc;
 }
 
