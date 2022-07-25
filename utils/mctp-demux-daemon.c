@@ -12,6 +12,7 @@
 #include "libmctp-astlpc.h"
 #include "utils/mctp-capture.h"
 
+#include <assert.h>
 #include <err.h>
 #include <errno.h>
 #include <getopt.h>
@@ -61,8 +62,8 @@ struct binding {
 	const char *name;
 	int (*init)(struct mctp *mctp, struct binding *binding, mctp_eid_t eid,
 		    int n_params, char *const *params);
-	void		(*destroy)(struct mctp *mctp, struct binding *binding);
-	int (*get_fd)(struct binding *binding);
+	void (*destroy)(struct mctp *mctp, struct binding *binding);
+	int (*init_pollfd)(struct binding *binding, struct pollfd *pollfd);
 	int (*process)(struct binding *binding);
 	void *data;
 	char *sockname;
@@ -90,9 +91,9 @@ struct ctx {
 	int sock;
 	struct pollfd *pollfds;
 
+	struct client	*clients;
+	int		n_clients;
 	bool clients_changed;
-	struct client *clients;
-	int n_clients;
 
 	struct {
 		struct capture binding;
@@ -134,8 +135,8 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 
 		len = len - (MCTP_PCIE_MSG_OFFSET)-1;
 		mctp_print_hex((uint8_t *)msg + MCTP_PCIE_MSG_OFFSET, len);
-		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, MCTP_MESSAGE_TO_SRC,
-					      0, msg + MCTP_PCIE_MSG_OFFSET, len,
+		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid,MCTP_MESSAGE_TO_SRC, 0,
+					      msg + MCTP_PCIE_MSG_OFFSET, len,
 					      (void *)&pvt_binding.pcie);
 
 		if (ctx->verbose) {
@@ -278,9 +279,10 @@ static int binding_serial_init(struct mctp *mctp, struct binding *binding,
 	return 0;
 }
 
-static int binding_serial_get_fd(struct binding *binding)
+static int binding_serial_init_pollfd(struct binding *binding,
+				      struct pollfd *pollfd)
 {
-	return mctp_serial_get_fd(binding->data);
+	return mctp_serial_init_pollfd(binding->data, pollfd);
 }
 
 static int binding_serial_process(struct binding *binding)
@@ -320,9 +322,10 @@ static void binding_astlpc_destroy(struct mctp *mctp, struct binding *binding)
 	mctp_astlpc_destroy(astlpc);
 }
 
-static int binding_astlpc_get_fd(struct binding *binding)
+static int binding_astlpc_init_pollfd(struct binding *binding,
+				      struct pollfd *pollfd)
 {
-	return mctp_astlpc_get_fd(binding->data);
+	return mctp_astlpc_init_pollfd(binding->data, pollfd);
 }
 
 static int binding_astlpc_process(struct binding *binding)
@@ -353,9 +356,10 @@ static int binding_astpcie_init(struct mctp *mctp, struct binding *binding,
 	return 0;
 }
 
-static int binding_astpcie_get_fd(struct binding *binding)
+static int binding_astpcie_init_pollfd(struct binding *binding,
+				  struct pollfd *pollfd)
 {
-	return mctp_astpcie_get_fd(binding->data);
+	return mctp_astpcie_init_pollfd(binding->data, pollfd);
 }
 
 static int binding_astpcie_process(struct binding *binding)
@@ -386,11 +390,12 @@ static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
 	return (0);
 }
 
-static int binding_astspi_get_fd(struct binding *binding)
+static int binding_astspi_init_pollfd(struct binding *binding,
+				      struct pollfd *pollfd)
 {
 	struct mctp_binding_spi *astspi = binding->data;
 
-	return (mctp_spi_get_fd(astspi));
+	return (mctp_spi_init_pollfd(astspi, pollfd));
 }
 
 static int binding_astspi_process(struct binding *binding)
@@ -413,8 +418,8 @@ struct binding bindings[] = { {
 			      {
 				      .name = "serial",
 				      .init = binding_serial_init,
-				      .get_fd = binding_serial_get_fd,
-				      .destroy = NULL,
+				      .destroy = NULL,	
+				      .init_pollfd = binding_serial_init_pollfd,
 				      .process = binding_serial_process,
 				      .sockname = "\0mctp-serial-mux",
 				      .events = POLLIN,
@@ -422,8 +427,9 @@ struct binding bindings[] = { {
 			      {
 				      .name = "astlpc",
 				      .init = binding_astlpc_init,
-				      .get_fd = binding_astlpc_get_fd,
+					  .destroy = NULL,
 				      .destroy = binding_astlpc_destroy,
+				      .init_pollfd = binding_astlpc_init_pollfd,					  
 				      .process = binding_astlpc_process,
 				      .sockname = "\0mctp-lpc-mux",
 				      .events = POLLIN,
@@ -431,8 +437,8 @@ struct binding bindings[] = { {
 			      {
 				      .name = "astpcie",
 				      .init = binding_astpcie_init,
-				      .get_fd = binding_astpcie_get_fd,
-				      .destroy = NULL,
+					  .destroy = NULL,
+				      .init_pollfd = binding_astpcie_init_pollfd,
 				      .process = binding_astpcie_process,
 				      .sockname = "\0mctp-pcie-mux",
 				      .events = POLLIN,
@@ -440,8 +446,8 @@ struct binding bindings[] = { {
 			      {
 				      .name = "astspi",
 				      .init = binding_astspi_init,
-				      .get_fd = binding_astspi_get_fd,
-				      .destroy = NULL,
+					  .destroy = NULL,
+				      .init_pollfd = binding_astspi_init_pollfd,
 				      .process = binding_astspi_process,
 				      .sockname = "\0mctp-spi-mux",
 				      .events = POLLPRI,
@@ -597,6 +603,7 @@ static int client_process_recv(struct ctx *ctx, int idx)
 		tx_pvt_message(ctx, ctx->buf, rc);
 		return 0;
 	}
+
 	if (ctx->pcap.socket.path)
 		capture_socket(ctx->pcap.socket.dumper, ctx->buf, rc);
 
@@ -655,9 +662,7 @@ static int run_daemon(struct ctx *ctx)
 
 	ctx->pollfds = malloc(FD_NR * sizeof(struct pollfd));
 
-	if (ctx->binding->get_fd) {
-		ctx->pollfds[FD_BINDING].fd =
-			ctx->binding->get_fd(ctx->binding);
+	if (!ctx->binding->init_pollfd) {
 		ctx->pollfds[FD_BINDING].events = ctx->binding->events;
 	} else {
 		ctx->pollfds[FD_BINDING].fd = -1;
@@ -700,6 +705,9 @@ static int run_daemon(struct ctx *ctx)
 			ctx->clients_changed = false;
 		}
 
+		if (ctx->binding->init_pollfd)
+			ctx->binding->init_pollfd(ctx->binding,
+						  &ctx->pollfds[FD_BINDING]);
 		rc = poll(ctx->pollfds, ctx->n_clients + FD_NR, -1);
 		if (rc < 0) {
 			warn("poll failed");

@@ -408,7 +408,11 @@ mctp_binding_astpcie_core(struct mctp_binding_astpcie *astpcie)
 	return &astpcie->binding;
 }
 
-int mctp_astpcie_get_fd(struct mctp_binding_astpcie *astpcie)
+int mctp_astpcie_init_pollfd(struct mctp_binding_astpcie *astpcie,
+			     struct pollfd *pollfd)
 {
-	return astpcie->fd;
+	pollfd->fd = astpcie->fd;
+	pollfd->events = POLLIN;
+
+	return 0;
 }
