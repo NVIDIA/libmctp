@@ -1642,3 +1642,38 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd, mctp_ctrl_t *
     return MCTP_RET_DISCOVERY_SUCCESS;
 }
 
+/* Routine to create the endpoint devices with the static eid */
+mctp_ret_codes_t mctp_spi_static_endpoint()
+{
+    int ret = 0;
+    mctp_uuid_table_t uuid_table = {0};
+    mctp_msg_type_table_t msg_type_table = {0};
+
+    /* Update Message type private params to export to upper layer */
+    msg_type_table.eid = 0;
+    msg_type_table.data_len = 2;
+    msg_type_table.data[0] = 1;
+    msg_type_table.data[1] = 127;
+
+    /* Create a new Msg type entry and add to list */
+    ret = mctp_msg_type_entry_add(&msg_type_table);
+    if (ret < 0) {
+        MCTP_CTRL_ERR("%s: Failed to update global routing table..\n", __func__);
+        return MCTP_RET_DISCOVERY_FAILED;
+    }
+
+    /* HMC Glaicer UUID */
+    uuid_table.eid = 0;
+    const char raw[16] = {0xad, 0x4c, 0x83, 0x6b, 0xc5, 0x4c, 0x11, 0xeb, 0x85,
+                          0x29, 0x02, 0x42, 0xac, 0x13, 0x00, 0x03};
+    memcpy(&uuid_table.uuid.raw, &raw, sizeof(guid_t));
+
+    /* Create a new UUID entry and add to list */
+    ret = mctp_uuid_entry_add(&uuid_table);
+    if (ret < 0) {
+        mctp_msg_types_delete_all();
+        MCTP_CTRL_ERR("%s: Failed to update global UUID table..\n", __func__);
+        return MCTP_RET_DISCOVERY_FAILED;
+    }
+    return MCTP_RET_DISCOVERY_SUCCESS;
+}

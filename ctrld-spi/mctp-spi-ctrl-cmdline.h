@@ -8,23 +8,18 @@
  * is strictly prohibited.
  */
 
-#ifndef __MCTP_CMDLINE_H
-#define __MCTP_CMDLINE_H
+#ifndef __MCTP_SPI_CMDLINE_H
+#define __MCTP_SPI_CMDLINE_H
 
 #include "libmctp.h"
 
-
-#define MCTP_WRITE_DATA_BUFF_SIZE   1024
-#define MCTP_READ_DATA_BUFF_SIZE    1024
-#define MCTP_PVT_BIND_BUFF_SIZE     64
-
-#define MCTP_CMDLINE_WRBUFF_WIDTH   3
 
 /* SPI device and channel details */
 #define AST_MCTP_SPI_DEV_NUM            0
 #define AST_MCTP_SPI_CHANNEL_NUM        2
 
 #define ASTP_SPI_RAW_RW_BUFF_LEN        64
+
 
 typedef enum {
     CMD_SREG_W8 = 0x9,
@@ -113,7 +108,6 @@ typedef enum mctp_spi_mode_ops {
     MCTP_SPI_MODE_TEST,
 } mctp_spi_mode_ops_t;
 
-
 /* SPI operations */
 typedef enum mctp_spi_cmd_mode {
     MCTP_SPI_NONE = 0,
@@ -138,7 +132,7 @@ typedef struct {
 } mctp_spi_raw_rw_t;
 
 /* Command line structure */
-typedef struct mctp_cmdline_args_ {
+typedef struct mctp_spi_cmdline_args_ {
     char                    name[10];
     int                     device_id;
     uint8_t                 verbose;
@@ -177,4 +171,4 @@ int mctp_spi_init(mctp_spi_cmdline_args_t *cmd);
 int mctp_spi_deinit(void);
 void mctp_spi_test_cmd(mctp_ctrl_t *ctrl,mctp_spi_cmdline_args_t *cmd);
 
-#endif /* __MCTP_CMDLINE_H */
+#endif /* __MCTP_SPI_CMDLINE_H */

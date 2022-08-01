@@ -25,8 +25,10 @@ extern "C" {
 #define MCTP_CTRL_NW_OBJ_PATH           "/xyz/openbmc_project/mctp/0/"
 #define MCTP_CTRL_DBUS_EP_INTERFACE     "xyz.openbmc_project.MCTP.Endpoint"
 #define MCTP_CTRL_DBUS_UUID_INTERFACE   "xyz.openbmc_project.Common.UUID"
+#define MCTP_CTRL_DBUS_SOCK_INTERFACE   "xyz.openbmc_project.Common.UnixSocket"
 
 #define MCTP_CTRL_SDBUS_OBJ_PATH_SIZE   1024
+#define MCTP_CTRL_SDBUS_NMAE_SIZE       255
 #define MCTP_CTRL_SDBUS_NETWORK_ID      0
 
 #define MCTP_CTRL_SD_BUS_FD             0
@@ -38,21 +40,22 @@ extern "C" {
 #define DATA_PROPERTY                   "data"
 #define DATA_SIGNATURE                  "(i)"
 
+#define MCTP_CTRL_MAX_BUS_TYPES         4
+
 /* MCTP ctrl sdbus poll struct */
 typedef struct mctp_sdbus_context {
     struct pollfd fds[MCTP_CTRL_TOTAL_FDS];
     struct sd_bus *bus;
 } mctp_sdbus_context_t;
 
-/* MCTP ctrl supported bus types */
-typedef enum {
-    MCTP_CTRL_PCIE_BUS_TYPE,
-    MCTP_CTRL_SPI_BUS_TYPE,
-    MCTP_CTRL_I2C_BUS_TYPE,
-    MCTP_CTRL_MAX_BUS_TYPES
-} mctp_ctrl_max_supported_types_t;
+enum{
+    SDBUS_POLLING_TIMEOUT = 1,
+    SDBUS_PROCESS_EVENT
+};
 
 int mctp_ctrl_sdbus_init(void);
+mctp_sdbus_context_t *mctp_ctrl_sdbus_create_context (void);
+int mctp_ctrl_sdbus_dispatch(mctp_sdbus_context_t *context);
 
 #ifdef __cplusplus
 }

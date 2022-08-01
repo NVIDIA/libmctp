@@ -38,6 +38,9 @@ extern int g_uuid_table_len;
 extern mctp_msg_type_table_t    *g_msg_type_entries;
 extern int                      g_msg_type_table_len;
 
+extern const char               *mctp_sock_path;
+extern const char               *mctp_medium_type;
+
 static int                      mctp_ctrl_running = 1;
 
 /* String map for supported bus type */
@@ -189,7 +192,81 @@ static int mctp_ctrl_sdbus_get_msg_type(sd_bus *bus,
     return sd_bus_message_close_container(reply);
 }
 
+static int mctp_ctrl_sdbus_get_sock_type(sd_bus *bus,
+                                  const char *path,
+                                  const char *interface,
+                                  const char *property,
+                                  sd_bus_message *reply,
+                                  void *userdata,
+                                  sd_bus_error *error)
+{
+    uint32_t type = SOCK_SEQPACKET;
 
+    /* append the message */
+    return sd_bus_message_append(reply, "u", type);
+}
+
+static int mctp_ctrl_sdbus_get_sock_proto(sd_bus *bus,
+                                  const char *path,
+                                  const char *interface,
+                                  const char *property,
+                                  sd_bus_message *reply,
+                                  void *userdata,
+                                  sd_bus_error *error)
+{
+    uint32_t proto = 0;
+
+    /* append the message */
+    return sd_bus_message_append(reply, "u", proto);
+}
+
+static int mctp_ctrl_sdbus_get_sock_name(sd_bus *bus,
+                                  const char *path,
+                                  const char *interface,
+                                  const char *property,
+                                  sd_bus_message *reply,
+                                  void *userdata,
+                                  sd_bus_error *error)
+{
+
+    int i;
+    int r = 0, len = 0;
+
+    /* increase one for the fist byte NULL-teminated character */
+    len = strlen(&mctp_sock_path[1]) + 1;
+    r = sd_bus_message_open_container(reply, 'a', "y");
+    if (r < 0) {
+        MCTP_CTRL_ERR("Failed sdbus message open: %s", strerror(-r));
+        return r;
+    }
+
+    for (i = 0; i < len; i++) {
+        r = sd_bus_message_append(reply, "y", mctp_sock_path[i]);
+        if (r < 0) {
+           MCTP_CTRL_ERR("Failed sdbus message append: %s", strerror(-r));
+           return r;
+        }
+    }
+    return sd_bus_message_close_container(reply);
+}
+
+static int mctp_ctrl_sdbus_get_medium_type(sd_bus *bus,
+                                  const char *path,
+                                  const char *interface,
+                                  const char *property,
+                                  sd_bus_message *reply,
+                                  void *userdata,
+                                  sd_bus_error *error)
+{
+    char str[MCTP_CTRL_SDBUS_NMAE_SIZE] = {0};
+
+
+    snprintf(str, sizeof(str), "xyz.openbmc_project.MCTP.Endpoint.MediaTypes.%s",
+             mctp_medium_type);
+
+    /* append the message */
+    return sd_bus_message_append(reply, "s", str);
+}
 
 static int mctp_ctrl_sdbus_get_uuid(sd_bus *bus,
                                      const char *path,
@@ -252,9 +329,10 @@ static int mctp_ctrl_dispatch_sd_bus(mctp_sdbus_context_t *context)
 /* Properties for xyz.openbmc_project.MCTP.Endpoint */
 static const sd_bus_vtable mctp_ctrl_endpoint_vtable[] = {
     SD_BUS_VTABLE_START(0),
-    SD_BUS_PROPERTY("NetworkId",                "u",    mctp_ctrl_sdbus_get_nw_id,        0, SD_BUS_VTABLE_PROPERTY_CONST),
-    SD_BUS_PROPERTY("EID",                      "u",    mctp_ctrl_sdbus_get_endpoint,     0, SD_BUS_VTABLE_PROPERTY_CONST),
-    SD_BUS_PROPERTY("SupportedMessageTypes",    "ay",   mctp_ctrl_sdbus_get_msg_type,     0, SD_BUS_VTABLE_PROPERTY_CONST),
+    SD_BUS_PROPERTY("NetworkId",                "u",    mctp_ctrl_sdbus_get_nw_id,           0, SD_BUS_VTABLE_PROPERTY_CONST),
+    SD_BUS_PROPERTY("EID",                      "u",    mctp_ctrl_sdbus_get_endpoint,        0, SD_BUS_VTABLE_PROPERTY_CONST),
+    SD_BUS_PROPERTY("SupportedMessageTypes",    "ay",   mctp_ctrl_sdbus_get_msg_type,        0, SD_BUS_VTABLE_PROPERTY_CONST),
+    SD_BUS_PROPERTY("MediumType",               "s",    mctp_ctrl_sdbus_get_medium_type,     0, SD_BUS_VTABLE_PROPERTY_CONST),
     SD_BUS_VTABLE_END
 };
 
@@ -265,16 +343,50 @@ static const sd_bus_vtable mctp_ctrl_common_uuid_vtable[] = {
     SD_BUS_VTABLE_END
 };
 
+/* Properties for xyz.openbmc_project.Common.UnixSocket */
+static const sd_bus_vtable mctp_ctrl_common_sock_vtable[] = {
+    SD_BUS_VTABLE_START(0),
+    SD_BUS_PROPERTY("Type",                     "u",    mctp_ctrl_sdbus_get_sock_type,         0, SD_BUS_VTABLE_PROPERTY_CONST),
+    SD_BUS_PROPERTY("Protocol",                 "u",    mctp_ctrl_sdbus_get_sock_proto,        0, SD_BUS_VTABLE_PROPERTY_CONST),
+    SD_BUS_PROPERTY("Address",                  "ay",   mctp_ctrl_sdbus_get_sock_name,         0, SD_BUS_VTABLE_PROPERTY_CONST),
+    SD_BUS_VTABLE_END
+};
 
-/* MCTP ctrl sdbus initialization */
-int mctp_ctrl_sdbus_init (void)
+int mctp_ctrl_sdbus_dispatch(mctp_sdbus_context_t *context)
+{
+    int                    polled, r;
+
+    polled = poll(context->fds, MCTP_CTRL_TOTAL_FDS, MCTP_CTRL_POLL_TIMEOUT);
+
+    /* polling timeout */
+    if (polled == 0)
+        return SDBUS_POLLING_TIMEOUT;
+    if (polled < 0) {
+        r = -errno;
+        MCTP_CTRL_ERR("Error from poll(): %s\n", strerror(errno));
+        return -1;
+    }
+    r = mctp_ctrl_dispatch_sd_bus(context);
+    if (r < 0) {
+        MCTP_CTRL_ERR("Error handling dbus event: %s\n", strerror(-r));
+        return -1;
+    }
+    return SDBUS_PROCESS_EVENT;
+}
+
+mctp_sdbus_context_t *mctp_ctrl_sdbus_create_context (void)
 {
     mctp_sdbus_context_t    *context;
     int                     opt, polled, r;
     char                    mctp_ctrl_objpath[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE];
+    char                    mctp_ctrl_busname[MCTP_CTRL_SDBUS_NMAE_SIZE];
     mctp_msg_type_table_t   *entry = g_msg_type_entries;
 
     context = calloc(1, sizeof(*context));
+    if (context == NULL) {
+        MCTP_CTRL_ERR("Failed to allocate dbus context\n");
+        return NULL;
+    }
 
     r = sd_bus_default_system(&context->bus);
     if (r < 0) {
@@ -289,8 +401,10 @@ int mctp_ctrl_sdbus_init (void)
         goto finish;
     }
 
-    MCTP_CTRL_TRACE("Requesting dbus name: %s\n", MCTP_CTRL_DBUS_NAME);
-    r = sd_bus_request_name(context->bus, MCTP_CTRL_DBUS_NAME,
+    snprintf (mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE, "%s.%s",
+                MCTP_CTRL_DBUS_NAME, mctp_medium_type);
+    MCTP_CTRL_TRACE("Requesting dbus name: %s\n", mctp_ctrl_busname);
+    r = sd_bus_request_name(context->bus, mctp_ctrl_busname,
                 SD_BUS_NAME_ALLOW_REPLACEMENT|SD_BUS_NAME_REPLACE_EXISTING);
     if (r < 0) {
         MCTP_CTRL_ERR("Failed to acquire service name: %s\n", strerror(-r));
@@ -334,6 +448,18 @@ int mctp_ctrl_sdbus_init (void)
             goto finish;
         }
 
+        MCTP_CTRL_TRACE("Registering object '%s' for UnixSocket: %d\n",
+                                            mctp_ctrl_objpath, entry->eid);
+        r = sd_bus_add_object_vtable(context->bus,
+                                 NULL,
+                                 mctp_ctrl_objpath,
+                                 MCTP_CTRL_DBUS_SOCK_INTERFACE,
+                                 mctp_ctrl_common_sock_vtable,
+                                 context);
+        if (r < 0) {
+            MCTP_CTRL_ERR("Failed to add UnixSocket object: %s\n", strerror(-r));
+            goto finish;
+        }
         r = sd_bus_emit_object_added(context->bus, mctp_ctrl_objpath);
         if (r < 0) {
             MCTP_CTRL_ERR("Failed to emit object added: %s\n", strerror(-r));
@@ -353,22 +479,29 @@ int mctp_ctrl_sdbus_init (void)
     }
 
     context->fds[MCTP_CTRL_SD_BUS_FD].events = POLLIN;
+    return context;
+
+finish:
+    sd_bus_unref(context->bus);
+    free(context);
+
+    return NULL;
+}
+
+/* MCTP ctrl sdbus initialization */
+int mctp_ctrl_sdbus_init ()
+{
+    mctp_sdbus_context_t    *context;
+
+    context = mctp_ctrl_sdbus_create_context();
+    if (!context) {
+        return -1;
+    }
 
     MCTP_CTRL_DEBUG("%s: Entering polling loop\n", __func__);
-
     while (mctp_ctrl_running) {
-        polled = poll(context->fds, MCTP_CTRL_TOTAL_FDS, MCTP_CTRL_POLL_TIMEOUT);
-        if (polled == 0)
-            continue;
-        if (polled < 0) {
-            r = -errno;
-            MCTP_CTRL_ERR("Error from poll(): %s\n", strerror(errno));
-            goto finish;
-        }
-        r = mctp_ctrl_dispatch_sd_bus(context);
-        if (r < 0) {
-            MCTP_CTRL_ERR("Error handling dbus event: %s\n", strerror(-r));
-            goto finish;
+        if (mctp_ctrl_sdbus_dispatch(context) < 0) {
+            break;
         }
     }
 
@@ -376,5 +509,5 @@ finish:
     sd_bus_unref(context->bus);
     free(context);
 
-    return r;
+    return 0;
 }

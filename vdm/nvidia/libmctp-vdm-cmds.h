@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later */
-#ifndef _LIBMCTP_CMDS_H
-#define _LIBMCTP_CMDS_H
+#ifndef _LIBMCTP_VDM_CMDS_H
+#define _LIBMCTP_VDM_CMDS_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,6 +47,8 @@ struct mctp_vendor_cmd_bootcomplete_v2 {
         struct mctp_vendor_msg_hdr vdr_msg_hdr;
         uint8_t slot  : 2;
         uint8_t valid : 6;
+	uint8_t rvsd1;
+	uint8_t rvsd2;
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_hbenvent {
@@ -97,4 +99,4 @@ bool mctp_encode_vendor_cmd_background_copy(struct mctp_vendor_cmd_background_co
 }
 #endif
 
-#endif /* _LIBMCTP_CMDS_H */
+#endif /* _LIBMCTP_VDM_CMDS_H */

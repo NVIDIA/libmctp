@@ -51,7 +51,6 @@ typedef uint8_t mctp_eid_t;
 #define MCTP_BINDING_USB                                    0x03
 #define MCTP_BINDING_KCS                                    0x04
 #define MCTP_BINDING_SERIAL                                 0x05
-#define MCTP_BINDING_VEDNOR                                 0x06
 
 #define MCTP_GET_VDM_SUPPORT_PCIE_FORMAT_ID                 0x00
 #define MCTP_GET_VDM_SUPPORT_IANA_FORMAT_ID                 0x01

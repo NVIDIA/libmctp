@@ -1,0 +1,13 @@
+[Unit]
+Description=MCTP PCIe control daemon
+After=dbus.service
+
+[Service]
+Restart=always
+Environment=MCTP_PCIE_CTRL_OPTS=null
+EnvironmentFile=-/etc/default/mctp
+ExecStart=/usr/bin/mctp-pcie-ctrl $MCTP_PCIE_CTRL_OPTS
+SyslogIdentifier=mctp-pcie-ctrl
+
+[Install]
+WantedBy=multi-user.target

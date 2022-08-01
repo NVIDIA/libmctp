@@ -30,19 +30,22 @@ endif
 
 if HAVE_SYSTEMD
 systemdsystemunit_DATA = \
-	systemd/system/mctp-demux.service \
-	systemd/system/mctp-demux.socket \
-	systemd/system/mctp-ctrl.service \
+	systemd/system/mctp-pcie-demux.service \
+	systemd/system/mctp-pcie-demux.socket \
+	systemd/system/mctp-spi-demux.service \
+	systemd/system/mctp-spi-demux.socket \
+	systemd/system/mctp-pcie-ctrl.service \
 	systemd/system/mctp-spi-ctrl.service
 endif
 
-bin_PROGRAMS = utils/mctp-demux-daemon ctrld/mctp-ctrl ctrld-spi/mctp-spi-ctrl vdm/nvidia/mctp-vdm-util
+bin_PROGRAMS = utils/mctp-demux-daemon ctrld/mctp-pcie-ctrl ctrld-spi/mctp-spi-ctrl vdm/nvidia/mctp-vdm-util
 utils_mctp_demux_daemon_LDADD = libmctp.la
 
-ctrld_mctp_ctrl_LDFLAGS = "-lsystemd"
+ctrld_mctp_pcie_ctrl_LDFLAGS = "-lsystemd"
 
-ctrld_mctp_ctrl_SOURCES = ctrld/mctp-ctrl.c \
+ctrld_mctp_pcie_ctrl_SOURCES = ctrld/mctp-ctrl.c \
                     ctrld/mctp-discovery.c \
+                    ctrld/mctp-socket.c \
                     ctrld/mctp-encode.c \
                     ctrld/mctp-sdbus.c
 
@@ -50,15 +53,19 @@ ctrld_spi_mctp_spi_ctrl_LDFLAGS = "-lsystemd -lpthread"
 
 ctrld_spi_mctp_spi_ctrl_SOURCES = ctrld-spi/mctp-spi-ctrl.c \
                     ctrld-spi/mctp-spi-cmds.c \
-                    ctrld-spi/glacier-spb-ap.c \
-                    ctrld-spi/mctp-spi-gpio.c \
-                    ctrld-spi/ast-rwspi.c
+                    vdm/nvidia/mctp-vdm-commands.c \
+                    vdm/nvidia/mctp-vdm-encode.c \
+                    ctrld/mctp-socket.c \
+                    ctrld/mctp-discovery.c \
+                    ctrld/mctp-encode.c \
+                    ctrld/mctp-sdbus.c
 
 vdm_nvidia_mctp_vdm_util_LDFLAGS = "-lsystemd"
 
 vdm_nvidia_mctp_vdm_util_SOURCES = vdm/nvidia/mctp-vdm-nvda.c \
-                    vdm/nvidia/mctp-vdm-encode.c \
-                    vdm/nvidia/mctp-vdm-connect.c
+                    ctrld/mctp-socket.c \
+                    vdm/nvidia/mctp-vdm-commands.c \
+                    vdm/nvidia/mctp-vdm-encode.c
 
 pkgconfig_DATA = libmctp.pc
 

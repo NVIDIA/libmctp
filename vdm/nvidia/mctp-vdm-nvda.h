@@ -108,18 +108,6 @@ int mctp_vdm_socket_init(const char *intf, uint8_t msgtype);
 int  mctp_vdm_recv(mctp_eid_t eid, int mctp_fd, uint8_t msgtype,
                               uint8_t **mctp_resp_msg,
                               size_t *resp_msg_len);
-/**
- * @brief Send MCTP VDM messages
- *
- * @param[in] eid - destination MCTP eid
- * @param[in] mctp_fd - MCTP socket fd
- * @param[in] mctp_req_msg - *mctp_req_msg will point to MCTP msg,
- * @param[in] resp_msg_len - length of the message
- *
- * @return int (errno may be set)
- */
-int mctp_vdm_send(mctp_eid_t eid, int mctp_fd, uint8_t msgtype,
-                                const uint8_t *mctp_req_msg, size_t req_msg_len);
 
 #ifdef __cplusplus
 }

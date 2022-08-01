@@ -16,38 +16,23 @@
 #include "libmctp-vdm-cmds.h"
 #include "libmctp.h"
 #include "libmctp-cmds.h"
-#include "mctp-vdm-nvda.h"
 
+#include "mctp-vdm-nvda.h"
+#include "mctp-vdm-commands.h"
+
+#include "ctrld/mctp-ctrl.h"
 
 /* MCTP-VDM response binary file */
 #define MCTP_VDM_RESP_OUTPUT_FILE       "/var/mctp-vdm-output.bin"
 
-/* MCTP-VDM IANA size */
-#define MCTP_VDM_IANA_SIZE              4
-/* MCTP-VDM Instance ID size */
-#define MCTP_VDM_INST_ID_SIZE           1
-/*
- * MCTP-VDM Nvidia message type offset
- * NOTE: The msg buffer contains data as below format
- * [IANA]-[Inst ID]-[Nvidia Msg Type]-[Nvidia Msg Command code]-[Nvidia Msg version]-[Nvidia Msg Payload]
- * So adding (IANA + InstID) to get NVDA message type offset.
-*/
-#define MCTP_VDM_NVDA_MSG_TYPE_OFFSET   (MCTP_VDM_IANA_SIZE + MCTP_VDM_INST_ID_SIZE)
-
-/* MCTP-VDM response output in byte format */
-#define MCTP_VDM_RESP_OP_BYTE_FORMAT    1
-
-/* MCTP-VDM Download log max size 365KB */
-#define MCTP_VDM_DOWNLOAD_LOG_MAX_SIZE	(365 * 1024)
-
-/* MCTP-VDM Response output macros */
-const uint8_t   mctp_vdm_op_success = MCTP_VDM_CMD_OP_SUCCESS;
-
+/* Global definitions */
+uint8_t g_verbose_level = 0;
 
 /* Global commandline options */
 static const struct option options[] = {
     { "verbose",    no_argument,        0, 'v' },
     { "teid",       required_argument,  0, 't'},
+    { "intf",       required_argument,  0, 'i'},
     { "cmd",        required_argument,  0, 'c' },
     { "help",       no_argument,        0, 'h' },
     { 0 },
@@ -58,6 +43,7 @@ static void usage(void)
 {
     fprintf(stderr, "usage: mctp-vdm-util <binding> [params]\n");
     fprintf(stderr, "teid: Endpoint EID\n");
+    fprintf(stderr, "intf: PCIe or SPI\n");
     fprintf(stderr, "Available commands:\n \
             selftest\n \
             boot_complete_v1\n \
@@ -79,518 +65,6 @@ struct ctx {
 
 struct ctx ctx = {0};
 
-
-/*
- * Print the output to console and also redirect the output
- * to log file
- */
-static void print_hex(char *msg, uint8_t *data, int len)
-{
-    printf("%s: ", msg);
-
-    if (data) {
-        for (int i = 0; i < len; ++i) {
-            printf("%02X ", data[i]);
-        }
-    }
-
-    printf("\n");
-}
-
-/*
- * Move the MCTP-VDM response to a binary file in below format:
- * The first parameter is the response byte:
- *   0x01 means no response/unsuccessful
- *   0xff is successful response
- * The remaining data can be extracted based on the vdm command.
- */
-static int vdm_resp_output(char *msg, int len, uint8_t result, bool enable)
-{
-    FILE *fptr = NULL;
-
-    /* Return if the enable option is false */
-    if (enable == false)
-        return -1;
-
-    /* Open the Output file */
-    fptr = fopen(MCTP_VDM_RESP_OUTPUT_FILE,"wb+");
-    if (fptr == NULL) {
-        fprintf(stderr, "%s: [err: %d] Unable to open %s\n",
-                        __func__, errno, MCTP_VDM_RESP_OUTPUT_FILE);
-        return errno;
-    }
-
-    /* Update the results */
-    if (result != MCTP_VDM_CMD_OP_SUCCESS) {
-        fwrite(&result, MCTP_VDM_RESP_OP_BYTE_FORMAT,
-                                                sizeof(uint8_t), fptr);
-        /* Close the Output fptr */
-        fclose(fptr);
-        return 0;
-    } else {
-        fwrite(&mctp_vdm_op_success, MCTP_VDM_RESP_OP_BYTE_FORMAT,
-                                                sizeof(uint8_t), fptr);
-        /* Update the Message */
-        if ((msg) && (len > MCTP_VDM_NVDA_MSG_TYPE_OFFSET))
-            fwrite(&msg[MCTP_VDM_NVDA_MSG_TYPE_OFFSET], MCTP_VDM_RESP_OP_BYTE_FORMAT,
-                    (len - MCTP_VDM_NVDA_MSG_TYPE_OFFSET), fptr);
-    }
-
-    /* Close the Output fptr */
-    fclose(fptr);
-
-    return 0;
-}
-
-/* MCTP-VDM Client send and receive function */
-int mctp_vdm_client_send_recv(mctp_eid_t eid, int fd, bool enable,
-                                const uint8_t *req_msg, size_t req_len,
-                                uint8_t **resp_msg, size_t *resp_len)
-{
-    int         rc = -1;
-    int         timeout = -1;
-    int         retry_count = 0;
-
-    while (1) {
-        /* Send the MCTP-VDM command */
-        rc = mctp_vdm_send(eid, fd, MCTP_VENDOR_MSG_TYPE, req_msg, req_len);
-        if (rc != 0) {
-            /* Report the failure in output file */
-            vdm_resp_output(NULL, 0, (uint8_t) rc, enable);
- 
-            fprintf(stderr, "%s: fail to send [rc: %d] request\n", __func__, rc);
-            return rc;
-        }
- 
-        /* Receive the MCTP-VDM command */
-        rc = mctp_vdm_recv(eid, fd, MCTP_MESSAGE_TYPE_VDIANA, resp_msg, resp_len);
-        if (rc != 0) {
-            /* Check if it's timedout or not */
-            if (rc == EAGAIN) {
-                /* Increment the retry count */
-                retry_count++;
-
-                fprintf(stderr, "%s: MCTP-VDM Rx Command Timed out, retrying[%d]\n",
-                                __func__, retry_count);
-
-                /* Increment retry count and check for Threshold */
-                if (retry_count >= MCTP_VDM_CMD_THRESHOLD) {
-                    /* Report the timeout in output file */
-                    vdm_resp_output(NULL, 0, (uint8_t) rc, enable);
-
-                    fprintf(stderr, "%s: fail to recv [rc: %d], Reached threshold[%d]\n",
-                                                            __func__, rc, MCTP_VDM_CMD_THRESHOLD);
-                    return rc;
-                }
-            } else {
-                fprintf(stderr, "%s: MCTP-VDM Rx Invalid data [rc: %d]\n",
-                                __func__, rc);
-                /* Report the failure in output file */
-                vdm_resp_output(NULL, 0, (uint8_t) rc, enable);
-                return rc;
-            }
-        } else {
-            /* Break if the command is Success */
-            break;
-        }
-    }
-
-    /* Report the result in output file */
-    vdm_resp_output(*resp_msg, *resp_len, mctp_vdm_op_success, enable);
-
-    return 0;
-}
-
-/*
- * Self test command:
- * To run a health check inside Glacier
- */
-static int selftest(int fd, uint8_t tid)
-{
-    uint8_t                             *resp = NULL;
-    size_t                              resp_len = 0;
-    int                                 rc = -1;
-    struct mctp_vendor_cmd_selftest     cmd = {0};
-
-    /* Encode the VDM headers for selftest */
-    mctp_encode_vendor_cmd_selftest(&cmd);
-
-    print_hex("TX", (uint8_t*)&cmd, sizeof(cmd));
-
-    /* Send and Receive the MCTP-VDM command */
-    rc = mctp_vdm_client_send_recv(tid, fd, true,
-                                  (uint8_t*)&cmd, sizeof(cmd),
-                                  (uint8_t**)&resp, &resp_len);
-    if (rc != 0) {
-        fprintf(stderr, "%s: fail to recv [rc: %d] response\n", __func__, rc);
-        free(resp);
-        return rc;
-    }
-
-    print_hex("RX", resp, resp_len);
-
-    /* free memory */
-    free(resp);
-
-    return 0;
-}
-
-/*
- * Boot Complete v1:
- * The Boot Complete command shall be sent by AP after boot to some stable state.
- */
-static int boot_complete_v1(int fd, uint8_t tid)
-{
-    uint8_t                             *resp = NULL;
-    size_t                              resp_len = 0;
-    int                                 rc = -1;
-    struct mctp_vendor_cmd_bootcmplt    cmd = {0};
-
-    /* Encode the VDM headers for Boot complete v1 */
-    mctp_encode_vendor_cmd_bootcmplt(&cmd);
-
-    print_hex("TX", (uint8_t*)&cmd, sizeof(cmd));
-
-    /* Send and Receive the MCTP-VDM command */
-    rc = mctp_vdm_client_send_recv(tid, fd, true,
-                                  (uint8_t*)&cmd, sizeof(cmd),
-                                  (uint8_t**)&resp, &resp_len);
-    if (rc != 0) {
-        fprintf(stderr, "%s: fail to recv [rc: %d] response\n", __func__, rc);
-        free(resp);
-        return rc;
-    }
-
-    print_hex("RX", resp, resp_len);
-
-    /* free memory */
-    free(resp);
-
-    return 0;
-}
-
-/*
- * Boot Complete v2:
- * The v2 command of Boot Complete is used the same way
- * as Boot Complete v1. The main difference is that byte 9 of the MCTP
- * message (NVIDIA message version) shall be set to 0x2 and the Request
- * data has additional bytes
- */
-static int boot_complete_v2(int fd, uint8_t tid, uint8_t valid, uint8_t slot)
-{
-    uint8_t                                 *resp = NULL;
-    size_t                                  resp_len = 0;
-    int                                     rc = -1;
-    struct mctp_vendor_cmd_bootcomplete_v2  cmd = {0};
-
-    /* Encode the VDM headers for Boot complete v2 */
-    mctp_encode_vendor_cmd_bootcmplt_v2(&cmd);
-
-    /* Update valid ID and the slot number fields */
-    cmd.valid = valid;
-    cmd.slot = slot;
-
-    print_hex("TX", (uint8_t*)&cmd, sizeof(cmd));
-
-    /* Send and Receive the MCTP-VDM command */
-    rc = mctp_vdm_client_send_recv(tid, fd, true,
-                                  (uint8_t*)&cmd, sizeof(cmd),
-                                  (uint8_t**)&resp, &resp_len);
-    if (rc != 0) {
-        fprintf(stderr, "%s: fail to recv [rc: %d] response\n", __func__, rc);
-        free(resp);
-        return rc;
-    }
-
-    print_hex("RX", resp, resp_len);
-
-    /* free memory */
-    free(resp);
-
-
-    return 0;
-}
-
-/*
- * Set Heartbeat Enable/Disable:
- * Sometimes AP firmware might not be able to do heartbeat reporting,
- * and in this case, AP firmware can send this message to disable
- * heartbeat reporting, and enable it later.
- */
-static int set_heartbeat_enable(int fd, uint8_t tid, int enable)
-{
-    uint8_t                                 *resp = NULL;
-    size_t                                  resp_len = 0;
-    int                                     rc = -1;
-    struct mctp_vendor_cmd_hbenable         cmd = {0};
-
-    /* Encode the VDM headers for Heartbeat enable/disable */
-    mctp_encode_vendor_cmd_hbenable(&cmd);
-
-    /* Update enable field */
-    cmd.enable = enable;
-
-    print_hex("TX", (uint8_t*)&cmd, sizeof(cmd));
-
-    /* Send and Receive the MCTP-VDM command */
-    rc = mctp_vdm_client_send_recv(tid, fd, true,
-                                  (uint8_t*)&cmd, sizeof(cmd),
-                                  (uint8_t**)&resp, &resp_len);
-    if (rc != 0) {
-        fprintf(stderr, "%s: fail to recv [rc: %d] response\n", __func__, rc);
-        free(resp);
-        return rc;
-    }
-
-    print_hex("RX", resp, resp_len);
-
-    /* free memory */
-    free(resp);
-
-    return 0;
-}
-
-/*
- * Heartbeat event:
- * If an AP supports heartbeat reporting, the AP firmware should send this
- * command to Glacier EC_FW every 1 min, and if Glacier cannot receive this
- * heartbeat message, it considers the AP firmware is not working fine,
- * and it switches to the other firmware slot to boot.
- * If the other firmware still has a heartbeat timeout for 3 times,
- * it keeps the AP firmware booting in that slot, records the information,
- * and disables the heartbeat watchdog.
- * NOTE: Heartbeat notification is valid only after boot complete is received
- */
-static int heartbeat(int fd, uint8_t tid)
-{
-    uint8_t                                 *resp = NULL;
-    size_t                                  resp_len = 0;
-    int                                     rc = -1;
-    struct mctp_vendor_cmd_hbenvent         cmd = {0};
-
-    /* Encode the VDM headers for Heartbeat event */
-    mctp_encode_vendor_cmd_hbenvent(&cmd);
-
-    print_hex("TX", (uint8_t*)&cmd, sizeof(cmd));
-
-    /* Send and Receive the MCTP-VDM command */
-    rc = mctp_vdm_client_send_recv(tid, fd, true,
-                                  (uint8_t*)&cmd, sizeof(cmd),
-                                  (uint8_t**)&resp, &resp_len);
-    if (rc != 0) {
-        fprintf(stderr, "%s: fail to recv [rc: %d] response\n", __func__, rc);
-        free(resp);
-        return rc;
-    }
-
-    print_hex("RX", resp, resp_len);
-
-    /* free memory */
-    free(resp);
-
-    return 0;
-}
-
-/*
- * Query boot status:
- * Query Boot Status command can be called by AP firmware to know Glacier
- * and AP status. The returned boot status code is a 64-bit data.
- */
-static int query_boot_status(int fd, uint8_t tid)
-{
-    uint8_t                                 *resp = NULL;
-    size_t                                  resp_len = 0;
-    int                                     rc = -1;
-    struct mctp_vendor_cmd_bootstatus       cmd = {0};
-
-    /* Encode the VDM headers for Query boot status */
-    mctp_encode_vendor_cmd_bootstatus(&cmd);
-
-    print_hex("TX", (uint8_t*)&cmd, sizeof(cmd));
-
-    /* Send and Receive the MCTP-VDM command */
-    rc = mctp_vdm_client_send_recv(tid, fd, true,
-                                  (uint8_t*)&cmd, sizeof(cmd),
-                                  (uint8_t**)&resp, &resp_len);
-    if (rc != 0) {
-        fprintf(stderr, "%s: fail to recv [rc: %d] response\n", __func__, rc);
-        free(resp);
-        return rc;
-    }
-
-    print_hex("RX", resp, resp_len);
-
-    /* free memory */
-    free(resp);
-
-    return 0;
-}
-
-/*
- * Background Copy v1:
- * The command is mainly used to manage interaction between Global #WP
- * and background copy.
- * This command should only be supported on the OOB path and not on
- * the In Band path.
- */
-static int background_copy(int fd, uint8_t tid, uint8_t code)
-{
-    uint8_t                                 *resp = NULL;
-    size_t                                  resp_len = 0;
-    int                                     rc = -1;
-    struct mctp_vendor_cmd_background_copy  cmd = {0};
-
-    /* Encode the VDM headers for Background copy */
-    mctp_encode_vendor_cmd_background_copy(&cmd);
-
-    /* Update the code field */
-    cmd.code = code;
-
-    print_hex("TX", (uint8_t*)&cmd, sizeof(cmd));
-
-    /* Send and Receive the MCTP-VDM command */
-    rc = mctp_vdm_client_send_recv(tid, fd, true,
-                                  (uint8_t*)&cmd, sizeof(cmd),
-                                  (uint8_t**)&resp, &resp_len);
-    if (rc != 0) {
-        fprintf(stderr, "%s: fail to recv [rc: %d] response\n", __func__, rc);
-        free(resp);
-        return rc;
-    }
-
-    print_hex("RX", resp, resp_len);
-
-    /* free memory */
-    free(resp);
-
-    return 0;
-}
-
-/*
- * Download log:
- * The log data is saved into the internal SPI with fixed size.
- * This command is used to download the whole log data by pages.
- * NV can use the offline tool to parse the log data.
- */
-static int download_log(int fd, uint8_t eid, char *dl_path)
-{
-    uint8_t                             session = MCTP_VDM_DOWNLOAD_LOG_SESSION_ID_START;
-    int                                 rc = 0, length = 0xFF;
-    int                                 bytes_count = 0;
-    size_t                              resp_len = 0;
-    FILE                                *fptr = NULL;
-    mctp_vdm_log_rep_hdr_t              *resp = NULL;
-    struct mctp_vendor_cmd_downloadlog  req = {0};
-
-    fptr = fopen(dl_path,"wb+");
-    if (fptr == NULL) {
-        fprintf (stderr, " %s: Failed to open %s", __func__, dl_path);
-        return -1;
-    }
-
-    while(length != 0) {
-        /* Encode the VDM headers for Download log */
-        mctp_encode_vendor_cmd_downloadlog(&req, session);
-        if (ctx.verbose) {
-            print_hex("Request for DownloadLog", (uint8_t*)&req, sizeof(req));
-        }
-
-        /* Send and Receive the MCTP-VDM command */
-        rc = mctp_vdm_client_send_recv(eid, fd, false,
-                                      (uint8_t*)&req, sizeof(req),
-                                      (uint8_t**)&resp, &resp_len);
-        if (rc != 0) {
-            fprintf(stderr, "%s: fail to recv [rc: %d] response\n", __func__, rc);
-            fclose(fptr);
-            return rc;
-        }
-
-        /* Sanity check for resp which is allocated by mctp_vdm_client_send_recv */
-        if (!resp) {
-            fclose(fptr);
-            return -1;
-        }
-        /* The verbose option can be enabled if user want to see each packet transfers */
-        if (ctx.verbose) {
-            printf("resp_len: %lu\n", resp_len);
-            print_hex("Response for DownloadLog", (uint8_t*)resp, resp_len);
-            printf("DL: cc is %d, session is %d, length is %d\n", resp->cc, resp->session, resp->length);
-        }
-
-        /* Return failure if the response cc is zero */
-        if(resp->cc != 0) {
-            fprintf(stderr, "%s: Invalid cc[%d] DownloadLog fail\n", __func__, resp->cc);
-            free(resp);
-            fclose(fptr);
-            return -1;
-        }
-
-        /* Increment bytes count */
-        bytes_count += resp->length;
-        if (bytes_count > MCTP_VDM_DOWNLOAD_LOG_MAX_SIZE) {
-            fprintf(stderr, "%s: Bytes received [%d] is more than expected log size\n",
-                                       __func__, bytes_count);
-            free(resp);
-            fclose(fptr);
-            return -1;
-        }
-
-        /* Update the session Id and the length */
-        session = resp->session;
-        length = resp->length;
-
-        /* Write the response data to the file */
-        fwrite(resp->data, 1, length, fptr);
-
-        /* Free the response data */
-        free(resp);
-
-        /* Set the resp pointer to NULL */
-        resp = NULL;
-    }
-
-    /* Close the download log file */
-    fclose(fptr);
-
-    return 0;
-}
-
-/*
- * Restart Notification:
- * Restart notification shall be delivered to Glacier when an AP is about
- * to go through a restart that is not indicated via any physical
- * pins(such as software restart).
- */
-static int restart_notification(int fd, uint8_t tid)
-{
-    uint8_t                                 *resp = NULL;
-    size_t                                  resp_len = 0;
-    int                                     rc = -1;
-    struct mctp_vendor_cmd_restartnoti      cmd = {0};
-
-    /* Encode the VDM headers for Restart notification */
-    mctp_encode_vendor_cmd_restartnoti(&cmd);
-
-    print_hex("TX", (uint8_t*)&cmd, sizeof(cmd));
-
-    /* Send and Receive the MCTP-VDM command */
-    rc = mctp_vdm_client_send_recv(tid, fd, true,
-                                  (uint8_t*)&cmd, sizeof(cmd),
-                                  (uint8_t**)&resp, &resp_len);
-    if (rc != 0) {
-        fprintf(stderr, "%s: fail to recv [rc: %d] response\n", __func__, rc);
-        free(resp);
-        return rc;
-    }
-
-    print_hex("RX", resp, resp_len);
-
-    /* free memory */
-    free(resp);
-
-    return 0;
-}
-
 /*
  * Main function
  */
@@ -599,10 +73,12 @@ int main(int argc, char * const *argv)
     int         rc = -1;
     uint8_t     teid = 0;
     char        item[MCTP_VDM_COMMAND_NAME_SIZE] = {'\0'};
-    int         fd = -1;
+    char        intf[16] = {0};
+    char        path[32] = {0};
+    int         fd = 0;
 
     for (;;) {
-        rc = getopt_long(argc, argv, "vt:c:h", options, NULL);
+        rc = getopt_long(argc, argv, "vt:i:c:h", options, NULL);
         if (rc == -1)
             break;
 
@@ -615,8 +91,11 @@ int main(int argc, char * const *argv)
                 printf("teid = %d\n", teid);
                 break;
             case 'c':
-                snprintf(item, MCTP_VDM_COMMAND_NAME_SIZE, "%s", optarg);
+                snprintf(item, sizeof(item),"%s", optarg);
                 printf("Test command = %s\n", item);
+                break;
+            case 'i':
+                snprintf(intf, sizeof(intf), "%s", optarg);
                 break;
             case 'h':
                 usage();
@@ -627,10 +106,26 @@ int main(int argc, char * const *argv)
         }
     }
 
+    path[0] = 0;
+    snprintf (&path[1], sizeof(path) - 1, "mctp-pcie-mux");
+    /* Disable this option and will enable it.
+    snprintf (&path[1], sizeof(path) - 1, "mctp-pcie-mux");
+    /* disable option selection temporarily
+    if (!strncmp (intf, "pcie", 4)) {
+        snprintf (&path[1], sizeof(path) - 1, "mctp-pcie-mux");
+    }
+    else if (!strncmp (intf, "spi", 3)) {
+        snprintf (&path[1], sizeof(path) - 1, "mctp-spi-mux");
+    }
+    else {
+        fprintf(stderr, "please specify the interface spi or pcie\n");
+        return EXIT_FAILURE;
+    }*/
+
     /* Establish the socket connection */
-    fd = mctp_vdm_socket_init(MCTP_DEFAULUT_INTF, MCTP_MESSAGE_TYPE_VDIANA);
-    if (fd < 0) {
-        fprintf(stderr, "mctp_open_intf(%s) for control message failed\n", argv[optind]);
+    rc = mctp_usr_socket_init(&fd, path, MCTP_MESSAGE_TYPE_VDIANA);
+    if (MCTP_REQUESTER_SUCCESS != rc) {
+        fprintf (stderr, "Failed to open mctp socket\n");
         return EXIT_FAILURE;
     }
 
@@ -702,7 +197,7 @@ int main(int argc, char * const *argv)
         }
     }
     else if (!strcmp(item, "download_log")) {
-        rc = download_log(fd, teid, MCTP_VDM_RESP_OUTPUT_FILE);
+        rc = download_log(fd, teid, MCTP_VDM_RESP_OUTPUT_FILE, ctx.verbose);
         if (rc) {
             fprintf(stderr, "fail to download log: %d\n", rc);
             goto exit;
