@@ -70,7 +70,6 @@
 /* System command buffer size */
 #define MCTP_SYSTEM_CMD_BUFF_SIZE	1035
 
-#define MCTP_SPI_FLASH_DRIVER_UNLOAD_CMD	"echo 1e620000.spi > /sys/bus/platform/drivers/aspeed-smc/unbind"
 #define MCTP_SPI_DRIVER_PATH			"insmod /lib/modules/*/kernel/drivers/spi/fmc_spi.ko"
 
 #define MCTP_SPI_LOAD_UNLOAD_DELAY_SECS	 2
@@ -189,6 +188,28 @@ mctp_check_spi_flash_exist(void)
 }
 
 int
+mctp_unload_flash_driver(void)
+{
+	ssize_t ret = 0;
+	int fd = 0;
+
+	const char *path = "/sys/bus/platform/drivers/aspeed-smc/unbind";
+	const char data[] = "1e620000.spi\n";
+
+	mctp_prinfo("%s: Unloading Flash driver.\n", __func__);
+
+	fd = open(path, O_WRONLY);
+	MCTP_ASSERT_RET(fd >= 0, fd, "Could not open %s.", path);
+
+	ret = write(fd, data, sizeof(data));
+	MCTP_ASSERT_RET(ret == sizeof(data), ret, "Could not write to %s.",
+	    path);
+
+	close(fd);
+	return (0);
+}
+
+int
 mctp_load_spi_driver(void)
 {
 	int ret = 0;
@@ -197,16 +218,14 @@ mctp_load_spi_driver(void)
 	/* Check Flash driver is loaded */
 	ret = mctp_check_spi_flash_exist();
 	if (ret > 0) {
-		memset(cmd, '\0', MCTP_SPI_LOAD_CMD_SIZE);
-		sprintf(cmd, "%s", MCTP_SPI_FLASH_DRIVER_UNLOAD_CMD);
-		mctp_prinfo("%s: Unloading Flash driver: %s\n", __func__, cmd);
-		ret = system(cmd);
-		if (ret > 0) {
-			mctp_prerr("%s: Cannot open spi device\n", __func__);
-			return MCTP_SPI_FAILURE;
-		}
+		int status;
+
+		status = mctp_unload_flash_driver();
+		MCTP_ASSERT_RET(status == 0, MCTP_SPI_FAILURE,
+		    "Could not unload flash driver.");
 	} else {
-		mctp_prinfo("%s: Flash driver already unloaded: %d\n", __func__, ret);
+		mctp_prinfo("%s: Flash driver already unloaded: %d\n", __func__,
+		    ret);
 	}
 
 	/* Check Raw SPI driver is loaded */
