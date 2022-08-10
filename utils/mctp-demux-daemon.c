@@ -715,6 +715,8 @@ int main(int argc, char * const *argv)
 	ctx->local_eid = local_eid_default;
 	ctx->verbose = false;
 
+	mctp_prinfo("MCTP demux started.");
+
 	for (;;) {
 		rc = getopt_long(argc, argv, "e:v", options, NULL);
 		if (rc == -1)
@@ -745,12 +747,23 @@ int main(int argc, char * const *argv)
 	mctp_set_log_stdio(ctx->verbose ? MCTP_LOG_DEBUG : MCTP_LOG_WARNING);
 	mctp_set_tracing_enabled(true);
 
+	rc = sd_notifyf(0, "STATUS=Initializing MCTP.\nMAINPID=%d", getpid());
+	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
+
 	ctx->mctp = mctp_init();
 	MCTP_ASSERT(ctx->mctp != NULL, "ctx->mctp is NULL");
 
+	rc = sd_notify(0, "STATUS=Initializing binding.");
+	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
+
+	mctp_prinfo("Binding init called.");
 	rc = binding_init(ctx, argv[optind], argc - optind - 1, argv + optind + 1);
+	mctp_prinfo("Binding init returned: %d.", rc);
 	if (rc)
 		return EXIT_FAILURE;
+
+	rc = sd_notify(0, "STATUS=Creating sockets.");
+	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
 
 	rc = sd_listen_fds(true);
 	if (rc <= 0) {
@@ -760,6 +773,9 @@ int main(int argc, char * const *argv)
 	} else {
 		ctx->sock = SD_LISTEN_FDS_START;
 	}
+
+	rc = sd_notify(0, "STATUS=Daemon is running.\nREADY=1");
+	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
 
 	rc = run_daemon(ctx);
 	return rc ? EXIT_FAILURE : EXIT_SUCCESS;

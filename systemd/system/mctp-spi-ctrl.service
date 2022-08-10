@@ -1,6 +1,7 @@
 [Unit]
 Description=MCTP SPI control daemon
-After=serial-getty@ttyS4.service
+After=mctp-spi-demux.service
+Requires=mctp-spi-demux.service
 
 [Service]
 Restart=always

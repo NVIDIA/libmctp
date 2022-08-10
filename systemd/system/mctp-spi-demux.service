@@ -2,6 +2,7 @@
 Description=MCTP SPI demultiplexer daemon
 
 [Service]
+Type=notify
 Restart=always
 Environment=DEMUX_SPI_BINDING_OPTS=null
 EnvironmentFile=-/etc/default/mctp

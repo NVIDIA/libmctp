@@ -54,6 +54,7 @@ enum{
 };
 
 int mctp_ctrl_sdbus_init(void);
+void mctp_ctrl_sdbus_stop(void);
 mctp_sdbus_context_t *mctp_ctrl_sdbus_create_context (void);
 int mctp_ctrl_sdbus_dispatch(mctp_sdbus_context_t *context);
 

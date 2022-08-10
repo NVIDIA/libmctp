@@ -276,11 +276,16 @@ static int
 mctp_spi_tx(struct mctp_binding_spi *spi, const uint8_t len,
     struct mctp_astspi_pkt_private *pkt_pvt)
 {
+	SpbApStatus status = 0;
 
 	mctp_trace_tx(spi->txbuf, len);
 	mctp_prdebug("spb_ap_send");
 
-	return (spb_ap_send(&spi->nvda_spb_ap, len, spi->txbuf));
+	status = spb_ap_send(&spi->nvda_spb_ap, len, spi->txbuf);
+	MCTP_ASSERT_RET(status == SPB_AP_OK, -1, "spb_ap_send failed: %d",
+	    status);
+
+	return (0);
 }
 
 static int
@@ -313,9 +318,9 @@ mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	tx_buf_len += pkt_length;
 
 	ret = mctp_spi_tx(spi, spi_message_len, pkt_pvt);
+	mctp_spi_verify_magics(spi);
 	MCTP_ASSERT_RET(ret >= 0, -1, "Error in tx of spi message");
 
-	mctp_spi_verify_magics(spi);
 	return (0);
 }
 
@@ -480,12 +485,15 @@ mctp_spi_bind_init(void)
 	spi = __mctp_alloc(sizeof(*spi));
 	memset(&(spi->binding), 0, sizeof(spi->binding));
 
+	mctp_prinfo("Loading SPI driver...");
+
 	if (mctp_load_spi_driver() != MCTP_SPI_SUCCESS) {
 		mctp_prerr("Could not load SPI driver.\n");
 		__mctp_free(spi);
 		return (NULL);
 	}
 
+	mctp_prinfo("Initializing GPIO intr notifications...");
 	spi->gpio_fd = ast_spi_gpio_intr_init();
 	if (spi->gpio_fd < 0) {
 		mctp_prerr("Could not open GPIO fd.");
@@ -493,6 +501,7 @@ mctp_spi_bind_init(void)
 		return (NULL);
 	}
 
+	mctp_prinfo("Opening SPI device...");
 	spi->spi_fd = ast_spi_open(AST_MCTP_SPI_DEV_NUM,
 	    AST_MCTP_SPI_CHANNEL_NUM, 0, 0, 0);
 	if (spi->spi_fd < 0) {
@@ -509,6 +518,7 @@ mctp_spi_bind_init(void)
 	spi->nvda_spb_ap.spi_xfer = mctp_spi_xfer;
 	spi->nvda_spb_ap.gpio_fd = spi->gpio_fd;
 
+	mctp_prinfo("Performing SPB AP init...");
 	do {
 		/* Initialize SPB AP Library */
 		status = spb_ap_initialize(&spi->nvda_spb_ap);
@@ -525,6 +535,8 @@ mctp_spi_bind_init(void)
 			    __func__);
 		}
 	} while (count < SPB_AP_INIT_THRESHOLD && status != SPB_AP_OK);
+
+	mctp_prinfo("SPB AP init completed...");
 
 	/* Return Failure, Glacier could be in bad state */
 	if (status != SPB_AP_OK) {

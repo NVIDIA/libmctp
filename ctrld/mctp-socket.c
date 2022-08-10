@@ -211,8 +211,10 @@ mctp_requester_rc_t mctp_client_send_recv(mctp_eid_t eid, int fd, uint8_t msgtyp
                             __func__, retry_count);
 
             /* Increment retry count and check for Threshold */
-	    MCTP_ASSERT_RET(retry_count < MCTP_CMD_THRESHOLD, rc,
-		    "fail to recv [rc: %d], Reached threshold[%d]\n", rc, MCTP_CMD_THRESHOLD);
+	    MCTP_ASSERT_RET(retry_count < MCTP_CMD_THRESHOLD,
+                    MCTP_REQUESTER_RECV_FAIL,
+		    "fail to recv [rc: %d], Reached threshold[%d]\n", rc,
+                    MCTP_CMD_THRESHOLD);
 
         } else {
             fprintf(stderr, "%s: MCTP Rx Invalid data [rc: %d]\n",

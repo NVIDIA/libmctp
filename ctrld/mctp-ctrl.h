@@ -11,6 +11,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <pthread.h>
 
 #include "mctp-ctrl-cmdline.h"
 
@@ -35,6 +36,10 @@ typedef struct {
     void            *pvt_binding_data;
     unsigned int    pvt_binding_len;
     struct pollfd   *pollfds;
+
+    /* Used only by MCTP SPI ctrl. */
+    pthread_cond_t  worker_cv;
+    pthread_mutex_t  worker_mtx;
 } mctp_ctrl_t;
 
 

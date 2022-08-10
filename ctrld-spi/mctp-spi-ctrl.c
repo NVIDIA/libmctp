@@ -118,16 +118,15 @@ const char mctp_spi_help_str[] =
 
 void mctp_ctrl_clean_up(void)
 {
-    pthread_join(g_keepalive_thread, NULL);
     /* Close the socket connection */
     close(g_socket_fd);
+    pthread_join(g_keepalive_thread, NULL);
 }
 
 /* Signal handler for MCTP client app - can be called asynchronously */
 void mctp_signal_handler(int signum)
 {
-    mctp_ctrl_clean_up();
-    exit(0);
+    mctp_ctrl_sdbus_stop();
 }
 
 mctp_requester_rc_t mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_fd,
@@ -365,6 +364,7 @@ int main (int argc, char * const *argv)
 
     /* Register signals */
     signal(SIGINT, mctp_signal_handler);
+    signal(SIGTERM, mctp_signal_handler);
 
     /* Update the cmdline sturcture with default values */
     const char * const mctp_ctrl_name = argv[0];
@@ -449,6 +449,12 @@ int main (int argc, char * const *argv)
     /* Update global socket pointer */
     g_socket_fd = mctp_ctrl->sock;
 
+    ret = pthread_cond_init(&mctp_ctrl->worker_cv, NULL);
+    MCTP_ASSERT_RET(ret == 0, EXIT_FAILURE, "pthread_cond_init(3) failed.");
+
+    ret = pthread_mutex_init(&mctp_ctrl->worker_mtx, NULL);
+    MCTP_ASSERT_RET(ret == 0, EXIT_FAILURE, "pthread_mutex_init(3) failed.");
+
     /* Check for test mode */
     if (cmdline.mode == MCTP_SPI_MODE_TEST) {
         mctp_spi_test_cmd(mctp_ctrl, &cmdline);
@@ -465,10 +471,12 @@ int main (int argc, char * const *argv)
 
     g_keepalive_thread = keepalive_thread;
 
+    /* Wait until we can populate Dbus objects. */
+    pthread_cond_wait(&mctp_ctrl->worker_cv, &mctp_ctrl->worker_mtx);
+
     /* Populate Dbus objects */
     mctp_ctrl_sdbus_init();
-
-    pthread_join(keepalive_thread, NULL);
+    mctp_ctrl_clean_up();
 
     return EXIT_SUCCESS;
 }

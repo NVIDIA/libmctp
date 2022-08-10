@@ -308,16 +308,13 @@ int heartbeat(int fd, uint8_t tid)
     rc = mctp_vdm_client_send_recv(tid, fd, true,
                                   (uint8_t*)&cmd, sizeof(cmd),
                                   (uint8_t**)&resp, &resp_len);
-    if (rc != MCTP_REQUESTER_SUCCESS) {
-        fprintf(stderr, "%s: fail to recv [rc: %d] response\n", __func__, rc);
-        free(resp);
-        return -1;
-    }
 
-    print_hex("RX", resp, resp_len);
-
-    /* free memory */
+    if (rc == MCTP_REQUESTER_SUCCESS)
+        print_hex("RX", resp, resp_len);
     free(resp);
+
+    MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+        "%s: fail to recv [rc: %d] response\n", __func__, rc);
 
     return 0;
 }

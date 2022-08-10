@@ -205,9 +205,7 @@ mailbox_write(SpbAp *ap, uint32_t v)
 {
 	uint16_t status = sreg_write_32(ap, SPI_SPIM2EC_MBX, v);
 
-	if (ap->debug_level > 0) {
-		mctp_prdebug("[SPIM2ECMB] %s\n", mailbox_str(v));
-	}
+	mctp_prdebug("[SPIM2ECMB] %s\n", mailbox_str(v));
 	return (status);
 }
 

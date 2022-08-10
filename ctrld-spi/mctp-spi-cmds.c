@@ -89,30 +89,36 @@ int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl)
     size_t resp_msg_len = 0;
     int    rc = 0;
 
-    MCTP_CTRL_INFO("%s: Send 'Boot complete v2' message\n", __func__);
-    rc = boot_complete_v2(ctrl->sock, MCTP_NULL_ENDPOINT, 0, 0);
+    pthread_mutex_lock(&ctrl->worker_mtx);
 
+    MCTP_CTRL_INFO("%s: Send 'Boot complete v2' message\n", __func__);
+
+    rc = boot_complete_v2(ctrl->sock, MCTP_NULL_ENDPOINT, 0, 0);
     MCTP_ASSERT_RET(rc == 0, MCTP_CMD_FAILED,
 	    "Failed to send 'Boot complete' message\n");
+
+    pthread_cond_signal(&ctrl->worker_cv);
+    pthread_mutex_unlock(&ctrl->worker_mtx);
 
     /* Give some delay before sending next command */
     usleep(MCTP_SPI_CMD_DELAY_USECS);
 
     MCTP_CTRL_INFO("%s: Send 'Enable Heartbeat' message\n", __func__);
     rc = set_heartbeat_enable(ctrl->sock, MCTP_NULL_ENDPOINT, MCTP_SPI_HB_ENABLE_CMD);
-
     MCTP_ASSERT_RET(rc == 0, MCTP_CMD_FAILED, "Failed MCTP_SPI_HEARTBEAT_ENABLE\n");
 
     /* Give some delay before sending next command */
     usleep(MCTP_SPI_CMD_DELAY_USECS);
 
     while (1) {
-
         MCTP_CTRL_DEBUG("%s: Send 'Heartbeat' message\n", __func__);
-        rc = heartbeat(ctrl->sock, MCTP_NULL_ENDPOINT);
 
-	MCTP_ASSERT_RET(rc == 0, MCTP_CMD_FAILED, " Failed MCTP_SPI_HEARTBEAT_SEND\n");
+	rc = heartbeat(ctrl->sock, MCTP_NULL_ENDPOINT);
 
+	if (rc != 0) {
+		MCTP_CTRL_ERR("%s: Heartbeat message failed.\n", __func__);
+		break;
+	}
         /*
          * sleep for 10 seconds (it should be less than 60 seconds as per Galcier
          * firmware
@@ -120,6 +126,7 @@ int mctp_spi_keepalive_event (mctp_ctrl_t *ctrl)
          sleep(MCTP_SPI_HEARTBEAT_DELAY_SECS);
     }
 
+    mctp_ctrl_sdbus_stop();
     return MCTP_CMD_SUCCESS;
 }
 

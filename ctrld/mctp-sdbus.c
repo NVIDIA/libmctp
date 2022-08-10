@@ -41,7 +41,7 @@ extern int                      g_msg_type_table_len;
 extern const char               *mctp_sock_path;
 extern const char               *mctp_medium_type;
 
-static int                      mctp_ctrl_running = 1;
+static int			mctp_ctrl_running = 1;
 
 /* String map for supported bus type */
 char g_mctp_ctrl_supported_buses[MCTP_CTRL_MAX_BUS_TYPES][10] = {
@@ -486,6 +486,12 @@ finish:
     free(context);
 
     return NULL;
+}
+
+void mctp_ctrl_sdbus_stop(void)
+{
+
+	mctp_ctrl_running = 0;
 }
 
 /* MCTP ctrl sdbus initialization */

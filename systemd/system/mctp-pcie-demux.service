@@ -2,6 +2,7 @@
 Description=MCTP PCIe demultiplexer daemon
 
 [Service]
+Type=notify
 Restart=always
 Environment=DEMUX_PCIE_BINDING_OPTS=null
 EnvironmentFile=-/etc/default/mctp
