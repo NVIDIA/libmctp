@@ -21,6 +21,12 @@ extern "C" {
 /* Download log buffer length */
 #define MCTP_VDM_VENDOR_IANA_SIZE       4
 
+/* MCTP VDM selftest command payload size
+* MCTP baseline transmission unit - the size of IC field (1 byte)
+* - vendor IANA(4 bytes) - selftest command header(4 bytes)
+*/
+#define  MCTP_VDM_SELFTEST_PAYLOAD_SIZE (64 - 9)
+
 /* MCTP VDM command operation */
 #define MCTP_VDM_CMD_OP_SUCCESS        0xff
 
@@ -76,38 +82,6 @@ typedef struct {
     uint8_t length;
     uint8_t data[MCTP_VDM_DOWNLOAD_LOG_BUFFER_SIZE];
 } mctp_vdm_log_rep_hdr_t;
-
-
-/**
- * @brief Open the MCTp-VDM socket interface, return success only if
- *        Socket is opened and Register with the message type.
- *
- * @param[in] *intf - Socket interface name
- * @param[in] msgtype - MCTP Message type
- *
- * @returns socket fd on successfull, errno on failure.
- */
-int mctp_vdm_socket_init(const char *intf, uint8_t msgtype);
-
-/**
- * @brief Read MCTP socket. If there's data available, return success only if
- *        data is a MCTP message.
- *
- * @param[in] eid - destination MCTP eid
- * @param[in] mctp_fd - MCTP socket fd
- * @param[out] mctp_resp_msg - *mctp_resp_msg will point to MCTP msg,
- *             this function allocates memory, caller to free(*mctp_resp_msg) on
- *             success.
- * @param[out] resp_msg_len - caller owned pointer that will be made point to
- *             the size of the MCTP msg.
- *
- * @return int (errno may be set). failure is returned even
- *         when data was read, but wasn't a MCTP response message
- */
-
-int  mctp_vdm_recv(mctp_eid_t eid, int mctp_fd, uint8_t msgtype,
-                              uint8_t **mctp_resp_msg,
-                              size_t *resp_msg_len);
 
 #ifdef __cplusplus
 }

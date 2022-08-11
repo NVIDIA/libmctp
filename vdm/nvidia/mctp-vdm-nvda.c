@@ -12,10 +12,12 @@
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
+#include <ctype.h>
 
 #include "libmctp-vdm-cmds.h"
 #include "libmctp.h"
 #include "libmctp-cmds.h"
+#include "libmctp-log.h"
 
 #include "mctp-vdm-nvda.h"
 #include "mctp-vdm-commands.h"
@@ -41,22 +43,23 @@ static const struct option options[] = {
 /* MCTP-VDM utility usage function */
 static void usage(void)
 {
-    fprintf(stderr, "usage: mctp-vdm-util <binding> [params]\n");
-    fprintf(stderr, "teid: Endpoint EID\n");
-    fprintf(stderr, "intf: PCIe or SPI\n");
-    fprintf(stderr, "Available commands:\n \
-            selftest\n \
-            boot_complete_v1\n \
-            boot_complete_v2_slot_0, boot_complete_v2_slot_1\n \
-            set_heartbeat_enable, set_heartbeat_disable\n \
-            heartbeat\n \
-            query_boot_status\n \
-            download_log\n \
-            restart_notification\n \
-            background_copy_init\n \
-            background_copy_disable, background_copy_enable\n \
-            background_copy_disable_one, background_copy_enable_one\n \
-            background_copy_query_status, background_copy_query_progress\n");
+	fprintf(stderr, "usage: mctp-vdm-util -t [eid] -c [cmd] [params]\n");
+	fprintf(stderr, "-t/-teid: Endpoint EID\n");
+	fprintf(stderr, "-c/-cmd: Command\n");
+//	fprintf(stderr, "intf: PCIe or SPI\n");
+	fprintf(stderr, "Available commands:\n \
+		selftest - need 4 bytes as the payload\n \
+		boot_complete_v1\n \
+		boot_complete_v2_slot_0, boot_complete_v2_slot_1\n \
+		set_heartbeat_enable, set_heartbeat_disable\n \
+		heartbeat\n \
+		query_boot_status\n \
+		download_log\n \
+		restart_notification\n \
+		background_copy_init\n \
+		background_copy_disable, background_copy_enable\n \
+		background_copy_disable_one, background_copy_enable_one\n \
+		background_copy_query_status, background_copy_query_progress\n");
 }
 
 struct ctx {
@@ -65,17 +68,33 @@ struct ctx {
 
 struct ctx ctx = {0};
 
+static int check_hex_number(char *s) {
+	char ch = *s;
+	int  len = 0;
+
+	while ((ch=*s++) != 0) {
+	    if (len == 2 || isxdigit(ch) == 0) {
+		return -1;
+	    }
+	    len ++;
+	}
+	return 0;
+}
+
 /*
  * Main function
  */
 int main(int argc, char * const *argv)
 {
     int         rc = -1;
-    uint8_t     teid = 0;
+    int 	i = 0, len = 0;
     char        item[MCTP_VDM_COMMAND_NAME_SIZE] = {'\0'};
+    char 	payload[MCTP_VDM_SELFTEST_PAYLOAD_SIZE] = { '\0' };
     char        intf[16] = {0};
     char        path[32] = {0};
     int         fd = 0;
+    uint8_t     teid = 0;
+    uint8_t payload_required = 0;
 
     for (;;) {
         rc = getopt_long(argc, argv, "vt:i:c:h", options, NULL);
@@ -93,6 +112,7 @@ int main(int argc, char * const *argv)
             case 'c':
                 snprintf(item, sizeof(item),"%s", optarg);
                 printf("Test command = %s\n", item);
+		payload_required = (strcmp(item, "selftest") == 0);
                 break;
             case 'i':
                 snprintf(intf, sizeof(intf), "%s", optarg);
@@ -105,22 +125,46 @@ int main(int argc, char * const *argv)
                 return EXIT_FAILURE;
         }
     }
+    /* need more data as the payload passing to selftest commands */
+    if (payload_required && optind == argc) {
+	    fprintf (stderr, "Error! Selftest command needs 4 bytes payload.\n\n");
+	    usage();
+	    return EXIT_FAILURE;
+    }
+    else if (payload_required == 0 && optind != argc) {
+	    fprintf (stderr, "Error! we don't need the paylod.\n\n");
+	    usage();
+	    return EXIT_FAILURE;
+    }
+    /* For selftest command, we may need more data as the payload
+    * for which items to be tested.
+    */
+    for (i = optind, len = 0; i < argc && i < MCTP_VDM_SELFTEST_PAYLOAD_SIZE;
+	    i++, len++) {
+	    rc = check_hex_number(&argv[i][0]);
+	    if (rc == -1) {
+		    fprintf (stderr, "Error! we need hex-based data.\n\n");
+		    usage();
+		    return EXIT_FAILURE;
+	    }
+
+	    payload[len] = strtol(argv[i], NULL, 16);
+    }
 
     path[0] = 0;
-    snprintf (&path[1], sizeof(path) - 1, "mctp-pcie-mux");
-    /* Disable this option and will enable it.
-    snprintf (&path[1], sizeof(path) - 1, "mctp-pcie-mux");
-    /* disable option selection temporarily
+    snprintf(&path[1], sizeof(path) - 1, "mctp-pcie-mux");
+    /*  Disable option for interface selection which will be the feature.
     if (!strncmp (intf, "pcie", 4)) {
-        snprintf (&path[1], sizeof(path) - 1, "mctp-pcie-mux");
+	    snprintf (&path[1], sizeof(path) - 1, "mctp-pcie-mux");
     }
     else if (!strncmp (intf, "spi", 3)) {
-        snprintf (&path[1], sizeof(path) - 1, "mctp-spi-mux");
+	    snprintf (&path[1], sizeof(path) - 1, "mctp-spi-mux");
     }
     else {
-        fprintf(stderr, "please specify the interface spi or pcie\n");
-        return EXIT_FAILURE;
+	    fprintf(stderr, "please specify the interface spi or pcie\n");
+	    return EXIT_FAILURE;
     }*/
+
 
     /* Establish the socket connection */
     rc = mctp_usr_socket_init(&fd, path, MCTP_MESSAGE_TYPE_VDIANA);
@@ -129,8 +173,9 @@ int main(int argc, char * const *argv)
         return EXIT_FAILURE;
     }
 
+	
     if (!strcmp(item, "selftest")) {
-        rc = selftest(fd, teid);
+		rc = selftest(fd, teid, payload, len);
         if (rc) {
             fprintf(stderr, "fail to do selfets: %d\n", rc);
             goto exit;

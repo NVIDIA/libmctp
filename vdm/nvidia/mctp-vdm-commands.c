@@ -131,35 +131,41 @@ static mctp_requester_rc_t mctp_vdm_client_send_recv(mctp_eid_t eid, int fd,
  * Self test command:
  * To run a health check inside Glacier
  */
-int selftest(int fd, uint8_t tid)
+int selftest(int fd, uint8_t tid, char *payload, int length)
 {
-    uint8_t                             *resp = NULL;
-    size_t                              resp_len = 0;
-    mctp_requester_rc_t                 rc = -1;
-    struct mctp_vendor_cmd_selftest     cmd = {0};
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_selftest cmd;
 
-    /* Encode the VDM headers for selftest */
-    mctp_encode_vendor_cmd_selftest(&cmd);
+	MCTP_ASSERT_RET(length <= 4 ,-1,
+			"the length is out of the spec.\n");
+	memset(&cmd, 0, sizeof(cmd));
 
-    print_hex("TX", (uint8_t*)&cmd, sizeof(cmd));
+	/* Encode the VDM headers for selftest */
+	mctp_encode_vendor_cmd_selftest(&cmd);
+	memcpy(&cmd.payload, payload, length);
 
-    /* Send and Receive the MCTP-VDM command */
-    rc = mctp_vdm_client_send_recv(tid, fd, true,
-                                  (uint8_t*)&cmd, sizeof(cmd),
-                                  (uint8_t**)&resp, &resp_len);
+	length += sizeof(struct mctp_vendor_msg_hdr);
+	print_hex("TX", (uint8_t *)&cmd, length);
 
-    if (rc != MCTP_REQUESTER_SUCCESS) {
-        fprintf(stderr, "%s: fail to recv [rc: %d] response\n", __func__, rc);
-        free(resp);
-        return -1;
-    }
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, true, (uint8_t *)&cmd,
+				       length, (uint8_t **)&resp,
+				       &resp_len);
 
-    print_hex("RX", resp, resp_len);
+	if (rc != MCTP_REQUESTER_SUCCESS) {
+	fprintf(stderr, "%s: fail to recv [rc: %d] response\n", __func__, rc);
+	free(resp);
+	return -1;
+	}
 
-    /* free memory */
-    free(resp);
+	print_hex("RX", resp, resp_len);
 
-    return 0;
+	/* free memory */
+	free(resp);
+
+	return 0;
 }
 
 /*

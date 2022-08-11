@@ -36,7 +36,8 @@ struct mctp_vendor_msg_hdr {
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_selftest {
-        struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	uint8_t payload[4];
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_bootcmplt {

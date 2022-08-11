@@ -46,6 +46,7 @@
 #include "mctp-spi-ctrl-cmds.h"
 
 #include "vdm/nvidia/libmctp-vdm-cmds.h"
+#include "vdm/nvidia/mctp-vdm-commands.h"
 
 #define MCTP_NULL_ENDPOINT              0
 
@@ -200,7 +201,7 @@ void mctp_spi_test_cmd(mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmd)
         case MCTP_SPI_BOOT_COMPLETE:
 
             MCTP_CTRL_DEBUG("%s: MCTP_SPI_BOOT_COMPLETE\n", __func__);
-            rc = boot_complete_v1(cmd);
+	    rc = boot_complete_v1(ctrl->sock, MCTP_NULL_ENDPOINT);
             if (rc != MCTP_REQUESTER_SUCCESS) {
                 MCTP_CTRL_ERR("%s: Failed MCTP_SPI_BOOT_COMPLETE\n", __func__);
             }
