@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-int selftest(int fd, uint8_t tid, char *payload, int length);
+int selftest(int fd, uint8_t tid, uint8_t *payload, int length);
 int boot_complete_v1(int fd, uint8_t tid);
 int boot_complete_v2(int fd, uint8_t tid, uint8_t valid, uint8_t slot);
 int set_heartbeat_enable(int fd, uint8_t tid, int enable);

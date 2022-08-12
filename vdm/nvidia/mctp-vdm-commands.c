@@ -131,7 +131,7 @@ static mctp_requester_rc_t mctp_vdm_client_send_recv(mctp_eid_t eid, int fd,
  * Self test command:
  * To run a health check inside Glacier
  */
-int selftest(int fd, uint8_t tid, char *payload, int length)
+int selftest(int fd, uint8_t tid, uint8_t *payload, int length)
 {
 	uint8_t *resp = NULL;
 	size_t resp_len = 0;

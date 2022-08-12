@@ -89,12 +89,12 @@ int main(int argc, char * const *argv)
     int         rc = -1;
     int 	i = 0, len = 0;
     char        item[MCTP_VDM_COMMAND_NAME_SIZE] = {'\0'};
-    char 	payload[MCTP_VDM_SELFTEST_PAYLOAD_SIZE] = { '\0' };
     char        intf[16] = {0};
     char        path[32] = {0};
     int         fd = 0;
     uint8_t     teid = 0;
-    uint8_t payload_required = 0;
+    uint8_t 	payload_required = 0;
+    uint8_t 	payload[MCTP_VDM_SELFTEST_PAYLOAD_SIZE] = { '\0' };
 
     for (;;) {
         rc = getopt_long(argc, argv, "vt:i:c:h", options, NULL);
