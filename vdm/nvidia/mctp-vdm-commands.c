@@ -302,15 +302,12 @@ int heartbeat(int fd, uint8_t tid)
     /* Encode the VDM headers for Heartbeat event */
     mctp_encode_vendor_cmd_hbenvent(&cmd);
 
-    print_hex("TX", (uint8_t*)&cmd, sizeof(cmd));
 
     /* Send and Receive the MCTP-VDM command */
     rc = mctp_vdm_client_send_recv(tid, fd, true,
                                   (uint8_t*)&cmd, sizeof(cmd),
                                   (uint8_t**)&resp, &resp_len);
 
-    if (rc == MCTP_REQUESTER_SUCCESS)
-        print_hex("RX", resp, resp_len);
     free(resp);
 
     MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
