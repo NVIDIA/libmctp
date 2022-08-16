@@ -81,7 +81,7 @@ static int vdm_resp_output(char *msg, int len, uint8_t result, bool enable)
         return -1;
 
     /* Open the Output file */
-    fptr = fopen(MCTP_VDM_RESP_OUTPUT_FILE,"wb+");
+    fptr = fopen(MCTP_VDM_RESP_OUTPUT_FILE,"w+");
 
     MCTP_ASSERT_RET(fptr != NULL, errno, "[err: %d] Unable to open %s\n",
 			      errno, MCTP_VDM_RESP_OUTPUT_FILE);
@@ -404,7 +404,7 @@ int download_log(int fd, uint8_t eid, char *dl_path, uint8_t verbose)
     mctp_requester_rc_t                 rc = 0;
     int                                 bytes_count = 0;
     size_t                              resp_len = 0;
-    FILE                                *fptr = fopen(dl_path,"wb+");
+    FILE                                *fptr = fopen(dl_path,"w+");
     mctp_vdm_log_rep_hdr_t              *resp = NULL;
     struct mctp_vendor_cmd_downloadlog  req = {0};
 

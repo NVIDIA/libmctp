@@ -71,7 +71,8 @@ typedef enum {
 typedef uint8_t mctp_eid_t;
 
 /* MCTP-VDM Download log response structure */
-typedef struct {
+typedef struct __attribute__((__packed__)) {
+    uint8_t vmdtype;
     uint8_t iana[MCTP_VDM_VENDOR_IANA_SIZE];
     uint8_t rq_dgram_inst;
     uint8_t msg_type;
