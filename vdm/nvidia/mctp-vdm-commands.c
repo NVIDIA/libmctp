@@ -160,7 +160,8 @@ int selftest(int fd, uint8_t tid, uint8_t *payload, int length)
 	return -1;
 	}
 
-	print_hex("RX", resp, resp_len);
+	/* skip the first byte - vmd type */
+	print_hex("RX", resp + 1, resp_len - 1);
 
 	/* free memory */
 	free(resp);
@@ -194,7 +195,8 @@ int boot_complete_v1(int fd, uint8_t tid)
         return -1;
     }
 
-    print_hex("RX", resp, resp_len);
+    /* skip the first byte - vmd type */
+    print_hex("RX", resp + 1, resp_len - 1);
 
     /* free memory */
     free(resp);
@@ -235,7 +237,8 @@ int boot_complete_v2(int fd, uint8_t tid, uint8_t valid, uint8_t slot)
         return -1;
     }
 
-    print_hex("RX", resp, resp_len);
+    /* skip the first byte - vmd type */
+    print_hex("RX", resp + 1, resp_len - 1);
 
     /* free memory */
     free(resp);
@@ -274,7 +277,8 @@ int set_heartbeat_enable(int fd, uint8_t tid, int enable)
         return -1;
     }
 
-    print_hex("RX", resp, resp_len);
+    /* skip the first byte - vmd type */
+    print_hex("RX", resp + 1, resp_len - 1);
 
     /* free memory */
     free(resp);
@@ -343,7 +347,8 @@ int query_boot_status(int fd, uint8_t tid)
         return -1;
     }
 
-    print_hex("RX", resp, resp_len);
+    /* skip the first byte - vmd type */
+    print_hex("RX", resp + 1, resp_len - 1);
 
     /* free memory */
     free(resp);
@@ -383,7 +388,8 @@ int background_copy(int fd, uint8_t tid, uint8_t code)
         return -1;
     }
 
-    print_hex("RX", resp, resp_len);
+    /* skip the first byte - vmd type */
+    print_hex("RX", resp + 1, resp_len - 1);
 
     /* free memory */
     free(resp);
@@ -496,7 +502,8 @@ int restart_notification(int fd, uint8_t tid)
         return -1;
     }
 
-    print_hex("RX", resp, resp_len);
+    /* skip the first byte - vmd type */
+    print_hex("RX", resp + 1, resp_len - 1);
 
     /* free memory */
     free(resp);
