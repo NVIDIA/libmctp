@@ -59,7 +59,7 @@ struct mctp_astlpc_protocol {
 };
 
 struct mctp_binding_astlpc {
-	struct mctp_binding	binding;
+	struct mctp_binding binding;
 
 	void *lpc_map;
 	struct mctp_astlpc_layout layout;
@@ -77,10 +77,10 @@ struct mctp_binding_astlpc {
 	int kcs_fd;
 	uint8_t kcs_status;
 
-	bool			running;
+	bool running;
 };
 
-#define binding_to_astlpc(b) \
+#define binding_to_astlpc(b)                                                   \
 	container_of(b, struct mctp_binding_astlpc, binding)
 
 #define astlpc_prlog(ctx, lvl, fmt, ...)                                       \
@@ -174,34 +174,38 @@ bool astlpc_pktbuf_validate_v3(struct mctp_pktbuf *pkt)
 }
 
 static const struct mctp_astlpc_protocol astlpc_protocol_version[] = {
-	[0] = {
-		.version = 0,
-		.packet_size = NULL,
-		.body_size = NULL,
-		.pktbuf_protect = NULL,
-		.pktbuf_validate = NULL,
-	},
-	[1] = {
-		.version = 1,
-		.packet_size = astlpc_packet_size_v1,
-		.body_size = astlpc_body_size_v1,
-		.pktbuf_protect = astlpc_pktbuf_protect_v1,
-		.pktbuf_validate = astlpc_pktbuf_validate_v1,
-	},
-	[2] = {
-		.version = 2,
-		.packet_size = astlpc_packet_size_v1,
-		.body_size = astlpc_body_size_v1,
-		.pktbuf_protect = astlpc_pktbuf_protect_v1,
-		.pktbuf_validate = astlpc_pktbuf_validate_v1,
-	},
-	[3] = {
-		.version = 3,
-		.packet_size = astlpc_packet_size_v3,
-		.body_size = astlpc_body_size_v3,
-		.pktbuf_protect = astlpc_pktbuf_protect_v3,
-		.pktbuf_validate = astlpc_pktbuf_validate_v3,
-	},
+	[0] =
+		{
+			.version = 0,
+			.packet_size = NULL,
+			.body_size = NULL,
+			.pktbuf_protect = NULL,
+			.pktbuf_validate = NULL,
+		},
+	[1] =
+		{
+			.version = 1,
+			.packet_size = astlpc_packet_size_v1,
+			.body_size = astlpc_body_size_v1,
+			.pktbuf_protect = astlpc_pktbuf_protect_v1,
+			.pktbuf_validate = astlpc_pktbuf_validate_v1,
+		},
+	[2] =
+		{
+			.version = 2,
+			.packet_size = astlpc_packet_size_v1,
+			.body_size = astlpc_body_size_v1,
+			.pktbuf_protect = astlpc_pktbuf_protect_v1,
+			.pktbuf_validate = astlpc_pktbuf_validate_v1,
+		},
+	[3] =
+		{
+			.version = 3,
+			.packet_size = astlpc_packet_size_v3,
+			.body_size = astlpc_body_size_v3,
+			.pktbuf_protect = astlpc_pktbuf_protect_v3,
+			.pktbuf_validate = astlpc_pktbuf_validate_v3,
+		},
 };
 
 struct mctp_lpcmap_hdr {
@@ -224,12 +228,12 @@ struct mctp_lpcmap_hdr {
 
 static const uint32_t control_size = 0x100;
 
-#define LPC_WIN_SIZE                (1 * 1024 * 1024)
+#define LPC_WIN_SIZE (1 * 1024 * 1024)
 
-#define KCS_STATUS_BMC_READY		0x80
-#define KCS_STATUS_CHANNEL_ACTIVE	0x40
-#define KCS_STATUS_IBF			0x02
-#define KCS_STATUS_OBF			0x01
+#define KCS_STATUS_BMC_READY 0x80
+#define KCS_STATUS_CHANNEL_ACTIVE 0x40
+#define KCS_STATUS_IBF 0x02
+#define KCS_STATUS_OBF 0x01
 
 static inline int mctp_astlpc_kcs_write(struct mctp_binding_astlpc *astlpc,
 					enum mctp_binding_astlpc_kcs_reg reg,
@@ -364,8 +368,9 @@ static int mctp_astlpc_layout_write(struct mctp_binding_astlpc *astlpc,
 		hdr.layout.tx_size = htobe32(layout->rx.size);
 
 		return mctp_astlpc_lpc_write(astlpc, &hdr.layout,
-				offsetof(struct mctp_lpcmap_hdr, layout),
-				sizeof(hdr.layout));
+					     offsetof(struct mctp_lpcmap_hdr,
+						      layout),
+					     sizeof(hdr.layout));
 	}
 
 	assert(astlpc->mode == MCTP_BINDING_ASTLPC_MODE_HOST);
@@ -376,8 +381,9 @@ static int mctp_astlpc_layout_write(struct mctp_binding_astlpc *astlpc,
 	 */
 	rx_size_be = htobe32(layout->rx.size);
 	return mctp_astlpc_lpc_write(astlpc, &rx_size_be,
-			offsetof(struct mctp_lpcmap_hdr, layout.rx_size),
-			sizeof(rx_size_be));
+				     offsetof(struct mctp_lpcmap_hdr,
+					      layout.rx_size),
+				     sizeof(rx_size_be));
 }
 
 static bool
@@ -405,9 +411,11 @@ mctp_astlpc_buffer_validate(const struct mctp_binding_astlpc *astlpc,
 	}
 
 	/* Check that the baseline transmission unit is supported */
-	if (buf->size < astlpc->proto->packet_size(MCTP_PACKET_SIZE(MCTP_BTU))) {
+	if (buf->size <
+	    astlpc->proto->packet_size(MCTP_PACKET_SIZE(MCTP_BTU))) {
 		mctp_prerr(
-			"%s packet buffer too small: Require %" PRIu32 " bytes to support the %u byte baseline transmission unit, found %" PRIu32,
+			"%s packet buffer too small: Require %" PRIu32
+			" bytes to support the %u byte baseline transmission unit, found %" PRIu32,
 			name,
 			astlpc->proto->packet_size(MCTP_PACKET_SIZE(MCTP_BTU)),
 			MCTP_BTU, buf->size);
@@ -645,9 +653,8 @@ static int mctp_astlpc_init_host(struct mctp_binding_astlpc *astlpc)
 	bmc_ver_cur = be16toh(hdr.bmc_ver_cur);
 
 	/* Calculate the expected value of negotiated_ver */
-	negotiated = mctp_astlpc_negotiate_version(bmc_ver_min, bmc_ver_cur,
-						   ASTLPC_VER_MIN,
-						   ASTLPC_VER_CUR);
+	negotiated = mctp_astlpc_negotiate_version(
+		bmc_ver_min, bmc_ver_cur, ASTLPC_VER_MIN, ASTLPC_VER_CUR);
 	if (!negotiated) {
 		astlpc_prerr(astlpc, "Cannot negotiate with invalid versions");
 		return -EINVAL;
@@ -729,7 +736,7 @@ mctp_astlpc_kcs_write_ready(struct mctp_binding_astlpc *astlpc, uint8_t status)
 }
 
 static int mctp_astlpc_kcs_send(struct mctp_binding_astlpc *astlpc,
-		uint8_t data)
+				uint8_t data)
 {
 	uint8_t status;
 	int rc;
@@ -756,7 +763,7 @@ static int mctp_astlpc_kcs_send(struct mctp_binding_astlpc *astlpc,
 }
 
 static int mctp_binding_astlpc_tx(struct mctp_binding *b,
-		struct mctp_pktbuf *pkt)
+				  struct mctp_pktbuf *pkt)
 {
 	struct mctp_binding_astlpc *astlpc = binding_to_astlpc(b);
 	uint32_t len, len_be;
@@ -771,8 +778,9 @@ static int mctp_binding_astlpc_tx(struct mctp_binding *b,
 		       __func__, len, hdr->src, hdr->dest, hdr->flags_seq_tag);
 
 	if (len > astlpc->proto->body_size(astlpc->layout.tx.size)) {
-		astlpc_prwarn(astlpc, "invalid TX len %" PRIu32 ": %" PRIu32, len,
-				astlpc->proto->body_size(astlpc->layout.tx.size));
+		astlpc_prwarn(astlpc, "invalid TX len %" PRIu32 ": %" PRIu32,
+			      len,
+			      astlpc->proto->body_size(astlpc->layout.tx.size));
 		return -1;
 	}
 
@@ -1036,7 +1044,7 @@ static int mctp_astlpc_update_channel(struct mctp_binding_astlpc *astlpc,
 	}
 
 	if (astlpc->proto->version == 0 ||
-			updated & KCS_STATUS_CHANNEL_ACTIVE) {
+	    updated & KCS_STATUS_CHANNEL_ACTIVE) {
 		bool enable;
 
 		rc = mctp_astlpc_finalise_channel(astlpc);
@@ -1245,7 +1253,8 @@ static int mctp_astlpc_init_fileio_kcs(struct mctp_binding_astlpc *astlpc)
 }
 
 static int __mctp_astlpc_fileio_kcs_read(void *arg,
-		enum mctp_binding_astlpc_kcs_reg reg, uint8_t *val)
+					 enum mctp_binding_astlpc_kcs_reg reg,
+					 uint8_t *val)
 {
 	struct mctp_binding_astlpc *astlpc = arg;
 	off_t offset = reg;
@@ -1257,7 +1266,8 @@ static int __mctp_astlpc_fileio_kcs_read(void *arg,
 }
 
 static int __mctp_astlpc_fileio_kcs_write(void *arg,
-		enum mctp_binding_astlpc_kcs_reg reg, uint8_t val)
+					  enum mctp_binding_astlpc_kcs_reg reg,
+					  uint8_t val)
 {
 	struct mctp_binding_astlpc *astlpc = arg;
 	off_t offset = reg;
@@ -1310,15 +1320,14 @@ struct mctp_binding_astlpc *mctp_astlpc_init_fileio(void)
 	return astlpc;
 }
 #else
-struct mctp_binding_astlpc * __attribute__((const))
-	mctp_astlpc_init_fileio(void)
+struct mctp_binding_astlpc *__attribute__((const)) mctp_astlpc_init_fileio(void)
 {
 	astlpc_prerr(astlpc, "Missing support for file IO");
 	return NULL;
 }
 
-int __attribute__((const)) mctp_astlpc_get_fd(
-		struct mctp_binding_astlpc *astlpc __attribute__((unused)))
+int __attribute__((const))
+mctp_astlpc_get_fd(struct mctp_binding_astlpc *astlpc __attribute__((unused)))
 {
 	astlpc_prerr(astlpc, "Missing support for file IO");
 	return -1;

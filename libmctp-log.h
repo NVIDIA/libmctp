@@ -27,19 +27,23 @@ void mctp_trace_common(const char *tag, const void *const payload,
 #define mctp_prdebug(fmt, ...)                                                 \
 	mctp_prlog(MCTP_LOG_DEBUG, pr_fmt(fmt), ##__VA_ARGS__)
 
-#define MCTP_ASSERT(cond, fmt, ...) do {					\
-	if (!(cond)) {								\
-		mctp_prerr("at %s:%d " fmt, __func__, __LINE__, ##__VA_ARGS__);	\
-		abort();							\
-	}									\
-} while(0)
+#define MCTP_ASSERT(cond, fmt, ...)                                            \
+	do {                                                                   \
+		if (!(cond)) {                                                 \
+			mctp_prerr("at %s:%d " fmt, __func__, __LINE__,        \
+				   ##__VA_ARGS__);                             \
+			abort();                                               \
+		}                                                              \
+	} while (0)
 
-#define MCTP_ASSERT_RET(cond, ret, fmt, ...) do {				\
-	if (!(cond)) {								\
-		mctp_prerr("at %s:%d " fmt, __func__, __LINE__, ##__VA_ARGS__);	\
-		return (ret);							\
-	}									\
-} while(0)
+#define MCTP_ASSERT_RET(cond, ret, fmt, ...)                                   \
+	do {                                                                   \
+		if (!(cond)) {                                                 \
+			mctp_prerr("at %s:%d " fmt, __func__, __LINE__,        \
+				   ##__VA_ARGS__);                             \
+			return (ret);                                          \
+		}                                                              \
+	} while (0)
 
 #define mctp_trace_rx(payload, len)                                            \
 	mctp_trace_common(pr_fmt("<RX<"), (payload), (len))

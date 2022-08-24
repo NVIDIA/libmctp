@@ -23,22 +23,22 @@ extern "C" {
 #include "mctp-ctrl-cmdline.h"
 
 /* Define Max buffer size */
-#define MCTP_RX_BUFFER_MAX_SIZE         64
+#define MCTP_RX_BUFFER_MAX_SIZE 64
 
 /* Command size */
-#define MCTP_SPI_LOAD_CMD_SIZE          128
+#define MCTP_SPI_LOAD_CMD_SIZE 128
 
-#define MCTP_SPI_CMD_DELAY_USECS        10000
+#define MCTP_SPI_CMD_DELAY_USECS 10000
 
-#define MCTP_SPI_HEARTBEAT_DELAY_SECS   30
+#define MCTP_SPI_HEARTBEAT_DELAY_SECS 30
 
 struct mctp_spi_pkt_private {
-    int fd;
-    int gpio_lookup;
-    uint8_t controller;
+	int fd;
+	int gpio_lookup;
+	uint8_t controller;
 } __attribute__((packed));
 
-uint16_t mctp_ctrl_get_target_bdf (mctp_cmdline_args_t  *cmd);
+uint16_t mctp_ctrl_get_target_bdf(mctp_cmdline_args_t *cmd);
 
 #ifdef __cplusplus
 }

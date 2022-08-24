@@ -8,7 +8,6 @@
  * is strictly prohibited.
  */
 
-
 #define _GNU_SOURCE
 #include <errno.h>
 #include <stdint.h>
@@ -30,45 +29,54 @@
 
 #define POLL_SREG_TIMEOUT_MSECS 10000ULL
 #define POLL_LOCK_TIMEOUT_MSECS 10000ULL
-#define POLL_INT_TIMEOUT_MSECS  100ULL
+#define POLL_INT_TIMEOUT_MSECS 100ULL
 #define MAX_BYTES_PER_TRANSACTION 32
 #define WAIT_CYCLES 0
 #define TAR_CYCLES 1 // 1 in single, 4 in quad
 #define TAR_WAIT_CYCLES (WAIT_CYCLES + TAR_CYCLES)
 
-#define nullptr ((void*)0)
+#define nullptr ((void *)0)
 
 #ifdef pr_fmt
 #undef pr_fmt
-#define pr_fmt(x) "spb-ap: "#x
+#define pr_fmt(x) "spb-ap: " #x
 #endif
 
-static inline uint64_t
-clock_msecs(void)
+static inline uint64_t clock_msecs(void)
 {
-	struct timespec ts = {0};
+	struct timespec ts = { 0 };
 	int ret = 0;
 
 	ret = clock_gettime(CLOCK_MONOTONIC, &ts);
 	MCTP_ASSERT(ret == 0, "clock_gettime(2) failed: %d (%s)", errno,
-	    strerror(errno));
+		    strerror(errno));
 
 	return (ts.tv_sec * 1000ULL + ts.tv_nsec / 1000000ULL);
 }
 
-static const char *
-mailbox_str(uint32_t mb)
+static const char *mailbox_str(uint32_t mb)
 {
 	static char str[128];
 
 	memset(str, '\0', sizeof(str));
 	switch (mb & 0x0F000000) {
-		case EC_ACK: strcat(str, "EC_ACK"); break;
-		case AP_REQUEST_WRITE: strcat(str, "AP_REQUEST_WRITE"); break;
-		case AP_READY_TO_READ: strcat(str, "AP_READY_TO_READ"); break;
-		case AP_FINISHED_READ: strcat(str, "AP_FINISHED_READ"); break;
-		case AP_REQUEST_RESET: strcat(str, "AP_REQUEST_RESET"); break;
-		default: break;
+	case EC_ACK:
+		strcat(str, "EC_ACK");
+		break;
+	case AP_REQUEST_WRITE:
+		strcat(str, "AP_REQUEST_WRITE");
+		break;
+	case AP_READY_TO_READ:
+		strcat(str, "AP_READY_TO_READ");
+		break;
+	case AP_FINISHED_READ:
+		strcat(str, "AP_FINISHED_READ");
+		break;
+	case AP_REQUEST_RESET:
+		strcat(str, "AP_REQUEST_RESET");
+		break;
+	default:
+		break;
 	}
 
 	if (mb & 0xFF) {
@@ -76,9 +84,10 @@ mailbox_str(uint32_t mb)
 	}
 
 	if (mb & EC_MSG_AVAILABLE) {
-		sprintf(str+strlen(str), " %x", mb);
+		sprintf(str + strlen(str), " %x", mb);
 
-		strcat(str, (strlen(str) > 0 ? "|EC_MSG_AVAILABLE" : "EC_MSG_AVAILABLE"));
+		strcat(str, (strlen(str) > 0 ? "|EC_MSG_AVAILABLE" :
+					       "EC_MSG_AVAILABLE"));
 	}
 
 	if (strlen(str) == 0) {
@@ -87,20 +96,17 @@ mailbox_str(uint32_t mb)
 	return str;
 };
 
-static inline uint32_t
-buf2dw(uint8_t* x)
+static inline uint32_t buf2dw(uint8_t *x)
 {
 	return (x[0] << 24) | (x[1] << 16) | (x[2] << 8) | (x[3] << 0);
 }
 
-static inline uint16_t
-buf2w(uint8_t* x)
+static inline uint16_t buf2w(uint8_t *x)
 {
 	return (x[0] << 8) | (x[1] << 0);
 }
 
-static inline void
-dw2buf(uint32_t dw, uint8_t* buf)
+static inline void dw2buf(uint32_t dw, uint8_t *buf)
 {
 	buf[0] = (uint8_t)((dw >> 24) & 0xff);
 	buf[1] = (uint8_t)((dw >> 16) & 0xff);
@@ -108,51 +114,45 @@ dw2buf(uint32_t dw, uint8_t* buf)
 	buf[3] = (uint8_t)((dw >> 0) & 0xff);
 }
 
-static inline void
-w2buf(uint16_t w, uint8_t* buf)
+static inline void w2buf(uint16_t w, uint8_t *buf)
 {
 	buf[0] = (uint8_t)((w >> 8) & 0xff);
 	buf[1] = (uint8_t)((w >> 0) & 0xff);
 }
 
-static inline void
-spi_xfer(SpbAp *ap, int sendLen, uint8_t* sbuf, int recvLen, uint8_t* rbuf,
-    bool deassert)
+static inline void spi_xfer(SpbAp *ap, int sendLen, uint8_t *sbuf, int recvLen,
+			    uint8_t *rbuf, bool deassert)
 {
-
 	ap->spi_xfer(sendLen, sbuf, recvLen, rbuf, deassert);
 }
 
-uint16_t
-sreg_write_8(SpbAp *ap, uint16_t addr, uint8_t value)
+uint16_t sreg_write_8(SpbAp *ap, uint16_t addr, uint8_t value)
 {
-	uint8_t buf[1 + 2 + 1 + TAR_WAIT_CYCLES + 2] = {0};
+	uint8_t buf[1 + 2 + 1 + TAR_WAIT_CYCLES + 2] = { 0 };
 
 	buf[0] = CMD_SREG_W8;
 	w2buf(addr, buf + 1);
 	buf[3] = value;
-	spi_xfer(ap, 1+2+1, buf, TAR_WAIT_CYCLES+2, buf, true);
+	spi_xfer(ap, 1 + 2 + 1, buf, TAR_WAIT_CYCLES + 2, buf, true);
 	// return lower 16 bits of status
 	return (buf2w(buf + TAR_WAIT_CYCLES));
 }
 
-uint16_t
-sreg_write_32(SpbAp *ap, uint16_t addr, uint32_t value)
+uint16_t sreg_write_32(SpbAp *ap, uint16_t addr, uint32_t value)
 {
-	uint8_t buf[1 + 2 + 4 + TAR_WAIT_CYCLES + 2] = {0};
+	uint8_t buf[1 + 2 + 4 + TAR_WAIT_CYCLES + 2] = { 0 };
 
 	buf[0] = CMD_SREG_W32;
 	w2buf(addr, buf + 1);
 	dw2buf(value, buf + 3);
-	spi_xfer(ap, 7, buf, TAR_WAIT_CYCLES+2, buf, true);
+	spi_xfer(ap, 7, buf, TAR_WAIT_CYCLES + 2, buf, true);
 	// return lower 16 bits of status
 	return (buf2w(buf + TAR_WAIT_CYCLES));
 }
 
-uint16_t
-sreg_read_8(SpbAp *ap, uint16_t addr, uint8_t *val)
+uint16_t sreg_read_8(SpbAp *ap, uint16_t addr, uint8_t *val)
 {
-	uint8_t buf[1 + 2 + TAR_WAIT_CYCLES + 2 + 1] = {0};
+	uint8_t buf[1 + 2 + TAR_WAIT_CYCLES + 2 + 1] = { 0 };
 
 	buf[0] = CMD_SREG_R8;
 	w2buf(addr, buf + 1);
@@ -162,10 +162,9 @@ sreg_read_8(SpbAp *ap, uint16_t addr, uint8_t *val)
 	return (buf2w(buf + TAR_WAIT_CYCLES));
 }
 
-uint16_t
-sreg_read_32(SpbAp *ap, uint16_t addr, uint32_t *val)
+uint16_t sreg_read_32(SpbAp *ap, uint16_t addr, uint32_t *val)
 {
-	uint8_t buf[1 + 2 + TAR_WAIT_CYCLES + 2 + 4] = {0};
+	uint8_t buf[1 + 2 + TAR_WAIT_CYCLES + 2 + 4] = { 0 };
 
 	buf[0] = CMD_SREG_R32;
 	w2buf(addr, buf + 1);
@@ -175,10 +174,9 @@ sreg_read_32(SpbAp *ap, uint16_t addr, uint32_t *val)
 	return (buf2w(buf + TAR_WAIT_CYCLES));
 }
 
-uint32_t
-cmd_poll_all(SpbAp *ap)
+uint32_t cmd_poll_all(SpbAp *ap)
 {
-	uint8_t buf[1 + TAR_CYCLES + 4] = {0};
+	uint8_t buf[1 + TAR_CYCLES + 4] = { 0 };
 
 	buf[0] = CMD_POLL_ALL;
 	spi_xfer(ap, 1, buf, TAR_CYCLES + 4, buf, true);
@@ -187,8 +185,7 @@ cmd_poll_all(SpbAp *ap)
 }
 
 // Read RX_FIFO_EMPTY
-static SpbApStatus
-wait_for_tx_fifo_not_empty(SpbAp *ap)
+static SpbApStatus wait_for_tx_fifo_not_empty(SpbAp *ap)
 {
 	uint64_t start = clock_msecs();
 
@@ -200,8 +197,7 @@ wait_for_tx_fifo_not_empty(SpbAp *ap)
 	return (SPB_AP_OK);
 }
 
-uint16_t
-mailbox_write(SpbAp *ap, uint32_t v)
+uint16_t mailbox_write(SpbAp *ap, uint32_t v)
 {
 	uint16_t status = sreg_write_32(ap, SPI_SPIM2EC_MBX, v);
 
@@ -209,25 +205,20 @@ mailbox_write(SpbAp *ap, uint32_t v)
 	return (status);
 }
 
-static inline uint32_t
-clear_memory_write_done(SpbAp *ap)
+static inline uint32_t clear_memory_write_done(SpbAp *ap)
 {
-
 	// MemoryWriteDone bit 0, write to clear
 	return (sreg_write_8(ap, SPI_STS, 0b0001));
 }
 
-static inline uint32_t
-clear_memory_read_done(SpbAp *ap)
+static inline uint32_t clear_memory_read_done(SpbAp *ap)
 {
-
 	// MemoryReadDone bit 1, write to clear
 	return (sreg_write_8(ap, SPI_STS, 0b0010));
 }
 
 // Polling procedures with timeouts
-SpbApStatus
-wait_for_memory_write_busy_and_rx_fifo_empty(SpbAp *ap)
+SpbApStatus wait_for_memory_write_busy_and_rx_fifo_empty(SpbAp *ap)
 {
 	uint64_t start = clock_msecs();
 
@@ -240,8 +231,7 @@ wait_for_memory_write_busy_and_rx_fifo_empty(SpbAp *ap)
 	return (SPB_AP_OK);
 }
 
-SpbApStatus
-wait_for_ack(SpbAp *ap)
+SpbApStatus wait_for_ack(SpbAp *ap)
 {
 	SpbApStatus status = SPB_AP_OK;
 	uint64_t start = clock_msecs();
@@ -258,8 +248,7 @@ wait_for_ack(SpbAp *ap)
 	return (status);
 }
 
-SpbApStatus
-wait_for_length(SpbAp *ap, uint32_t *bytes)
+SpbApStatus wait_for_length(SpbAp *ap, uint32_t *bytes)
 {
 	SpbApStatus status = SPB_AP_OK;
 	uint64_t start = clock_msecs();
@@ -272,23 +261,22 @@ wait_for_length(SpbAp *ap, uint32_t *bytes)
 		spb_ap_wait_for_intr(ap, POLL_INT_TIMEOUT_MSECS, true);
 	}
 
-	*bytes	 = ap->ec2spimb & 0xFF;
+	*bytes = ap->ec2spimb & 0xFF;
 	ap->ec2spimb = 0;
 	return (status);
 }
 
-
 // Write payload with maxiumum of 32 bytes per transfer
-SpbApStatus
-posted_write(SpbAp *ap, uint16_t offset, int len, uint8_t* payload)
+SpbApStatus posted_write(SpbAp *ap, uint16_t offset, int len, uint8_t *payload)
 {
-	uint8_t buf[128] = {0};
-	int off	= 0;
+	uint8_t buf[128] = { 0 };
+	int off = 0;
 	SpbApStatus status;
 
 	while (len > 0) {
 		int bytes = len > MAX_BYTES_PER_TRANSACTION ?
-		    MAX_BYTES_PER_TRANSACTION : len;
+				    MAX_BYTES_PER_TRANSACTION :
+				    len;
 		if (bytes >= 4) {
 			bytes &= 0xFFFFFFFC;
 			buf[0] = CMD_MEM_BLK_W1 + bytes / 4 - 1;
@@ -301,22 +289,26 @@ posted_write(SpbAp *ap, uint16_t offset, int len, uint8_t* payload)
 				buf[ii + 3 + 3] = payload[off + ii + 0];
 			}
 
-			status = wait_for_memory_write_busy_and_rx_fifo_empty(ap);
-			MCTP_ASSERT_RET(status == SPB_AP_OK, status,
-			    "wait_for_memory_write_busy_and_rx_fifo_empty failed");
+			status = wait_for_memory_write_busy_and_rx_fifo_empty(
+				ap);
+			MCTP_ASSERT_RET(
+				status == SPB_AP_OK, status,
+				"wait_for_memory_write_busy_and_rx_fifo_empty failed");
 
 			spi_xfer(ap, 3 + bytes, buf, 0, buf, true);
 			clear_memory_write_done(ap);
-		}
-		else {
+		} else {
 			for (int ii = 0; ii < bytes; ii++) {
 				buf[0] = CMD_MEM_W8;
 				w2buf(offset + off + ii, buf + 1);
 				buf[3] = payload[off + ii];
 
-				status = wait_for_memory_write_busy_and_rx_fifo_empty(ap);
-				MCTP_ASSERT_RET(status == SPB_AP_OK, status,
-				    "wait_for_memory_write_busy_and_rx_fifo_empty failed");
+				status =
+					wait_for_memory_write_busy_and_rx_fifo_empty(
+						ap);
+				MCTP_ASSERT_RET(
+					status == SPB_AP_OK, status,
+					"wait_for_memory_write_busy_and_rx_fifo_empty failed");
 
 				spi_xfer(ap, 3 + 1, buf, 0, buf, true);
 				clear_memory_write_done(ap);
@@ -329,9 +321,8 @@ posted_write(SpbAp *ap, uint16_t offset, int len, uint8_t* payload)
 	return SPB_AP_OK;
 }
 
-static SpbApStatus
-posted_read_helper(SpbAp *ap, uint8_t cmd, uint8_t cmd2, uint16_t addr,
-    int bytes, uint8_t* buf)
+static SpbApStatus posted_read_helper(SpbAp *ap, uint8_t cmd, uint8_t cmd2,
+				      uint16_t addr, int bytes, uint8_t *buf)
 {
 	SpbApStatus status;
 	// Send the post read command
@@ -342,7 +333,7 @@ posted_read_helper(SpbAp *ap, uint8_t cmd, uint8_t cmd2, uint16_t addr,
 	// check ok to read
 	status = wait_for_tx_fifo_not_empty(ap);
 	MCTP_ASSERT_RET(status == SPB_AP_OK, status,
-	    "wait_for_tx_fifo_not_empty failed: %d", status);
+			"wait_for_tx_fifo_not_empty failed: %d", status);
 
 	// Initiate FIFO READ
 	buf[0] = cmd2;
@@ -371,25 +362,26 @@ posted_read_helper(SpbAp *ap, uint8_t cmd, uint8_t cmd2, uint16_t addr,
 	return (SPB_AP_OK);
 }
 
-SpbApStatus
-posted_read(SpbAp *ap, int offset, int len, uint8_t* payload)
+SpbApStatus posted_read(SpbAp *ap, int offset, int len, uint8_t *payload)
 {
-	uint8_t buf[128] = {0};
+	uint8_t buf[128] = { 0 };
 	int off = 0;
 	SpbApStatus status = 0;
 
 	while (len > 0) {
 		int bytes = len > MAX_BYTES_PER_TRANSACTION ?
-		    MAX_BYTES_PER_TRANSACTION : len;
+				    MAX_BYTES_PER_TRANSACTION :
+				    len;
 		if (bytes >= 4) {
 			bytes &= 0xFFFFFFFC;
 			int reg_offset = (bytes / 4) - 1;
 
-			status = posted_read_helper(ap, CMD_MEM_BLK_R1 +
-			    reg_offset, CMD_BLK_RD_FIFO_FSR + reg_offset,
-			    offset + off, bytes, buf);
+			status = posted_read_helper(
+				ap, CMD_MEM_BLK_R1 + reg_offset,
+				CMD_BLK_RD_FIFO_FSR + reg_offset, offset + off,
+				bytes, buf);
 			MCTP_ASSERT_RET(status == SPB_AP_OK, status,
-			    "posted_read_helper failed");
+					"posted_read_helper failed");
 
 			for (int ii = 0; ii < bytes; ii += 4) {
 				payload[off + ii + 3] = buf[ii + 0];
@@ -397,14 +389,14 @@ posted_read(SpbAp *ap, int offset, int len, uint8_t* payload)
 				payload[off + ii + 1] = buf[ii + 2];
 				payload[off + ii + 0] = buf[ii + 3];
 			}
-		}
-		else {
+		} else {
 			for (int ii = 0; ii < bytes; ii++) {
-				status = posted_read_helper(ap, CMD_MEM_R8,
-				    CMD_RD_SNGL_FIFO8_FSR, offset + off + ii, 4,
-				    buf); // TODO: why is this 4 ?
+				status = posted_read_helper(
+					ap, CMD_MEM_R8, CMD_RD_SNGL_FIFO8_FSR,
+					offset + off + ii, 4,
+					buf); // TODO: why is this 4 ?
 				MCTP_ASSERT_RET(status == SPB_AP_OK, status,
-				    "posted_read_helper failed");
+						"posted_read_helper failed");
 				// TODO: offset 3 because we have to read 4 bytes
 				payload[off + ii] = buf[3];
 			}
@@ -418,19 +410,17 @@ posted_read(SpbAp *ap, int offset, int len, uint8_t* payload)
 
 // --- public
 
-SpbApStatus
-spb_ap_initialize(SpbAp* ap)
+SpbApStatus spb_ap_initialize(SpbAp *ap)
 {
-
 	MCTP_ASSERT_RET(ap != NULL, SPB_AP_ERROR_INVALID_ARGUMENT,
-	    "ap is NULL.");
+			"ap is NULL.");
 	MCTP_ASSERT_RET(ap->spi_xfer != NULL, SPB_AP_ERROR_INVALID_ARGUMENT,
-	    "spi_xfer is NULL");
+			"spi_xfer is NULL");
 	MCTP_ASSERT_RET(ap->on_mode_change != NULL,
-	    SPB_AP_ERROR_INVALID_ARGUMENT,
-	    "on_mode_change is NULL.");
+			SPB_AP_ERROR_INVALID_ARGUMENT,
+			"on_mode_change is NULL.");
 	MCTP_ASSERT_RET(ap->gpio_fd >= 0, SPB_AP_ERROR_INVALID_ARGUMENT,
-	    "gpio_fd is invalid.");
+			"gpio_fd is invalid.");
 
 	ap->msgs_available = 0;
 	ap->ec2spimb = 0x00000000U;
@@ -438,23 +428,17 @@ spb_ap_initialize(SpbAp* ap)
 	return (spb_ap_reset(ap));
 }
 
-SpbApStatus
-spb_ap_shutdown(SpbAp *ap)
+SpbApStatus spb_ap_shutdown(SpbAp *ap)
 {
 	// leave Glacier in single spi mode
 	return (spb_ap_set_cfg(ap, false, 0));
 }
 
-SpbApStatus
-spb_ap_set_cfg(SpbAp *ap, bool quad, uint8_t waitCycles)
+SpbApStatus spb_ap_set_cfg(SpbAp *ap, bool quad, uint8_t waitCycles)
 {
 	SpbApStatus status = SPB_AP_OK;
-	uint8_t cmd[] = {
-		0x03,
-		0x00,
-		waitCycles,
-		(uint8_t)(quad ? 0b0001 : 0x00)
-	};
+	uint8_t cmd[] = { 0x03, 0x00, waitCycles,
+			  (uint8_t)(quad ? 0b0001 : 0x00) };
 
 	// send set cfg
 	mailbox_write(ap, AP_REQUEST_WRITE);
@@ -471,14 +455,13 @@ spb_ap_set_cfg(SpbAp *ap, bool quad, uint8_t waitCycles)
 	if (ap->on_mode_change(quad, waitCycles)) {
 		status = wait_for_ack(ap);
 		MCTP_ASSERT_RET(status == SPB_AP_OK, status,
-		    "wait_for_ack failed");
+				"wait_for_ack failed");
 		return (SPB_AP_OK);
 	}
 	return (SPB_AP_ERROR_UNKNOWN);
 }
 
-SpbApStatus
-spb_ap_wait_for_intr(SpbAp *ap, int timeout_ms, bool polling)
+SpbApStatus spb_ap_wait_for_intr(SpbAp *ap, int timeout_ms, bool polling)
 {
 	int status;
 
@@ -489,8 +472,7 @@ spb_ap_wait_for_intr(SpbAp *ap, int timeout_ms, bool polling)
 	return (spb_ap_on_interrupt(ap));
 }
 
-SpbApStatus
-spb_ap_on_interrupt(SpbAp *ap)
+SpbApStatus spb_ap_on_interrupt(SpbAp *ap)
 {
 	uint32_t sts = 0;
 	uint32_t mb = 1;
@@ -510,8 +492,7 @@ spb_ap_on_interrupt(SpbAp *ap)
 	return (ret);
 }
 
-SpbApStatus
-spb_ap_send(SpbAp *ap, int len, void* buf)
+SpbApStatus spb_ap_send(SpbAp *ap, int len, void *buf)
 {
 	SpbApStatus status;
 
@@ -529,8 +510,7 @@ spb_ap_send(SpbAp *ap, int len, void* buf)
 	return (SPB_AP_OK);
 }
 
-SpbApStatus
-spb_ap_recv(SpbAp *ap, int len, void* buf)
+SpbApStatus spb_ap_recv(SpbAp *ap, int len, void *buf)
 {
 	uint32_t bytes;
 	SpbApStatus status;
@@ -552,8 +532,7 @@ spb_ap_recv(SpbAp *ap, int len, void* buf)
 	return (SPB_AP_OK);
 }
 
-SpbApStatus
-spb_ap_reset(SpbAp *ap)
+SpbApStatus spb_ap_reset(SpbAp *ap)
 {
 	// reset globals
 	SpbApStatus status;
@@ -568,27 +547,28 @@ spb_ap_reset(SpbAp *ap)
 
 	// wait for ack
 	status = wait_for_ack(ap);
-	MCTP_ASSERT_RET(status == SPB_AP_OK, status,
-	    "wait_for_ack failed.");
+	MCTP_ASSERT_RET(status == SPB_AP_OK, status, "wait_for_ack failed.");
 	return (SPB_AP_OK);
 }
 
-int
-spb_ap_msgs_available(SpbAp *ap)
+int spb_ap_msgs_available(SpbAp *ap)
 {
-
 	return (ap->msgs_available);
 }
 
 const char *spb_ap_strstatus(SpbApStatus status)
 {
-
 	switch (status) {
-	case SPB_AP_OK: return "OK";
-	case SPB_AP_MESSAGE_AVAILABLE: return "Message available";
-	case SPB_AP_ERROR_INVALID_ARGUMENT: return "Invalid argument";
-	case SPB_AP_ERROR_TIMEOUT: return "Timeout";
-	case SPB_AP_ERROR_UNKNOWN: return "Unknown";
+	case SPB_AP_OK:
+		return "OK";
+	case SPB_AP_MESSAGE_AVAILABLE:
+		return "Message available";
+	case SPB_AP_ERROR_INVALID_ARGUMENT:
+		return "Invalid argument";
+	case SPB_AP_ERROR_TIMEOUT:
+		return "Timeout";
+	case SPB_AP_ERROR_UNKNOWN:
+		return "Unknown";
 	}
 
 	return ("Invalid status code.");

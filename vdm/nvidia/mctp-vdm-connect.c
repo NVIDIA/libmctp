@@ -15,21 +15,21 @@
 #include "libmctp-vdm-cmds.h"
 
 /* MCTP Tx/Rx timeouts */
-#define MCTP_VDM_TXRX_TIMEOUT_SECS         5
-#define MCTP_VDM_TXRX_TIMEOUT_MICRO_SECS   0
+#define MCTP_VDM_TXRX_TIMEOUT_SECS 5
+#define MCTP_VDM_TXRX_TIMEOUT_MICRO_SECS 0
 
 /*
  * MCTP User defined error codes starting the user defined errors from 200
  * and can be extended till 255
  * NOTE: The standard errno range from 1 to 133
  */
-#define MCTP_ERR_INVALID_LEN            200
+#define MCTP_ERR_INVALID_LEN 200
 
 /* MCTP Response hdr */
-#define MCTP_VDM_RESP_HDR_SIZE             4
+#define MCTP_VDM_RESP_HDR_SIZE 4
 
 /* MCTP socket name suffix byte */
-#define MCTP_VDM_SOCKET_SUFFIX_BYTE        1
+#define MCTP_VDM_SOCKET_SUFFIX_BYTE 1
 
 /**
  * @brief Open the MCTp-VDM socket interface, return success only if
@@ -43,73 +43,73 @@
 
 int mctp_vdm_socket_init(const char *intf, uint8_t msgtype)
 {
-    int                 fd = -1;
-    int                 rc = -1;
-    int                 namelen = 0;
-    struct timeval      timeout = {0};
-    struct sockaddr_un  addr = {0};
+	int fd = -1;
+	int rc = -1;
+	int namelen = 0;
+	struct timeval timeout = { 0 };
+	struct sockaddr_un addr = { 0 };
 
-    /* Set timeout as 5 seconds */
-    timeout.tv_sec = MCTP_VDM_TXRX_TIMEOUT_SECS;
-    timeout.tv_usec = MCTP_VDM_TXRX_TIMEOUT_MICRO_SECS;
+	/* Set timeout as 5 seconds */
+	timeout.tv_sec = MCTP_VDM_TXRX_TIMEOUT_SECS;
+	timeout.tv_usec = MCTP_VDM_TXRX_TIMEOUT_MICRO_SECS;
 
-    /* Get the socket file descriptor */
-    fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
-    if (fd < 0) {
-        fprintf(stderr, "%s: [err: %d] socket[%d] open failed\n",
-                                                        __func__, errno, fd);
-        return errno;
-    }
+	/* Get the socket file descriptor */
+	fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
+	if (fd < 0) {
+		fprintf(stderr, "%s: [err: %d] socket[%d] open failed\n",
+			__func__, errno, fd);
+		return errno;
+	}
 
-    /* Register socket operations for send timeouts */ 
-    if (setsockopt (fd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
-                sizeof(timeout)) < 0) {
-        fprintf(stderr, "%s: [err: %d] setsockopt failed\n",
-                                            __func__, errno);
-        close(fd);
-        return errno;
-    }
+	/* Register socket operations for send timeouts */
+	if (setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
+		       sizeof(timeout)) < 0) {
+		fprintf(stderr, "%s: [err: %d] setsockopt failed\n", __func__,
+			errno);
+		close(fd);
+		return errno;
+	}
 
-    /* Register socket operations for recv timeouts */ 
-    if (setsockopt (fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
-                sizeof(timeout)) < 0) {
-        fprintf(stderr, "%s: [err: %d] setsockopt failed\n",
-                                            __func__, errno);
-        close(fd);
-        return errno;
-    }
+	/* Register socket operations for recv timeouts */
+	if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
+		       sizeof(timeout)) < 0) {
+		fprintf(stderr, "%s: [err: %d] setsockopt failed\n", __func__,
+			errno);
+		close(fd);
+		return errno;
+	}
 
-    /* Update socket params */
-    addr.sun_family = AF_UNIX;
-    addr.sun_path[0] = '\0';
+	/* Update socket params */
+	addr.sun_family = AF_UNIX;
+	addr.sun_path[0] = '\0';
 
-    /* Update the socket name */
-    sprintf(addr.sun_path+1, "%s", intf);
+	/* Update the socket name */
+	sprintf(addr.sun_path + 1, "%s", intf);
 
-    /* update the socket length */
-    namelen = strlen(addr.sun_path + 1) + MCTP_VDM_SOCKET_SUFFIX_BYTE;
+	/* update the socket length */
+	namelen = strlen(addr.sun_path + 1) + MCTP_VDM_SOCKET_SUFFIX_BYTE;
 
-    /* Establish the connection */
-    rc = connect(fd, (struct sockaddr *)&addr, sizeof(addr.sun_family) + namelen);
-    if (rc < 0) {
-        fprintf(stderr, "%s: [err: %d] Socket connect failed\n",
-                                                    __func__, errno);
-        close(fd);
-        return errno;
-    }
+	/* Establish the connection */
+	rc = connect(fd, (struct sockaddr *)&addr,
+		     sizeof(addr.sun_family) + namelen);
+	if (rc < 0) {
+		fprintf(stderr, "%s: [err: %d] Socket connect failed\n",
+			__func__, errno);
+		close(fd);
+		return errno;
+	}
 
-    /* Register the message type */
-    rc = write(fd, &msgtype, sizeof(msgtype));
-    if (rc < 0) {
-        fprintf(stderr, "%s: [err: %d] Socket write failed\n",
-                                                    __func__, errno);
-        close(fd);
-        return errno;
-    }
+	/* Register the message type */
+	rc = write(fd, &msgtype, sizeof(msgtype));
+	if (rc < 0) {
+		fprintf(stderr, "%s: [err: %d] Socket write failed\n", __func__,
+			errno);
+		close(fd);
+		return errno;
+	}
 
-    return fd;
+	return fd;
 }
-
 
 /**
  * @brief Read MCTP socket. If there's data available, return success only if
@@ -127,81 +127,86 @@ int mctp_vdm_socket_init(const char *intf, uint8_t msgtype)
  *         when data was read, but wasn't a MCTP response message
  */
 int mctp_vdm_recv(mctp_eid_t eid, int mctp_fd, uint8_t msgtype,
-                                uint8_t **mctp_resp_msg, size_t *resp_msg_len)
+		  uint8_t **mctp_resp_msg, size_t *resp_msg_len)
 {
-    ssize_t min_len = sizeof(eid) + sizeof(msgtype) + MCTP_VDM_RESP_HDR_SIZE;
-    ssize_t length = 0;
+	ssize_t min_len =
+		sizeof(eid) + sizeof(msgtype) + MCTP_VDM_RESP_HDR_SIZE;
+	ssize_t length = 0;
 
-    /* Receive the MCTP-VDM packet length */
-    length = recv(mctp_fd, NULL, 0, MSG_PEEK | MSG_TRUNC);
+	/* Receive the MCTP-VDM packet length */
+	length = recv(mctp_fd, NULL, 0, MSG_PEEK | MSG_TRUNC);
 
-    /* Return if it's timedout or the length is invalid */
-    if (errno == EAGAIN) {
-        fprintf(stderr, "%s: [err: %d] Timedout [%d secs]\n",
-                                            __func__, errno, MCTP_VDM_TXRX_TIMEOUT_SECS);
-        return errno;
-    } else if (length < min_len) {
-        fprintf(stderr, "%s: [err: %d] Invalid length [%lu]\n",
-                                            __func__, errno, length);
-        return MCTP_ERR_INVALID_LEN;
-    } else {
-        struct iovec        iov[MCTP_VDM_IO_VECTOR_MAX];
-        size_t              mctp_prefix_len = (msgtype == 0) ? sizeof(eid) :
-                                                sizeof(eid) + sizeof(msgtype);
-        uint8_t             mctp_prefix[mctp_prefix_len];
-        size_t              mctp_len = length - mctp_prefix_len;
-        struct msghdr       msg = {0};
-        ssize_t             bytes = 0;
+	/* Return if it's timedout or the length is invalid */
+	if (errno == EAGAIN) {
+		fprintf(stderr, "%s: [err: %d] Timedout [%d secs]\n", __func__,
+			errno, MCTP_VDM_TXRX_TIMEOUT_SECS);
+		return errno;
+	} else if (length < min_len) {
+		fprintf(stderr, "%s: [err: %d] Invalid length [%lu]\n",
+			__func__, errno, length);
+		return MCTP_ERR_INVALID_LEN;
+	} else {
+		struct iovec iov[MCTP_VDM_IO_VECTOR_MAX];
+		size_t mctp_prefix_len = (msgtype == 0) ?
+						 sizeof(eid) :
+						 sizeof(eid) + sizeof(msgtype);
+		uint8_t mctp_prefix[mctp_prefix_len];
+		size_t mctp_len = length - mctp_prefix_len;
+		struct msghdr msg = { 0 };
+		ssize_t bytes = 0;
 
-        /* Update the prefix vectors */
-        iov[MCTP_VDM_IO_VECTOR_0].iov_len = mctp_prefix_len;
-        iov[MCTP_VDM_IO_VECTOR_0].iov_base = mctp_prefix;
+		/* Update the prefix vectors */
+		iov[MCTP_VDM_IO_VECTOR_0].iov_len = mctp_prefix_len;
+		iov[MCTP_VDM_IO_VECTOR_0].iov_base = mctp_prefix;
 
-        /* Allocate response buffer */
-        *mctp_resp_msg = malloc(mctp_len);
-        if (*mctp_resp_msg == NULL) {
-            fprintf(stderr, "%s: Fail to allocate the memory.\n", __func__);
-            return errno;
-        }
+		/* Allocate response buffer */
+		*mctp_resp_msg = malloc(mctp_len);
+		if (*mctp_resp_msg == NULL) {
+			fprintf(stderr, "%s: Fail to allocate the memory.\n",
+				__func__);
+			return errno;
+		}
 
-        /* Update the response vectors */
-        iov[MCTP_VDM_IO_VECTOR_1].iov_len = mctp_len;
-        iov[MCTP_VDM_IO_VECTOR_1].iov_base = *mctp_resp_msg;
+		/* Update the response vectors */
+		iov[MCTP_VDM_IO_VECTOR_1].iov_len = mctp_len;
+		iov[MCTP_VDM_IO_VECTOR_1].iov_base = *mctp_resp_msg;
 
-        msg.msg_iov = iov;
-        msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
+		msg.msg_iov = iov;
+		msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
 
-        /* Receive the message */
-        bytes = recvmsg(mctp_fd, &msg, 0);
+		/* Receive the message */
+		bytes = recvmsg(mctp_fd, &msg, 0);
 
-        /* Make sure the length matches */
-        if (length != bytes) {
-            fprintf(stderr, "%s: [err: %d] Recvd message with invalid length: %lu\n",
-                                                  __func__, errno, length);
+		/* Make sure the length matches */
+		if (length != bytes) {
+			fprintf(stderr,
+				"%s: [err: %d] Recvd message with invalid length: %lu\n",
+				__func__, errno, length);
 
-            /* Free Response buffer */
-            free(*mctp_resp_msg);
-            *mctp_resp_msg = NULL;
-            return errno;
-        }
+			/* Free Response buffer */
+			free(*mctp_resp_msg);
+			*mctp_resp_msg = NULL;
+			return errno;
+		}
 
-        /* Make sure the EID and messgae type are matching as expected */
-        if ((mctp_prefix[MCTP_VDM_IO_VECTOR_0] != eid) ||
-                (msgtype && (mctp_prefix[MCTP_VDM_IO_VECTOR_1] != msgtype))) {
- 
-            fprintf(stderr, "%s: [err: %d] Invalid data: EID: 0x%x, msgtype: 0x%x\n",
-                                    __func__, errno, eid, msgtype);
-            /* Free Response buffer */
-            free(*mctp_resp_msg);
-            *mctp_resp_msg = NULL;
-            return errno;
-        }
+		/* Make sure the EID and messgae type are matching as expected */
+		if ((mctp_prefix[MCTP_VDM_IO_VECTOR_0] != eid) ||
+		    (msgtype &&
+		     (mctp_prefix[MCTP_VDM_IO_VECTOR_1] != msgtype))) {
+			fprintf(stderr,
+				"%s: [err: %d] Invalid data: EID: 0x%x, msgtype: 0x%x\n",
+				__func__, errno, eid, msgtype);
+			/* Free Response buffer */
+			free(*mctp_resp_msg);
+			*mctp_resp_msg = NULL;
+			return errno;
+		}
 
-        /* update the message lenght */
-        *resp_msg_len = mctp_len;
-    }
+		/* update the message lenght */
+		*resp_msg_len = mctp_len;
+	}
 
-    return 0;
+	return 0;
 }
 
 /**
@@ -216,32 +221,32 @@ int mctp_vdm_recv(mctp_eid_t eid, int mctp_fd, uint8_t msgtype,
  */
 
 int mctp_vdm_send(mctp_eid_t eid, int mctp_fd, uint8_t msgtype,
-			      const uint8_t *mctp_req_msg, size_t req_msg_len)
+		  const uint8_t *mctp_req_msg, size_t req_msg_len)
 {
-    uint8_t         hdr[MCTP_VDM_SEND_HDR_LENGTH] = {eid, msgtype};
-    struct iovec    iov[MCTP_VDM_IO_VECTOR_MAX];
-    struct msghdr   msg = {0};
-    ssize_t         rc = -1;
+	uint8_t hdr[MCTP_VDM_SEND_HDR_LENGTH] = { eid, msgtype };
+	struct iovec iov[MCTP_VDM_IO_VECTOR_MAX];
+	struct msghdr msg = { 0 };
+	ssize_t rc = -1;
 
-    /* Update the VDM header vectors */
-    iov[MCTP_VDM_IO_VECTOR_0].iov_base = hdr;
-    iov[MCTP_VDM_IO_VECTOR_0].iov_len = sizeof(hdr);
+	/* Update the VDM header vectors */
+	iov[MCTP_VDM_IO_VECTOR_0].iov_base = hdr;
+	iov[MCTP_VDM_IO_VECTOR_0].iov_len = sizeof(hdr);
 
-    /* Update the VDM request messgae vectors */
-    iov[MCTP_VDM_IO_VECTOR_1].iov_base = (uint8_t *)mctp_req_msg;
-    iov[MCTP_VDM_IO_VECTOR_1].iov_len = req_msg_len;
+	/* Update the VDM request messgae vectors */
+	iov[MCTP_VDM_IO_VECTOR_1].iov_base = (uint8_t *)mctp_req_msg;
+	iov[MCTP_VDM_IO_VECTOR_1].iov_len = req_msg_len;
 
-    /* Update the send message structure */
-    msg.msg_iov = iov;
-    msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
+	/* Update the send message structure */
+	msg.msg_iov = iov;
+	msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
 
-    /* Send the message */
-    rc = sendmsg(mctp_fd, &msg, 0);
-    if (rc < 0) {
-        fprintf(stderr, "%s: [err: %d] sendmsg failed\n",
-                                            __func__, errno);
-        return errno;
-    }
+	/* Send the message */
+	rc = sendmsg(mctp_fd, &msg, 0);
+	if (rc < 0) {
+		fprintf(stderr, "%s: [err: %d] sendmsg failed\n", __func__,
+			errno);
+		return errno;
+	}
 
-    return 0;
+	return 0;
 }

@@ -39,47 +39,48 @@
 
 #ifdef pr_fmt
 #undef pr_fmt
-#define pr_fmt(x) "spi: "x
+#define pr_fmt(x) "spi: " x
 #endif
 
-#define AST_GPIO_POLL_LOW		0
-#define AST_GPIO_POLL_HIGH		1
+#define AST_GPIO_POLL_LOW 0
+#define AST_GPIO_POLL_HIGH 1
 
 #ifndef container_of
-#define container_of(ptr, type, member)				\
+#define container_of(ptr, type, member)                                        \
 	(type *)((char *)(ptr) - (char *)&((type *)0)->member)
 #endif
 
 #define binding_to_spi(b) container_of(b, struct mctp_binding_spi, binding)
 
-#define MCTP_COMMAND_CODE		0x02
+#define MCTP_COMMAND_CODE 0x02
 
 /* Delay for sending suqsequent commands */
-#define MCTP_SPI_LOAD_CMD_SIZE		128
+#define MCTP_SPI_LOAD_CMD_SIZE 128
 
 /* MCTP message interrupt macros */
-#define MCTP_RX_MSG_INTR        1
-#define MCTP_RX_MSG_INTR_RST    0
+#define MCTP_RX_MSG_INTR 1
+#define MCTP_RX_MSG_INTR_RST 0
 
 /* MCTP SPI Control daemon delay default */
-#define MCTP_SPI_CTRL_DELAY_DEFAULT	10
+#define MCTP_SPI_CTRL_DELAY_DEFAULT 10
 
 /* SPB AP init Threshold limit */
-#define SPB_AP_INIT_THRESHOLD		3
+#define SPB_AP_INIT_THRESHOLD 3
 
 /* System command buffer size */
-#define MCTP_SYSTEM_CMD_BUFF_SIZE	1035
+#define MCTP_SYSTEM_CMD_BUFF_SIZE 1035
 
-#define MCTP_SPI_DRIVER_PATH			"insmod /lib/modules/*/kernel/drivers/spi/fmc_spi.ko"
+#define MCTP_SPI_DRIVER_PATH                                                   \
+	"insmod /lib/modules/*/kernel/drivers/spi/fmc_spi.ko"
 
-#define MCTP_SPI_LOAD_UNLOAD_DELAY_SECS	 2
+#define MCTP_SPI_LOAD_UNLOAD_DELAY_SECS 2
 
 struct spi_device {
-	uint8_t		bpw;
-	uint8_t		mode;
-	uint16_t	delay;
-	uint32_t	speed;
-	int		fd;
+	uint8_t bpw;
+	uint8_t mode;
+	uint16_t delay;
+	uint32_t speed;
+	int fd;
 };
 
 struct mctp_binding_spi {
@@ -104,21 +105,21 @@ struct mctp_binding_spi {
 	SpbAp nvda_spb_ap;
 };
 
-static uint8_t	spiBPW   = 8;
-static uint8_t	spiMode  = 0;
-static uint16_t	spiDelay = 0;
-static uint32_t	spiSpeed = 1000000;
+static uint8_t spiBPW = 8;
+static uint8_t spiMode = 0;
+static uint16_t spiDelay = 0;
+static uint32_t spiSpeed = 1000000;
 
-static int	g_gpio_intr;
+static int g_gpio_intr;
 
 static int spi_fd;
-static void mctp_spi_hexdump(const char *prefix, int len, void* buf);
-static int mctp_spi_xfer(int sendLen, uint8_t* sbuf, int recvLen,
-    uint8_t* rbuf, bool deassert);
+static void mctp_spi_hexdump(const char *prefix, int len, void *buf);
+static int mctp_spi_xfer(int sendLen, uint8_t *sbuf, int recvLen, uint8_t *rbuf,
+			 bool deassert);
 static int ast_spi_xfer_3wire(int fd, unsigned char *txdata, int txlen,
-    unsigned char *rxdata, int rxlen, bool deassert);
+			      unsigned char *rxdata, int rxlen, bool deassert);
 static int ast_spi_xfer_normal(int fd, unsigned char *txdata, int txlen,
-    unsigned char *rxdata, int rxlen, bool deassert);
+			       unsigned char *rxdata, int rxlen, bool deassert);
 static int ast_spi_on_mode_change(bool quad, uint8_t waitCycles);
 static void mctp_spi_verify_magics(struct mctp_binding_spi *spi);
 static int mctp_spi_rx(struct mctp_binding_spi *spi);
@@ -129,8 +130,7 @@ struct mctp_spi_header {
 	uint8_t reserved[2];
 };
 
-static int
-ast_spi_on_mode_change(bool quad, uint8_t waitCycles)
+static int ast_spi_on_mode_change(bool quad, uint8_t waitCycles)
 {
 	/*
 	 * Placeholder function to handle mode change here
@@ -140,10 +140,8 @@ ast_spi_on_mode_change(bool quad, uint8_t waitCycles)
 	return 0;
 }
 
-int
-mctp_check_spi_drv_exist(void)
+int mctp_check_spi_drv_exist(void)
 {
-
 	FILE *fp = NULL;
 	char buff[MCTP_SYSTEM_CMD_BUFF_SIZE];
 	const char *cmd = "lsmod | grep fmc";
@@ -164,8 +162,7 @@ mctp_check_spi_drv_exist(void)
 	return (0);
 }
 
-int
-mctp_check_spi_flash_exist(void)
+int mctp_check_spi_flash_exist(void)
 {
 	FILE *fp = NULL;
 	char buff[MCTP_SYSTEM_CMD_BUFF_SIZE];
@@ -187,8 +184,7 @@ mctp_check_spi_flash_exist(void)
 	return (0);
 }
 
-int
-mctp_unload_flash_driver(void)
+int mctp_unload_flash_driver(void)
 {
 	ssize_t ret = 0;
 	int fd = 0;
@@ -203,14 +199,13 @@ mctp_unload_flash_driver(void)
 
 	ret = write(fd, data, sizeof(data));
 	MCTP_ASSERT_RET(ret == sizeof(data), ret, "Could not write to %s.",
-	    path);
+			path);
 
 	close(fd);
 	return (0);
 }
 
-int
-mctp_load_spi_driver(void)
+int mctp_load_spi_driver(void)
 {
 	int ret = 0;
 	char cmd[MCTP_SPI_LOAD_CMD_SIZE];
@@ -222,23 +217,25 @@ mctp_load_spi_driver(void)
 
 		status = mctp_unload_flash_driver();
 		MCTP_ASSERT_RET(status == 0, MCTP_SPI_FAILURE,
-		    "Could not unload flash driver.");
+				"Could not unload flash driver.");
 	} else {
 		mctp_prinfo("%s: Flash driver already unloaded: %d\n", __func__,
-		    ret);
+			    ret);
 	}
 
 	/* Check Raw SPI driver is loaded */
 	ret = mctp_check_spi_drv_exist();
 	if (ret > 0) {
-		mctp_prinfo("%s: Raw SPI driver already loaded: %d\n", __func__, ret);
+		mctp_prinfo("%s: Raw SPI driver already loaded: %d\n", __func__,
+			    ret);
 	} else {
 		sleep(MCTP_SPI_LOAD_UNLOAD_DELAY_SECS);
 		memset(cmd, '\0', MCTP_SPI_LOAD_CMD_SIZE);
 		sprintf(cmd, "%s", MCTP_SPI_DRIVER_PATH);
 		mctp_prinfo("%s: Loading Raw SPI driver: %s\n", __func__, cmd);
 		ret = system(cmd);
-		mctp_prinfo("%s: Loaded Raw SPI driver successfully: %d\n", __func__, ret);
+		mctp_prinfo("%s: Loaded Raw SPI driver successfully: %d\n",
+			    __func__, ret);
 
 		/* Need some wait time to complete the FMC Raw SPI driver initialization */
 		sleep(MCTP_SPI_LOAD_UNLOAD_DELAY_SECS);
@@ -247,9 +244,8 @@ mctp_load_spi_driver(void)
 	return MCTP_SPI_SUCCESS;
 }
 
-static int
-mctp_spi_xfer(int sendLen, uint8_t* sbuf, int recvLen, uint8_t* rbuf,
-    bool deassert)
+static int mctp_spi_xfer(int sendLen, uint8_t *sbuf, int recvLen, uint8_t *rbuf,
+			 bool deassert)
 {
 	int status = 0;
 	int len = sendLen + recvLen; // sbuf and rbuf must be the same size
@@ -272,9 +268,8 @@ mctp_spi_xfer(int sendLen, uint8_t* sbuf, int recvLen, uint8_t* rbuf,
 	return (0);
 }
 
-static int
-mctp_spi_tx(struct mctp_binding_spi *spi, const uint8_t len,
-    struct mctp_astspi_pkt_private *pkt_pvt)
+static int mctp_spi_tx(struct mctp_binding_spi *spi, const uint8_t len,
+		       struct mctp_astspi_pkt_private *pkt_pvt)
 {
 	SpbApStatus status = 0;
 
@@ -283,13 +278,12 @@ mctp_spi_tx(struct mctp_binding_spi *spi, const uint8_t len,
 
 	status = spb_ap_send(&spi->nvda_spb_ap, len, spi->txbuf);
 	MCTP_ASSERT_RET(status == SPB_AP_OK, -1, "spb_ap_send failed: %d",
-	    status);
+			status);
 
 	return (0);
 }
 
-static int
-mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
+static int mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 {
 	struct mctp_binding_spi *spi = binding_to_spi(b);
 	struct mctp_spi_header *spi_hdr_tx = (void *)spi->txbuf;
@@ -312,7 +306,7 @@ mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 
 	spi_message_len = tx_buf_len + pkt_length;
 	MCTP_ASSERT_RET(spi_message_len <= sizeof(spi->txbuf), -1,
-	    "tx message length exceeds max spi message length");
+			"tx message length exceeds max spi message length");
 
 	memcpy(spi->txbuf + tx_buf_len, &pkt->data[pkt->start], pkt_length);
 	tx_buf_len += pkt_length;
@@ -324,10 +318,9 @@ mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	return (0);
 }
 
-static void
-mctp_spi_hexdump(const char *prefix, int len, void* buf)
+static void mctp_spi_hexdump(const char *prefix, int len, void *buf)
 {
-	unsigned char *data = (unsigned char*)buf;
+	unsigned char *data = (unsigned char *)buf;
 	int ii = 0;
 
 	printf("%s> ", prefix);
@@ -344,15 +337,12 @@ mctp_spi_hexdump(const char *prefix, int len, void* buf)
 	printf("\n");
 }
 
-int
-mctp_spi_get_fd(struct mctp_binding_spi *spi)
+int mctp_spi_get_fd(struct mctp_binding_spi *spi)
 {
-
 	return (spi->nvda_spb_ap.gpio_fd);
 }
 
-static void
-mctp_spi_verify_magics(struct mctp_binding_spi *spi)
+static void mctp_spi_verify_magics(struct mctp_binding_spi *spi)
 {
 	/*
 	 * The purpose of this function is to enforce
@@ -362,17 +352,16 @@ mctp_spi_verify_magics(struct mctp_binding_spi *spi)
 	 */
 
 	MCTP_ASSERT(spi->_magic1 == SPI_BINDING_MAGIC1,
-	    "Data corruption detected");
+		    "Data corruption detected");
 	MCTP_ASSERT(spi->_magic2 == SPI_BINDING_MAGIC2,
-	    "Data corruption detected");
+		    "Data corruption detected");
 	MCTP_ASSERT(spi->_magic3 == SPI_BINDING_MAGIC3,
-	    "Data corruption detected");
+		    "Data corruption detected");
 	MCTP_ASSERT(spi->_magic4 == SPI_BINDING_MAGIC4,
-	    "Data corruption detected");
+		    "Data corruption detected");
 }
 
-int
-mctp_spi_process(struct mctp_binding_spi *spi)
+int mctp_spi_process(struct mctp_binding_spi *spi)
 {
 	/*
 	 * We got notification from GPIO pin. There is no need to call poll(2)
@@ -393,8 +382,7 @@ mctp_spi_process(struct mctp_binding_spi *spi)
 	return (0);
 }
 
-static int
-mctp_spi_rx(struct mctp_binding_spi *spi)
+static int mctp_spi_rx(struct mctp_binding_spi *spi)
 {
 	ssize_t len;
 	ssize_t offset = 0;
@@ -411,7 +399,7 @@ mctp_spi_rx(struct mctp_binding_spi *spi)
 
 	status = spb_ap_recv(&spi->nvda_spb_ap, sizeof(spi->rxbuf), spi->rxbuf);
 	MCTP_ASSERT_RET(status == SPB_AP_OK, -1, "spb_ap_recv failed: %s",
-	    spb_ap_strstatus(status));
+			spb_ap_strstatus(status));
 
 	mctp_spi_verify_magics(spi);
 
@@ -420,11 +408,11 @@ mctp_spi_rx(struct mctp_binding_spi *spi)
 
 	MCTP_ASSERT_RET(len >= hdr_size, -1, "Invalid packet size: %d", len);
 	MCTP_ASSERT_RET(payload_len > 0, -1, "Invalid payload size: %zi",
-	    payload_len);
+			payload_len);
 
 	/* command_code != 0x02 => Not a payload intended for us */
 	MCTP_ASSERT_RET(spi_hdr_rx->command_code == MCTP_COMMAND_CODE, 0,
-	    "Got bad command code %d", spi_hdr_rx->command_code);
+			"Got bad command code %d", spi_hdr_rx->command_code);
 
 	mctp_trace_rx(spi->rxbuf, payload_len);
 
@@ -444,17 +432,13 @@ mctp_spi_rx(struct mctp_binding_spi *spi)
 	return 0;
 }
 
-int
-mctp_spi_set_spi_fd(struct mctp_binding_spi *spi, int fd)
+int mctp_spi_set_spi_fd(struct mctp_binding_spi *spi, int fd)
 {
-
 	spi->spi_fd = fd;
 }
 
-
-int
-mctp_spi_register_bus(struct mctp_binding_spi *spi, struct mctp *mctp,
-    mctp_eid_t eid)
+int mctp_spi_register_bus(struct mctp_binding_spi *spi, struct mctp *mctp,
+			  mctp_eid_t eid)
 {
 	int rc = 0;
 
@@ -467,16 +451,14 @@ mctp_spi_register_bus(struct mctp_binding_spi *spi, struct mctp *mctp,
 	return rc;
 }
 
-static int
-mctp_binding_spi_start(struct mctp_binding *b)
+static int mctp_binding_spi_start(struct mctp_binding *b)
 {
 	struct mctp_binding_spi *spi = binding_to_spi(b);
 
 	mctp_binding_set_tx_enabled(b, true);
 }
 
-struct mctp_binding_spi *
-mctp_spi_bind_init(void)
+struct mctp_binding_spi *mctp_spi_bind_init(void)
 {
 	struct mctp_binding_spi *spi = NULL;
 	int count = 0;
@@ -503,7 +485,7 @@ mctp_spi_bind_init(void)
 
 	mctp_prinfo("Opening SPI device...");
 	spi->spi_fd = ast_spi_open(AST_MCTP_SPI_DEV_NUM,
-	    AST_MCTP_SPI_CHANNEL_NUM, 0, 0, 0);
+				   AST_MCTP_SPI_CHANNEL_NUM, 0, 0, 0);
 	if (spi->spi_fd < 0) {
 		mctp_prerr("Could not open SPI fd.");
 		close(spi->gpio_fd);
@@ -527,12 +509,14 @@ mctp_spi_bind_init(void)
 			/* Increment the count */
 			count++;
 
-			mctp_prerr("%s: Cannot initialize SPB AP (%d), retrying[%d]\n",
-			    __func__, status, count);
+			mctp_prerr(
+				"%s: Cannot initialize SPB AP (%d), retrying[%d]\n",
+				__func__, status, count);
 			usleep(MCTP_SPI_CMD_DELAY_USECS);
 		} else {
-			mctp_prinfo("%s: Initialized SPB interface successfully\n",
-			    __func__);
+			mctp_prinfo(
+				"%s: Initialized SPB interface successfully\n",
+				__func__);
 		}
 	} while (count < SPB_AP_INIT_THRESHOLD && status != SPB_AP_OK);
 
@@ -541,7 +525,7 @@ mctp_spi_bind_init(void)
 	/* Return Failure, Glacier could be in bad state */
 	if (status != SPB_AP_OK) {
 		mctp_prerr("%s: Unable to initialize Glacier module\n",
-		    __func__);
+			   __func__);
 		close(spi->gpio_fd);
 		close(spi->spi_fd);
 		__mctp_free(spi);
@@ -569,18 +553,13 @@ mctp_spi_bind_init(void)
 	return spi;
 }
 
-void
-mctp_spi_set_controller(struct mctp_binding_spi *spi, uint8_t inst)
+void mctp_spi_set_controller(struct mctp_binding_spi *spi, uint8_t inst)
 {
-
 	spi->controller = inst;
 }
 
-
-void
-mctp_spi_free(struct mctp_binding_spi *spi)
+void mctp_spi_free(struct mctp_binding_spi *spi)
 {
-
 	if (!(spi->spi_fd < 0)) {
 		close(spi->spi_fd);
 	}
@@ -588,20 +567,18 @@ mctp_spi_free(struct mctp_binding_spi *spi)
 	__mctp_free(spi);
 }
 
-struct mctp_binding *
-mctp_binding_astspi_core(struct mctp_binding_spi *spi)
+struct mctp_binding *mctp_binding_astspi_core(struct mctp_binding_spi *spi)
 {
-
 	return &spi->binding;
 }
 
-static void
-ast_spi_print_tx_rx(unsigned char *txdata, int txlen, unsigned char *rxdata,
-    int rxlen)
+static void ast_spi_print_tx_rx(unsigned char *txdata, int txlen,
+				unsigned char *rxdata, int rxlen)
 {
 	int ii = 0;
 
-	mctp_prdebug("------------------------------------------------------\n");
+	mctp_prdebug(
+		"------------------------------------------------------\n");
 	mctp_prdebug("Tx [%d]: \t", (txlen - rxlen));
 	for (ii = 0; ii < (txlen - rxlen); ii++) {
 		mctp_prdebug("0x%x ", txdata[ii]);
@@ -611,29 +588,26 @@ ast_spi_print_tx_rx(unsigned char *txdata, int txlen, unsigned char *rxdata,
 	for (ii = 0; ii < rxlen; ii++) {
 		mctp_prdebug("0x%x ", rxdata[ii]);
 	}
-	mctp_prdebug("\n------------------------------------------------------\n");
+	mctp_prdebug(
+		"\n------------------------------------------------------\n");
 }
 
-int
-ast_spi_xfer(int fd, unsigned char *txdata, int txlen, unsigned char *rxdata,
-    int rxlen, bool deassert)
+int ast_spi_xfer(int fd, unsigned char *txdata, int txlen,
+		 unsigned char *rxdata, int rxlen, bool deassert)
 {
-
 	if (spiMode & SPI_3WIRE) {
 		return (ast_spi_xfer_3wire(fd, txdata, txlen, rxdata, rxlen,
-		    deassert));
+					   deassert));
 	}
 
 	return (ast_spi_xfer_normal(fd, txdata, txlen, rxdata, rxlen,
-	    deassert));
-
+				    deassert));
 }
 
-static int
-ast_spi_xfer_3wire(int fd, unsigned char *txdata, int txlen,
-    unsigned char *rxdata, int rxlen, bool deassert)
+static int ast_spi_xfer_3wire(int fd, unsigned char *txdata, int txlen,
+			      unsigned char *rxdata, int rxlen, bool deassert)
 {
-	struct spi_ioc_transfer spi = {0};
+	struct spi_ioc_transfer spi = { 0 };
 	int ret = 0;
 
 	// send
@@ -647,7 +621,7 @@ ast_spi_xfer_3wire(int fd, unsigned char *txdata, int txlen,
 
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &spi);
 	MCTP_ASSERT_RET(ret >= 0, ret, "Cannot send message %d (%s)", errno,
-	    strerror(errno));
+			strerror(errno));
 
 	// recv
 	spi.tx_buf = (unsigned long)NULL; // single wire recv, this must be null
@@ -660,16 +634,15 @@ ast_spi_xfer_3wire(int fd, unsigned char *txdata, int txlen,
 
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &spi);
 	MCTP_ASSERT_RET(ret >= 0, ret, "Cannot recv message: %d (%s)", errno,
-	    strerror(errno));
+			strerror(errno));
 
 	return (ret);
 }
 
-static int
-ast_spi_xfer_normal(int fd, unsigned char *txdata, int txlen,
-    unsigned char *rxdata, int rxlen, bool deassert)
+static int ast_spi_xfer_normal(int fd, unsigned char *txdata, int txlen,
+			       unsigned char *rxdata, int rxlen, bool deassert)
 {
-	struct spi_ioc_transfer spi={0};
+	struct spi_ioc_transfer spi = { 0 };
 	int ret;
 
 	if ((txlen - rxlen) > 0) {
@@ -687,53 +660,50 @@ ast_spi_xfer_normal(int fd, unsigned char *txdata, int txlen,
 
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &spi);
 	MCTP_ASSERT_RET(ret >= 0, ret, "SPI Xfer data failure: %d (%s)", errno,
-	    strerror(errno));
+			strerror(errno));
 
 	ast_spi_print_tx_rx(txdata, txlen, rxdata, rxlen);
 
 	return (ret);
 }
 
-int
-ast_spi_set_speed(int fd, int speed)
+int ast_spi_set_speed(int fd, int speed)
 {
 	int ret = 0;
 
 	ret = ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
 	MCTP_ASSERT_RET(ret >= 0, -1, "SPI WR Speed Change failure: %d (%s)",
-	    errno, strerror(errno));
+			errno, strerror(errno));
 
 	ret = ioctl(fd, SPI_IOC_RD_MAX_SPEED_HZ, &speed);
 	MCTP_ASSERT_RET(ret >= 0, -1, "SPI RD Speed Change failure: %d (%s)",
-	    errno, strerror(errno)) ;
+			errno, strerror(errno));
 
 	spiSpeed = speed;
 
 	return (ret);
 }
 
-int
-ast_spi_set_bpw(int fd, int bpw)
+int ast_spi_set_bpw(int fd, int bpw)
 {
 	int ret = 0;
 
 	ret = ioctl(fd, SPI_IOC_WR_MODE, &bpw);
 	MCTP_ASSERT_RET(ret >= 0, -1,
-	    "SPI WR BitPerWord Change failure: %d (%s)", errno,
-	    strerror(errno));
+			"SPI WR BitPerWord Change failure: %d (%s)", errno,
+			strerror(errno));
 
 	ret = ioctl(fd, SPI_IOC_RD_MODE, &bpw);
 	MCTP_ASSERT_RET(ret >= 0, -1,
-	    "SPI RD BitPerWord Change failure: %d (%s)", errno,
-	    strerror(errno));
+			"SPI RD BitPerWord Change failure: %d (%s)", errno,
+			strerror(errno));
 
 	spiBPW = bpw;
 
 	return (ret);
 }
 
-int
-ast_spi_set_mode(int fd, int mode)
+int ast_spi_set_mode(int fd, int mode)
 {
 	int ret = 0;
 	int tryMode = spiMode;
@@ -741,37 +711,34 @@ ast_spi_set_mode(int fd, int mode)
 	tryMode = spiMode | mode & 0x07;
 	ret = ioctl(fd, SPI_IOC_WR_MODE, &tryMode);
 	MCTP_ASSERT_RET(ret >= 0, -1, "SPI WR Mode Change failure: %d (%s)",
-	    errno, strerror(errno));
+			errno, strerror(errno));
 
 	ret = ioctl(fd, SPI_IOC_RD_MODE, &tryMode);
 	MCTP_ASSERT_RET(ret >= 0, -1, "SPI RD Mode Change failure: %d (%s)",
-	    errno, strerror(errno));
+			errno, strerror(errno));
 
 	spiMode = tryMode;
 
 	return (ret);
 }
 
-int
-ast_spi_set_udelay(int usecond)
+int ast_spi_set_udelay(int usecond)
 {
-
 	spiDelay = usecond;
 
 	return (0);
 }
 
-int
-ast_spi_open(int dev, int channel, int mode, int disableCS, int singleMode)
+int ast_spi_open(int dev, int channel, int mode, int disableCS, int singleMode)
 {
 	int fd = 0, ret = 0;
-	char spiDev[32]  = "";
+	char spiDev[32] = "";
 
 	snprintf(spiDev, 31, "/dev/spidev%d.%d", dev, channel);
 
 	fd = open(spiDev, O_RDWR);
 	MCTP_ASSERT_RET(fd >= 0, -1, "Unable to open SPI device: %d (%s)",
-	    errno, strerror(errno));
+			errno, strerror(errno));
 
 	spiMode = mode;
 	if (singleMode)
@@ -783,20 +750,18 @@ ast_spi_open(int dev, int channel, int mode, int disableCS, int singleMode)
 	return (fd);
 }
 
-int
-ast_spi_close(int fd)
+int ast_spi_close(int fd)
 {
 	int ret = 0;
 
 	ret = close(fd);
 	MCTP_ASSERT_RET(ret == 0, fd, "close(2) failed: %d (%s)", errno,
-	    strerror(errno));
+			strerror(errno));
 
 	return (0);
 }
 
-static int
-ast_spi_gpio_export(unsigned int gpio)
+static int ast_spi_gpio_export(unsigned int gpio)
 {
 	int fd = 0, len = 0;
 	ssize_t ret = 0;
@@ -804,8 +769,8 @@ ast_spi_gpio_export(unsigned int gpio)
 	const char path[] = SYSFS_GPIO_DIR "/export";
 
 	fd = open(path, O_WRONLY);
-	MCTP_ASSERT_RET(fd >= 0, fd, "Could not open: %s due to %d (%s)",
-	    path, errno, strerror(errno));
+	MCTP_ASSERT_RET(fd >= 0, fd, "Could not open: %s due to %d (%s)", path,
+			errno, strerror(errno));
 
 	memset(buf, '\0', sizeof(buf));
 	len = snprintf(buf, sizeof(buf), "%d", gpio);
@@ -813,14 +778,13 @@ ast_spi_gpio_export(unsigned int gpio)
 	ret = write(fd, buf, len);
 	/* EBUSY means the settings were already set. */
 	MCTP_ASSERT(ret == len || (ret == -1 && errno == EBUSY),
-	    "write(2) failed: %d (%s)", errno, strerror(errno));
+		    "write(2) failed: %d (%s)", errno, strerror(errno));
 	close(fd);
 
 	return (0);
 }
 
-static int
-ast_spi_gpio_unexport(unsigned int gpio)
+static int ast_spi_gpio_unexport(unsigned int gpio)
 {
 	int fd = 0, len = 0;
 	ssize_t ret;
@@ -828,49 +792,47 @@ ast_spi_gpio_unexport(unsigned int gpio)
 	const char path[] = SYSFS_GPIO_DIR "/unexport";
 
 	fd = open(path, O_WRONLY);
-	MCTP_ASSERT_RET(fd >= 0, fd, "Could not open: %s due to %d (%s)",
-	    path, errno, strerror(errno));
+	MCTP_ASSERT_RET(fd >= 0, fd, "Could not open: %s due to %d (%s)", path,
+			errno, strerror(errno));
 
 	memset(buf, '\0', sizeof(buf));
 	len = snprintf(buf, sizeof(buf), "%d", gpio);
 
 	ret = write(fd, buf, len);
 	MCTP_ASSERT(ret == len, "write(2) failed: %d (%s)", errno,
-	    strerror(errno));
+		    strerror(errno));
 
 	close(fd);
 	return (0);
 }
 
-static int
-ast_spi_gpio_set_dir(unsigned int gpio, unsigned int out_flag)
+static int ast_spi_gpio_set_dir(unsigned int gpio, unsigned int out_flag)
 {
 	int fd = 0;
 	ssize_t ret;
 	char buf[MAX_BUF];
 
 	memset(buf, '\0', sizeof(buf));
-	snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR  "/gpio%d/direction", gpio);
+	snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR "/gpio%d/direction", gpio);
 
 	fd = open(buf, O_WRONLY);
 	MCTP_ASSERT_RET(fd >= 0, fd, "Could not open: %s due to %d (%s)",
-	    (char *)buf, errno, strerror(errno));
+			(char *)buf, errno, strerror(errno));
 
 	if (out_flag) {
 		ret = write(fd, "out", 4);
 		MCTP_ASSERT(ret == 4, "write(2) failed: %d (%s)", errno,
-		    strerror(errno));
+			    strerror(errno));
 	} else {
 		ret = write(fd, "in", 3);
 		MCTP_ASSERT(ret == 3, "write(2) failed: %d (%s)", errno,
-		    strerror(errno));
+			    strerror(errno));
 	}
 	close(fd);
 	return (0);
 }
 
-static int
-ast_spi_gpio_set_value(unsigned int gpio, unsigned int value)
+static int ast_spi_gpio_set_value(unsigned int gpio, unsigned int value)
 {
 	int fd = 0;
 	ssize_t ret;
@@ -881,23 +843,22 @@ ast_spi_gpio_set_value(unsigned int gpio, unsigned int value)
 
 	fd = open(buf, O_WRONLY);
 	MCTP_ASSERT_RET(fd >= 0, fd, "Could not open: %s due to %d (%s)", buf,
-	    errno, strerror(errno));
+			errno, strerror(errno));
 
 	if (value) {
 		ret = write(fd, "1", 2);
 		MCTP_ASSERT(ret == 1, "write(2) failed: %d (%s)", errno,
-		    strerror(errno));
+			    strerror(errno));
 	} else {
 		ret = write(fd, "0", 2);
 		MCTP_ASSERT(ret == 1, "write(2) failed: %d (%s)", errno,
-		    strerror(errno));
+			    strerror(errno));
 	}
 	close(fd);
 	return (0);
 }
 
-static int
-ast_spi_gpio_set_edge(unsigned int gpio, char *edge)
+static int ast_spi_gpio_set_edge(unsigned int gpio, char *edge)
 {
 	ssize_t ret;
 	int fd = 0;
@@ -907,12 +868,12 @@ ast_spi_gpio_set_edge(unsigned int gpio, char *edge)
 	snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR "/gpio%d/edge", gpio);
 
 	fd = open(buf, O_WRONLY);
-	MCTP_ASSERT_RET(fd >= 0, fd, "Could not open: %s due to %d (%s)",
-	    buf, errno, strerror(errno));
+	MCTP_ASSERT_RET(fd >= 0, fd, "Could not open: %s due to %d (%s)", buf,
+			errno, strerror(errno));
 
 	ret = write(fd, edge, strlen(edge) + 1);
-	MCTP_ASSERT(ret == strlen(edge) + 1, "write(2) failed: %d (%s)",
-	    errno, strerror(errno));
+	MCTP_ASSERT(ret == strlen(edge) + 1, "write(2) failed: %d (%s)", errno,
+		    strerror(errno));
 
 	close(fd);
 	return (0);
@@ -925,21 +886,18 @@ static int ast_spi_gpio_fd_open(unsigned int gpio)
 
 	snprintf(buf, sizeof(buf), SYSFS_GPIO_DIR "/gpio%d/value", gpio);
 
-	fd = open(buf, O_RDONLY | O_NONBLOCK );
+	fd = open(buf, O_RDONLY | O_NONBLOCK);
 	MCTP_ASSERT_RET(fd >= 0, fd, "GPIO fd_open error");
 
 	return (fd);
 }
 
-int
-ast_spi_gpio_fd_close(int gpio_fd)
+int ast_spi_gpio_fd_close(int gpio_fd)
 {
-
 	return (close(gpio_fd));
 }
 
-int
-ast_spi_gpio_intr_init(void)
+int ast_spi_gpio_intr_init(void)
 {
 	int gpio_fd = 0;
 	const unsigned int gpio = SPB_GPIO_INTR_NUM;
@@ -955,8 +913,7 @@ ast_spi_gpio_intr_init(void)
 	return (gpio_fd);
 }
 
-ssize_t
-ast_spi_gpio_intr_read(int gpio_fd)
+ssize_t ast_spi_gpio_intr_read(int gpio_fd)
 {
 	char buf[MAX_BUF];
 	ssize_t ret;
@@ -964,17 +921,16 @@ ast_spi_gpio_intr_read(int gpio_fd)
 
 	offset = lseek(gpio_fd, 0, SEEK_SET);
 	MCTP_ASSERT(offset == 0, "lseek(2) failed: %d (%s)", errno,
-	    strerror(errno));
+		    strerror(errno));
 
 	ret = read(gpio_fd, buf, sizeof(buf));
 	MCTP_ASSERT_RET(ret > 0, ret, "read(2) failed: %d (%s)", errno,
-	    strerror(errno));
+			strerror(errno));
 
 	return (ret);
 }
 
-short
-ast_spi_gpio_poll(int gpio_fd, int timeout_ms)
+short ast_spi_gpio_poll(int gpio_fd, int timeout_ms)
 {
 	int rc = 0;
 	const int nfds = 1;
@@ -987,7 +943,7 @@ ast_spi_gpio_poll(int gpio_fd, int timeout_ms)
 
 	rc = poll(fdset, nfds, timeout_ms);
 	MCTP_ASSERT(rc >= 0, "Failed[rc=%d]: GPIO[%d] Interrupt polling failed",
-	    rc, SPB_GPIO_INTR_NUM);
+		    rc, SPB_GPIO_INTR_NUM);
 
 	if (rc == 0)
 		return (0);
@@ -995,8 +951,7 @@ ast_spi_gpio_poll(int gpio_fd, int timeout_ms)
 	return (fdset[0].revents);
 }
 
-int
-ast_spi_gpio_intr_drain(int gpio_fd)
+int ast_spi_gpio_intr_drain(int gpio_fd)
 {
 	short revents = 0;
 	int count = 0;
@@ -1013,8 +968,8 @@ ast_spi_gpio_intr_drain(int gpio_fd)
 	return (count);
 }
 
-enum ast_spi_intr_status
-ast_spi_gpio_intr_check(int gpio_fd, int timeout_ms, bool polling)
+enum ast_spi_intr_status ast_spi_gpio_intr_check(int gpio_fd, int timeout_ms,
+						 bool polling)
 {
 	short revents = 0;
 	SpbApStatus status;

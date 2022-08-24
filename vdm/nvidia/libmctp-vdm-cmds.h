@@ -15,17 +15,16 @@ extern "C" {
 #define MCTP_VENDOR_MSG_TYPE 0x7f
 
 /* MCTP VDM Command codes */
-#define MCTP_VENDOR_CMD_SET_ENDPOINT_UUID   0x01
-#define MCTP_VENDOR_CMD_BOOTCOMPLETE        0x02
-#define MCTP_VENDOR_CMD_HEARTBEAT           0x03
-#define MCTP_VENDOR_CMD_ENABLE_HEARTBEAT    0x04
-#define MCTP_VENDOR_CMD_QUERYBOOTSTATUS     0x05
-#define MCTP_VENDOR_CMD_DOWNLOAD_LOG        0x06
-#define MCTP_VENDOR_CMD_ENABLE_IB_UPDATE    0x07
-#define MCTP_VENDOR_CMD_SELFTEST            0x08
-#define MCTP_VENDOR_CMD_BG_COPY             0x09
-#define MCTP_VENDOR_CMD_RESTART             0x0A
-
+#define MCTP_VENDOR_CMD_SET_ENDPOINT_UUID 0x01
+#define MCTP_VENDOR_CMD_BOOTCOMPLETE 0x02
+#define MCTP_VENDOR_CMD_HEARTBEAT 0x03
+#define MCTP_VENDOR_CMD_ENABLE_HEARTBEAT 0x04
+#define MCTP_VENDOR_CMD_QUERYBOOTSTATUS 0x05
+#define MCTP_VENDOR_CMD_DOWNLOAD_LOG 0x06
+#define MCTP_VENDOR_CMD_ENABLE_IB_UPDATE 0x07
+#define MCTP_VENDOR_CMD_SELFTEST 0x08
+#define MCTP_VENDOR_CMD_BG_COPY 0x09
+#define MCTP_VENDOR_CMD_RESTART 0x0A
 
 struct mctp_vendor_msg_hdr {
 	uint32_t iana;
@@ -41,60 +40,62 @@ struct mctp_vendor_cmd_selftest {
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_bootcmplt {
-        struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_bootcomplete_v2 {
-        struct mctp_vendor_msg_hdr vdr_msg_hdr;
-        uint8_t slot  : 2;
-        uint8_t valid : 6;
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	uint8_t slot : 2;
+	uint8_t valid : 6;
 	uint8_t rvsd1;
 	uint8_t rvsd2;
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_hbenvent {
-        struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_hbenable {
-        struct mctp_vendor_msg_hdr vdr_msg_hdr;
-        uint8_t enable;
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	uint8_t enable;
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_background_copy {
-        struct mctp_vendor_msg_hdr vdr_msg_hdr;
-        uint8_t code;
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	uint8_t code;
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_bootstatus {
-        struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_downloadlog {
-        struct mctp_vendor_msg_hdr vdr_msg_hdr;
-        uint8_t session_id;
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	uint8_t session_id;
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_enable_ib_update {
-        struct mctp_vendor_msg_hdr vdr_msg_hdr;
-        uint8_t enable;
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	uint8_t enable;
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_restartnoti {
-        struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
 } __attribute__((__packed__));
-
 
 /* MCTP-VDM encoder API's */
 bool mctp_encode_vendor_cmd_selftest(struct mctp_vendor_cmd_selftest *cmd);
 bool mctp_encode_vendor_cmd_bootcmplt(struct mctp_vendor_cmd_bootcmplt *cmd);
-bool mctp_encode_vendor_cmd_bootcmplt_v2(struct mctp_vendor_cmd_bootcomplete_v2 *cmd);
+bool mctp_encode_vendor_cmd_bootcmplt_v2(
+	struct mctp_vendor_cmd_bootcomplete_v2 *cmd);
 bool mctp_encode_vendor_cmd_hbenable(struct mctp_vendor_cmd_hbenable *cmd);
 bool mctp_encode_vendor_cmd_hbenvent(struct mctp_vendor_cmd_hbenvent *cmd);
 bool mctp_encode_vendor_cmd_restartnoti(struct mctp_vendor_cmd_restartnoti *cmd);
 bool mctp_encode_vendor_cmd_bootstatus(struct mctp_vendor_cmd_bootstatus *cmd);
-bool mctp_encode_vendor_cmd_downloadlog(struct mctp_vendor_cmd_downloadlog *cmd, uint8_t session);
-bool mctp_encode_vendor_cmd_background_copy(struct mctp_vendor_cmd_background_copy *cmd);
+bool mctp_encode_vendor_cmd_downloadlog(struct mctp_vendor_cmd_downloadlog *cmd,
+					uint8_t session);
+bool mctp_encode_vendor_cmd_background_copy(
+	struct mctp_vendor_cmd_background_copy *cmd);
 
 #ifdef __cplusplus
 }

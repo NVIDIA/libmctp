@@ -20,58 +20,58 @@ typedef uint8_t mctp_eid_t;
 
 /* MCTP packet definitions */
 struct mctp_hdr {
-	uint8_t	ver;
-	uint8_t	dest;
-	uint8_t	src;
-	uint8_t	flags_seq_tag;
+	uint8_t ver;
+	uint8_t dest;
+	uint8_t src;
+	uint8_t flags_seq_tag;
 };
 
 /* Definitions for flags_seq_tag field */
-#define MCTP_HDR_FLAG_SOM	(1<<7)
-#define MCTP_HDR_FLAG_EOM	(1<<6)
-#define MCTP_HDR_FLAG_TO	(1<<3)
-#define MCTP_HDR_SEQ_SHIFT	(4)
-#define MCTP_HDR_SEQ_MASK	(0x3)
-#define MCTP_HDR_TAG_SHIFT	(0)
-#define MCTP_HDR_TAG_MASK	(0x7)
+#define MCTP_HDR_FLAG_SOM (1 << 7)
+#define MCTP_HDR_FLAG_EOM (1 << 6)
+#define MCTP_HDR_FLAG_TO (1 << 3)
+#define MCTP_HDR_SEQ_SHIFT (4)
+#define MCTP_HDR_SEQ_MASK (0x3)
+#define MCTP_HDR_TAG_SHIFT (0)
+#define MCTP_HDR_TAG_MASK (0x7)
 
 /* Baseline Transmission Unit and packet size */
-#define MCTP_BTU		64
-#define MCTP_PACKET_SIZE(unit)	((unit) + sizeof(struct mctp_hdr))
-#define MCTP_BODY_SIZE(unit)	((unit) - sizeof(struct mctp_hdr))
+#define MCTP_BTU 64
+#define MCTP_PACKET_SIZE(unit) ((unit) + sizeof(struct mctp_hdr))
+#define MCTP_BODY_SIZE(unit) ((unit) - sizeof(struct mctp_hdr))
 
-#define MCTP_CONTROL_MESSAGE_TYPE	0x00
+#define MCTP_CONTROL_MESSAGE_TYPE 0x00
 
 enum MCTP_COMMAND_CODE {
-	MCTP_COMMAND_CODE_SET_EID			= 0x01,
-	MCTP_COMMAND_CODE_GET_EID			= 0x02,
-	MCTP_COMMAND_CODE_GET_ENDPOINT_UUID		= 0x03,
-	MCTP_COMMAND_CODE_GET_MCTP_VERSION_SUPPORT	= 0x04,
-	MCTP_COMMAND_CODE_GET_MESSAGE_TYPE_SUPPORT	= 0x05,
-	MCTP_COMMAND_CODE_GET_VENDOR_DEFINED_MSG_SUPPORT= 0x06,
-	MCTP_COMMAND_CODE_RESOLVE_ENDPOINT_ID		= 0x07,
-	MCTP_COMMAND_CODE_ALLOCATE_ENDPOINT_IDS		= 0x08,
-	MCTP_COMMAND_CODE_ROUTING_INFORMATION_UPDATE	= 0x09,
-	MCTP_COMMAND_CODE_GET_ROUTING_TABLE_ENTRIES	= 0x0A,
-	MCTP_COMMAND_CODE_PREPARE_FOR_ENDPOINT_DISCOVERY= 0x0B,
-	MCTP_COMMAND_CODE_ENDPOINT_DISCOVERY		= 0x0C,
-	MCTP_COMMAND_CODE_DISCOVERY_NOTIFY		= 0x0D,
-	MCTP_COMMAND_CODE_GET_NETWORK_ID		= 0x0E,
-	MCTP_COMMAND_CODE_QUERY_HOP			= 0x0F,
-	MCTP_COMMAND_CODE_RESOLVE_UUID			= 0x10,
-	MCTP_COMMAND_CODE_QUERY_RATE_LIMIT		= 0x11,
-	MCTP_COMMAND_CODE_REQUEST_TX_RATE_LIMIT		= 0x12,
-	MCTP_COMMAND_CODE_UPDATE_RATE_LIMIT		= 0x13,
-	MCTP_COMMAND_CODE_QUERY_SUPPORTED_INTERFACES	= 0x14
+	MCTP_COMMAND_CODE_SET_EID = 0x01,
+	MCTP_COMMAND_CODE_GET_EID = 0x02,
+	MCTP_COMMAND_CODE_GET_ENDPOINT_UUID = 0x03,
+	MCTP_COMMAND_CODE_GET_MCTP_VERSION_SUPPORT = 0x04,
+	MCTP_COMMAND_CODE_GET_MESSAGE_TYPE_SUPPORT = 0x05,
+	MCTP_COMMAND_CODE_GET_VENDOR_DEFINED_MSG_SUPPORT = 0x06,
+	MCTP_COMMAND_CODE_RESOLVE_ENDPOINT_ID = 0x07,
+	MCTP_COMMAND_CODE_ALLOCATE_ENDPOINT_IDS = 0x08,
+	MCTP_COMMAND_CODE_ROUTING_INFORMATION_UPDATE = 0x09,
+	MCTP_COMMAND_CODE_GET_ROUTING_TABLE_ENTRIES = 0x0A,
+	MCTP_COMMAND_CODE_PREPARE_FOR_ENDPOINT_DISCOVERY = 0x0B,
+	MCTP_COMMAND_CODE_ENDPOINT_DISCOVERY = 0x0C,
+	MCTP_COMMAND_CODE_DISCOVERY_NOTIFY = 0x0D,
+	MCTP_COMMAND_CODE_GET_NETWORK_ID = 0x0E,
+	MCTP_COMMAND_CODE_QUERY_HOP = 0x0F,
+	MCTP_COMMAND_CODE_RESOLVE_UUID = 0x10,
+	MCTP_COMMAND_CODE_QUERY_RATE_LIMIT = 0x11,
+	MCTP_COMMAND_CODE_REQUEST_TX_RATE_LIMIT = 0x12,
+	MCTP_COMMAND_CODE_UPDATE_RATE_LIMIT = 0x13,
+	MCTP_COMMAND_CODE_QUERY_SUPPORTED_INTERFACES = 0x14
 };
 
 enum MCTP_CONTROL_MSG_COMPLETION_CODE {
-	MCTP_CONTROL_MSG_STATUS_SUCCESS			= 0x00,
-	MCTP_CONTROL_MSG_STATUS_ERROR			= 0x01,
-	MCTP_CONTROL_MSG_STATUS_ERROR_INVALID_DATA	= 0x02,
-	MCTP_CONTROL_MSG_STATUS_ERROR_INVALID_LENGTH	= 0x03,
-	MCTP_CONTROL_MSG_STATUS_ERROR_NOT_READY		= 0x04,
-	MCTP_CONTROL_MSG_STATUS_ERROR_UNSUPPORTED_CMD	= 0x05
+	MCTP_CONTROL_MSG_STATUS_SUCCESS = 0x00,
+	MCTP_CONTROL_MSG_STATUS_ERROR = 0x01,
+	MCTP_CONTROL_MSG_STATUS_ERROR_INVALID_DATA = 0x02,
+	MCTP_CONTROL_MSG_STATUS_ERROR_INVALID_LENGTH = 0x03,
+	MCTP_CONTROL_MSG_STATUS_ERROR_NOT_READY = 0x04,
+	MCTP_CONTROL_MSG_STATUS_ERROR_UNSUPPORTED_CMD = 0x05
 };
 
 /*
@@ -81,18 +81,18 @@ enum MCTP_CONTROL_MSG_COMPLETION_CODE {
 
 typedef enum {
 
-    /* MCTP Control message type starts from 0*/
-    MCTP_MESSAGE_TYPE_MCTP_CTRL = 0x00,
-    MCTP_MESSAGE_TYPE_PLDM,
-    MCTP_MESSAGE_TYPE_NCSI,
-    MCTP_MESSAGE_TYPE_ETHERNET,
-    MCTP_MESSAGE_TYPE_NVME,
-    MCTP_MESSAGE_TYPE_SPDM,
-    MCTP_MESSAGE_TYPE_SECUREDMSG,
+	/* MCTP Control message type starts from 0*/
+	MCTP_MESSAGE_TYPE_MCTP_CTRL = 0x00,
+	MCTP_MESSAGE_TYPE_PLDM,
+	MCTP_MESSAGE_TYPE_NCSI,
+	MCTP_MESSAGE_TYPE_ETHERNET,
+	MCTP_MESSAGE_TYPE_NVME,
+	MCTP_MESSAGE_TYPE_SPDM,
+	MCTP_MESSAGE_TYPE_SECUREDMSG,
 
-    /* MCTP VDPCI message type starts from 0x7e */
-    MCTP_MESSAGE_TYPE_VDPCI  = 0x7E,
-    MCTP_MESSAGE_TYPE_VDIANA
+	/* MCTP VDPCI message type starts from 0x7e */
+	MCTP_MESSAGE_TYPE_VDPCI = 0x7E,
+	MCTP_MESSAGE_TYPE_VDIANA
 } mcpt_msg_type_t;
 
 /* MCTP Physical Transport Binding identifiers
@@ -101,29 +101,28 @@ typedef enum {
 
 typedef enum {
 
-    /* Starts with Reserved */
-    MCTP_BINDING_RESERVED = 0,
-    MCTP_BINDING_SMBUS,
-    MCTP_BINDING_PCIE,
-    MCTP_BINDING_USB,
-    MCTP_BINDING_KCS,
-    MCTP_BINDING_SERIAL,
-    MCTP_BINDING_SPI,
+	/* Starts with Reserved */
+	MCTP_BINDING_RESERVED = 0,
+	MCTP_BINDING_SMBUS,
+	MCTP_BINDING_PCIE,
+	MCTP_BINDING_USB,
+	MCTP_BINDING_KCS,
+	MCTP_BINDING_SERIAL,
+	MCTP_BINDING_SPI,
 
-    /*Last is the vendor ID, all others reserved */
-    MCTP_BINDING_VEDNOR = 0xff
+	/*Last is the vendor ID, all others reserved */
+	MCTP_BINDING_VEDNOR = 0xff
 } mctp_binding_ids_t;
-
 
 /* packet buffers */
 
 struct mctp_pktbuf {
-	size_t		start, end, size;
-	size_t		mctp_hdr_off;
+	size_t start, end, size;
+	size_t mctp_hdr_off;
 	struct mctp_pktbuf *next;
-        /* binding private data */
-        void *msg_binding_private;
-	unsigned char	data[];
+	/* binding private data */
+	void *msg_binding_private;
+	unsigned char data[];
 };
 
 struct mctp_binding;
@@ -153,9 +152,8 @@ void mctp_destroy(struct mctp *mctp);
  * and will deliver local packets to a RX callback - see `mctp_set_rx_all()`
  * below.
  */
-int mctp_register_bus(struct mctp *mctp,
-		struct mctp_binding *binding,
-		mctp_eid_t eid);
+int mctp_register_bus(struct mctp *mctp, struct mctp_binding *binding,
+		      mctp_eid_t eid);
 
 /* Create a simple bidirectional bridge between busses.
  *
@@ -163,19 +161,18 @@ int mctp_register_bus(struct mctp *mctp,
  * defined, so no packets are considered local. Instead, all messages from one
  * binding are forwarded to the other.
  */
-int mctp_bridge_busses(struct mctp *mctp,
-		struct mctp_binding *b1, struct mctp_binding *b2);
+int mctp_bridge_busses(struct mctp *mctp, struct mctp_binding *b1,
+		       struct mctp_binding *b2);
 
-typedef void (*mctp_rx_fn)(uint8_t src_eid, void *data,
-		void *msg, size_t len);
+typedef void (*mctp_rx_fn)(uint8_t src_eid, void *data, void *msg, size_t len);
 
 int mctp_set_rx_all(struct mctp *mctp, mctp_rx_fn fn, void *data);
 
-int mctp_message_tx(struct mctp *mctp, mctp_eid_t eid,
-		void *msg, size_t msg_len);
+int mctp_message_tx(struct mctp *mctp, mctp_eid_t eid, void *msg,
+		    size_t msg_len);
 
-int mctp_message_pvt_bind_tx(struct mctp *mctp, mctp_eid_t eid,
-		void *msg, size_t msg_len, void *msg_binding_private);
+int mctp_message_pvt_bind_tx(struct mctp *mctp, mctp_eid_t eid, void *msg,
+			     size_t msg_len, void *msg_binding_private);
 
 /* hardware bindings */
 struct mctp_binding {
@@ -202,9 +199,8 @@ void mctp_binding_set_tx_enabled(struct mctp_binding *binding, bool enable);
 void mctp_bus_rx(struct mctp_binding *binding, struct mctp_pktbuf *pkt);
 
 /* environment-specific allocation */
-void mctp_set_alloc_ops(void *(*alloc)(size_t),
-		void (*free)(void *),
-		void *(realloc)(void *, size_t));
+void mctp_set_alloc_ops(void *(*alloc)(size_t), void (*free)(void *),
+			void *(realloc)(void *, size_t));
 
 /* environment-specific logging */
 
@@ -215,12 +211,11 @@ void mctp_set_tracing_enabled(bool enable);
 
 /* these should match the syslog-standard LOG_* definitions, for
  * easier use with syslog */
-#define MCTP_LOG_ERR		3
-#define MCTP_LOG_WARNING	4
-#define MCTP_LOG_NOTICE		5
-#define MCTP_LOG_INFO		6
-#define MCTP_LOG_DEBUG		7
-
+#define MCTP_LOG_ERR 3
+#define MCTP_LOG_WARNING 4
+#define MCTP_LOG_NOTICE 5
+#define MCTP_LOG_INFO 6
+#define MCTP_LOG_DEBUG 7
 
 #ifdef __cplusplus
 }

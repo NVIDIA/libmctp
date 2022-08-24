@@ -30,12 +30,12 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #define __unused __attribute__((unused))
 
-#define MCTP_BIND_INFO_OFFSET		(sizeof(uint8_t))
-#define MCTP_PCIE_EID_OFFSET		MCTP_BIND_INFO_OFFSET + \
-    sizeof(struct mctp_astpcie_pkt_private)
-#define MCTP_PCIE_MSG_OFFSET		MCTP_PCIE_EID_OFFSET + (sizeof(uint8_t))
-#define MCTP_SPI_MSG_OFFSET		MCTP_BIND_INFO_OFFSET + \
-    sizeof(struct mctp_astspi_pkt_private)
+#define MCTP_BIND_INFO_OFFSET (sizeof(uint8_t))
+#define MCTP_PCIE_EID_OFFSET                                                   \
+	MCTP_BIND_INFO_OFFSET + sizeof(struct mctp_astpcie_pkt_private)
+#define MCTP_PCIE_MSG_OFFSET MCTP_PCIE_EID_OFFSET + (sizeof(uint8_t))
+#define MCTP_SPI_MSG_OFFSET                                                    \
+	MCTP_BIND_INFO_OFFSET + sizeof(struct mctp_astspi_pkt_private)
 
 #if HAVE_SYSTEMD_SD_DAEMON_H
 #include <systemd/sd-daemon.h>
@@ -49,40 +49,39 @@ static inline int sd_listen_fds(int i __unused)
 static const mctp_eid_t local_eid_default = 8;
 
 struct binding {
-	const char	*name;
-	int		(*init)(struct mctp *mctp, struct binding *binding,
-				mctp_eid_t eid, int n_params,
-				char * const * params);
-	int		(*get_fd)(struct binding *binding);
-	int		(*process)(struct binding *binding);
-	void		*data;
-	char		*sockname;
+	const char *name;
+	int (*init)(struct mctp *mctp, struct binding *binding, mctp_eid_t eid,
+		    int n_params, char *const *params);
+	int (*get_fd)(struct binding *binding);
+	int (*process)(struct binding *binding);
+	void *data;
+	char *sockname;
 	/*
 	 * Events to monitor. Some bindings, e.g. SPI,
 	 * requires to monitor POLLPRI, not POLLIN.
 	 */
-	short		events;
+	short events;
 };
 
 struct client {
-	bool		active;
-	int		sock;
-	uint8_t		type;
+	bool active;
+	int sock;
+	uint8_t type;
 };
 
 struct ctx {
-	struct mctp	*mctp;
-	struct binding	*binding;
-	bool		verbose;
-	int		local_eid;
-	void		*buf;
-	size_t		buf_size;
+	struct mctp *mctp;
+	struct binding *binding;
+	bool verbose;
+	int local_eid;
+	void *buf;
+	size_t buf_size;
 
-	int		sock;
-	struct pollfd	*pollfds;
+	int sock;
+	struct pollfd *pollfds;
 
-	struct client	*clients;
-	int		n_clients;
+	struct client *clients;
+	int n_clients;
 };
 
 static void mctp_print_hex(uint8_t *data, size_t length)
@@ -100,7 +99,7 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 	union {
 		struct mctp_astpcie_pkt_private pcie;
 		struct mctp_astspi_pkt_private spi;
-	} pvt_binding = {0};
+	} pvt_binding = { 0 };
 	mctp_eid_t eid = 0;
 
 	/* Get the bus type (binding ID) */
@@ -111,27 +110,29 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 	case MCTP_BINDING_PCIE:
 		/* Copy the binding information */
 		memcpy(&pvt_binding.pcie, (msg + MCTP_BIND_INFO_OFFSET),
-		    sizeof(struct mctp_astpcie_pkt_private));
-			/* Get target EID */
+		       sizeof(struct mctp_astpcie_pkt_private));
+		/* Get target EID */
 
 		eid = *((uint8_t *)msg + MCTP_PCIE_EID_OFFSET);
-			/* Set MCTP payload size */
+		/* Set MCTP payload size */
 
-		len = len - (MCTP_PCIE_MSG_OFFSET) - 1;
+		len = len - (MCTP_PCIE_MSG_OFFSET)-1;
 		mctp_print_hex((uint8_t *)msg + MCTP_PCIE_MSG_OFFSET, len);
-		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, msg +
-		    MCTP_PCIE_MSG_OFFSET, len, (void *)&pvt_binding.pcie);
+		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid,
+					      msg + MCTP_PCIE_MSG_OFFSET, len,
+					      (void *)&pvt_binding.pcie);
 
 		if (ctx->verbose) {
 			printf("%s: BindID: %d, Target EID: %d, msg len: %zi,\
-			    Routing:%d remote_id: 0x%x\n", __func__, bind_id,
-			    eid, len, pvt_binding.pcie.routing,
-			    pvt_binding.pcie.remote_id);
+			    Routing:%d remote_id: 0x%x\n",
+			       __func__, bind_id, eid, len,
+			       pvt_binding.pcie.routing,
+			       pvt_binding.pcie.remote_id);
 		}
 		break;
 	case MCTP_BINDING_SPI:
 		memcpy(&pvt_binding.spi, (msg + MCTP_BIND_INFO_OFFSET),
-		    sizeof(struct mctp_astspi_pkt_private));
+		       sizeof(struct mctp_astspi_pkt_private));
 		break;
 	default:
 		warnx("Invalid/Unsupported binding ID %d", bind_id);
@@ -162,10 +163,10 @@ static void client_remove_inactive(struct ctx *ctx)
 		close(client->sock);
 
 		ctx->n_clients--;
-		memmove(&ctx->clients[i], &ctx->clients[i+1],
-				(ctx->n_clients - i) * sizeof(*ctx->clients));
+		memmove(&ctx->clients[i], &ctx->clients[i + 1],
+			(ctx->n_clients - i) * sizeof(*ctx->clients));
 		ctx->clients = realloc(ctx->clients,
-				ctx->n_clients * sizeof(*ctx->clients));
+				       ctx->n_clients * sizeof(*ctx->clients));
 	}
 }
 
@@ -185,7 +186,7 @@ static void rx_message(uint8_t eid, void *data, void *msg, size_t len)
 
 	if (ctx->verbose)
 		fprintf(stderr, "MCTP message received: len %zd, type %d\n",
-				len, type);
+			len, type);
 
 	memset(&msghdr, 0, sizeof(msghdr));
 	msghdr.msg_iov = iov;
@@ -213,13 +214,12 @@ static void rx_message(uint8_t eid, void *data, void *msg, size_t len)
 
 	if (removed)
 		client_remove_inactive(ctx);
-
 }
 
 static int binding_null_init(struct mctp *mctp __unused,
-		struct binding *binding __unused,
-		mctp_eid_t eid __unused,
-		int n_params, char * const *params __unused)
+			     struct binding *binding __unused,
+			     mctp_eid_t eid __unused, int n_params,
+			     char *const *params __unused)
 {
 	if (n_params != 0) {
 		warnx("null binding doesn't accept parameters");
@@ -229,7 +229,8 @@ static int binding_null_init(struct mctp *mctp __unused,
 }
 
 static int binding_serial_init(struct mctp *mctp, struct binding *binding,
-		mctp_eid_t eid, int n_params, char * const *params)
+			       mctp_eid_t eid, int n_params,
+			       char *const *params)
 {
 	struct mctp_binding_serial *serial;
 	const char *path;
@@ -267,7 +268,8 @@ static int binding_serial_process(struct binding *binding)
 }
 
 static int binding_astlpc_init(struct mctp *mctp, struct binding *binding,
-    mctp_eid_t eid, int n_params, char * const *params __attribute__((unused)))
+			       mctp_eid_t eid, int n_params,
+			       char *const *params __attribute__((unused)))
 {
 	struct mctp_binding_astlpc *astlpc;
 
@@ -299,7 +301,8 @@ static int binding_astlpc_process(struct binding *binding)
 }
 
 static int binding_astpcie_init(struct mctp *mctp, struct binding *binding,
-    mctp_eid_t eid, int n_params, char * const *params __attribute__((unused)))
+				mctp_eid_t eid, int n_params,
+				char *const *params __attribute__((unused)))
 {
 	struct mctp_binding_astpcie *astpcie;
 
@@ -339,7 +342,8 @@ static int binding_astpcie_process(struct binding *binding)
 }
 
 static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
-		mctp_eid_t eid, int n_params, char * const *params)
+			       mctp_eid_t eid, int n_params,
+			       char *const *params)
 {
 	struct mctp_binding_spi *astspi;
 
@@ -372,44 +376,42 @@ static int binding_astspi_process(struct binding *binding)
 	return (mctp_spi_process(astspi));
 }
 
-struct binding bindings[] = {
-	{
-		.name = "null",
-		.init = binding_null_init,
-	},
-	{
-		.name = "serial",
-		.init = binding_serial_init,
-		.get_fd = binding_serial_get_fd,
-		.process = binding_serial_process,
-		.sockname = "\0mctp-serial-mux",
-		.events = POLLIN,
-	},
-	{
-		.name = "astlpc",
-		.init = binding_astlpc_init,
-		.get_fd = binding_astlpc_get_fd,
-		.process = binding_astlpc_process,
-		.sockname = "\0mctp-lpc-mux",
-		.events = POLLIN,
-	},
-	{
-		.name = "astpcie",
-		.init = binding_astpcie_init,
-		.get_fd = binding_astpcie_get_fd,
-		.process = binding_astpcie_process,
-		.sockname = "\0mctp-pcie-mux",
-		.events = POLLIN,
-	},
-	{
-		.name = "astspi",
-		.init = binding_astspi_init,
-		.get_fd = binding_astspi_get_fd,
-		.process = binding_astspi_process,
-		.sockname = "\0mctp-spi-mux",
-		.events = POLLPRI,
-	}
-};
+struct binding bindings[] = { {
+				      .name = "null",
+				      .init = binding_null_init,
+			      },
+			      {
+				      .name = "serial",
+				      .init = binding_serial_init,
+				      .get_fd = binding_serial_get_fd,
+				      .process = binding_serial_process,
+				      .sockname = "\0mctp-serial-mux",
+				      .events = POLLIN,
+			      },
+			      {
+				      .name = "astlpc",
+				      .init = binding_astlpc_init,
+				      .get_fd = binding_astlpc_get_fd,
+				      .process = binding_astlpc_process,
+				      .sockname = "\0mctp-lpc-mux",
+				      .events = POLLIN,
+			      },
+			      {
+				      .name = "astpcie",
+				      .init = binding_astpcie_init,
+				      .get_fd = binding_astpcie_get_fd,
+				      .process = binding_astpcie_process,
+				      .sockname = "\0mctp-pcie-mux",
+				      .events = POLLIN,
+			      },
+			      {
+				      .name = "astspi",
+				      .init = binding_astspi_init,
+				      .get_fd = binding_astspi_get_fd,
+				      .process = binding_astspi_process,
+				      .sockname = "\0mctp-spi-mux",
+				      .events = POLLPRI,
+			      } };
 
 struct binding *binding_lookup(const char *name)
 {
@@ -433,12 +435,9 @@ static int socket_init(struct ctx *ctx)
 
 	memset(&addr, 0, sizeof(addr));
 
-	if (ctx->binding->sockname[0] == '\0')
-	{
+	if (ctx->binding->sockname[0] == '\0') {
 		namelen = 1 + strlen(ctx->binding->sockname + 1);
-	}
-	else
-	{
+	} else {
 		namelen = strlen(ctx->binding->sockname);
 	}
 
@@ -452,7 +451,7 @@ static int socket_init(struct ctx *ctx)
 	}
 
 	rc = bind(ctx->sock, (struct sockaddr *)&addr,
-			sizeof(addr.sun_family) + namelen);
+		  sizeof(addr.sun_family) + namelen);
 	if (rc) {
 		warn("can't bind socket");
 		goto err_close;
@@ -480,10 +479,10 @@ static int socket_process(struct ctx *ctx)
 		return -1;
 
 	ctx->n_clients++;
-	ctx->clients = realloc(ctx->clients,
-			ctx->n_clients * sizeof(struct client));
+	ctx->clients =
+		realloc(ctx->clients, ctx->n_clients * sizeof(struct client));
 
-	client = &ctx->clients[ctx->n_clients-1];
+	client = &ctx->clients[ctx->n_clients - 1];
 	memset(client, 0, sizeof(*client));
 	client->active = true;
 	client->sock = fd;
@@ -510,7 +509,7 @@ static int client_process_recv(struct ctx *ctx, int idx)
 
 		if (ctx->verbose)
 			fprintf(stderr, "client[%d] registered for type %u\n",
-					idx, type);
+				idx, type);
 		client->type = type;
 		return 0;
 	}
@@ -568,10 +567,8 @@ static int client_process_recv(struct ctx *ctx, int idx)
 	eid = *(uint8_t *)ctx->buf;
 
 	if (ctx->verbose)
-		fprintf(stderr,
-			"client[%d] sent message: dest 0x%02x len %d\n",
+		fprintf(stderr, "client[%d] sent message: dest 0x%02x len %d\n",
 			idx, eid, rc - 1);
-
 
 	if (eid == ctx->local_eid)
 		rx_message(eid, ctx, ctx->buf + 1, rc - 1);
@@ -585,8 +582,8 @@ out_close:
 	return rc;
 }
 
-static int binding_init(struct ctx *ctx, const char *name,
-		int argc, char * const *argv)
+static int binding_init(struct ctx *ctx, const char *name, int argc,
+			char *const *argv)
 {
 	int rc;
 
@@ -596,15 +593,14 @@ static int binding_init(struct ctx *ctx, const char *name,
 		return -1;
 	}
 
-	rc = ctx->binding->init(ctx->mctp, ctx->binding, ctx->local_eid,
-	    argc, argv);
+	rc = ctx->binding->init(ctx->mctp, ctx->binding, ctx->local_eid, argc,
+				argv);
 	return rc;
 }
 
-enum {
-	FD_BINDING = 0,
-	FD_SOCKET,
-	FD_NR,
+enum { FD_BINDING = 0,
+       FD_SOCKET,
+       FD_NR,
 };
 
 static int run_daemon(struct ctx *ctx)
@@ -633,13 +629,13 @@ static int run_daemon(struct ctx *ctx)
 			int i;
 
 			ctx->pollfds = realloc(ctx->pollfds,
-					(ctx->n_clients + FD_NR) *
-						sizeof(struct pollfd));
+					       (ctx->n_clients + FD_NR) *
+						       sizeof(struct pollfd));
 
 			for (i = 0; i < ctx->n_clients; i++) {
-				ctx->pollfds[FD_NR+i].fd =
+				ctx->pollfds[FD_NR + i].fd =
 					ctx->clients[i].sock;
-				ctx->pollfds[FD_NR+i].events = POLLIN;
+				ctx->pollfds[FD_NR + i].events = POLLIN;
 			}
 			clients_changed = false;
 		}
@@ -662,7 +658,7 @@ static int run_daemon(struct ctx *ctx)
 		}
 
 		for (i = 0; i < ctx->n_clients; i++) {
-			if (!ctx->pollfds[FD_NR+i].revents)
+			if (!ctx->pollfds[FD_NR + i].revents)
 				continue;
 
 			rc = client_process_recv(ctx, i);
@@ -671,7 +667,6 @@ static int run_daemon(struct ctx *ctx)
 		}
 
 		if (ctx->pollfds[FD_SOCKET].revents) {
-
 			rc = socket_process(ctx);
 			if (rc)
 				break;
@@ -680,7 +675,6 @@ static int run_daemon(struct ctx *ctx)
 
 		if (clients_changed)
 			client_remove_inactive(ctx);
-
 	}
 
 	free(ctx->pollfds);
@@ -704,7 +698,7 @@ static void usage(const char *progname)
 		fprintf(stderr, "  %s\n", bindings[i].name);
 }
 
-int main(int argc, char * const *argv)
+int main(int argc, char *const *argv)
 {
 	struct ctx *ctx, _ctx;
 	int rc;
@@ -757,7 +751,8 @@ int main(int argc, char * const *argv)
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
 
 	mctp_prinfo("Binding init called.");
-	rc = binding_init(ctx, argv[optind], argc - optind - 1, argv + optind + 1);
+	rc = binding_init(ctx, argv[optind], argc - optind - 1,
+			  argv + optind + 1);
 	mctp_prinfo("Binding init returned: %d.", rc);
 	if (rc)
 		return EXIT_FAILURE;

@@ -17,12 +17,12 @@ extern "C" {
 //#include "ctrld/mctp-ctrl-cmds.h"
 
 /* MCTP SPI Control daemon delay default */
-#define MCTP_SPI_CTRL_DELAY_DEFAULT                         10
+#define MCTP_SPI_CTRL_DELAY_DEFAULT 10
 
 /* System command buffer size */
-#define MCTP_SYSTEM_CMD_BUFF_SIZE                           1035
+#define MCTP_SYSTEM_CMD_BUFF_SIZE 1035
 
-#define MCTP_BINDING_SPI                                    0x06
+#define MCTP_BINDING_SPI 0x06
 
 #ifdef __cplusplus
 }

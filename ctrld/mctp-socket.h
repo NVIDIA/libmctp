@@ -33,8 +33,8 @@ mctp_requester_rc_t mctp_usr_socket_init(int *, const char *, uint8_t);
  *         when data was read, but wasn't a MCTP response message
  */
 mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
-                                     uint8_t **mctp_resp_msg,
-                                     size_t *resp_msg_len);
+				     uint8_t **mctp_resp_msg,
+				     size_t *resp_msg_len);
 
 /**
  * @brief Write MCTP socket. If the data is sent out, return success.

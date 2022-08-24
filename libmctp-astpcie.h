@@ -20,7 +20,7 @@ extern "C" {
 #include "libmctp.h"
 
 /* Poll timeout */
-#define MCTP_ASTPCIE_POLL_TIMEOUT   1000
+#define MCTP_ASTPCIE_POLL_TIMEOUT 1000
 
 struct mctp_binding_astpcie;
 
@@ -28,7 +28,8 @@ struct mctp_binding_astpcie *mctp_astpcie_init_fileio(void);
 
 struct mctp_binding *mctp_astpcie_core(struct mctp_binding_astpcie *b);
 
-struct mctp_binding *mctp_binding_astpcie_core(struct mctp_binding_astpcie *astpcie);
+struct mctp_binding *
+mctp_binding_astpcie_core(struct mctp_binding_astpcie *astpcie);
 
 int mctp_astpcie_poll(struct mctp_binding_astpcie *astpcie, int timeout);
 

@@ -104,31 +104,30 @@ static uint8_t calculate_pec_byte(uint8_t *buf, size_t len, uint8_t address,
 
 static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 {
-
 #ifdef I2C_M_HOLD
 	/* Hold message */
 	static uint16_t holdtimeout = 1000; // timeout in ms.
 	struct i2c_msg msg[2] =
-#else  // !I2C_M_HOLD
+#else // !I2C_M_HOLD
 	struct i2c_msg msg[1] =
 #endif // I2C_M_HOLD
-		{{.addr = MCTP_SLAVE_ADDRESS,
-		  .flags = 0,
-		  .len = len,
-		  .buf = (__uint8_t *)smbus->txbuf}
+		{ { .addr = MCTP_SLAVE_ADDRESS,
+		    .flags = 0,
+		    .len = len,
+		    .buf = (__uint8_t *)smbus->txbuf }
 #ifdef I2C_M_HOLD
-		 ,
-		 {.addr = 0,
-		  .flags = I2C_M_HOLD,
-		  .len = sizeof(holdtimeout),
-		  .buf = (__uint8_t *)&holdtimeout}
+		  ,
+		  { .addr = 0,
+		    .flags = I2C_M_HOLD,
+		    .len = sizeof(holdtimeout),
+		    .buf = (__uint8_t *)&holdtimeout }
 #endif // I2C_M_HOLD
 		};
 
 #ifdef I2C_M_HOLD
-	struct i2c_rdwr_ioctl_data msgrdwr = {&msg, 2};
-#else  // !I2C_M_HOLD
-	struct i2c_rdwr_ioctl_data msgrdwr = {&msg, 1};
+	struct i2c_rdwr_ioctl_data msgrdwr = { &msg, 2 };
+#else // !I2C_M_HOLD
+	struct i2c_rdwr_ioctl_data msgrdwr = { &msg, 1 };
 #endif // I2C_M_HOLD
 
 	return ioctl(smbus->out_fd, I2C_RDWR, &msgrdwr);
@@ -139,10 +138,10 @@ static int mctp_smbus_unhold_bus(struct mctp_binding_smbus *smbus)
 {
 	/* Unhold message */
 	static uint16_t holdtimeout = 0; // unhold
-	struct i2c_msg holdmsg = {0, I2C_M_HOLD, sizeof(holdtimeout),
-				  (__uint8_t *)&holdtimeout};
+	struct i2c_msg holdmsg = { 0, I2C_M_HOLD, sizeof(holdtimeout),
+				   (__uint8_t *)&holdtimeout };
 
-	struct i2c_rdwr_ioctl_data msgrdwr = {&holdmsg, 1};
+	struct i2c_rdwr_ioctl_data msgrdwr = { &holdmsg, 1 };
 
 	return ioctl(smbus->out_fd, I2C_RDWR, &msgrdwr);
 }
@@ -177,18 +176,18 @@ static int mctp_binding_smbus_tx(struct mctp_binding *b,
 	memcpy(buf_ptr, &pkt->data[pkt->start], pkt_length);
 	buf_ptr = buf_ptr + pkt_length;
 
-	uint8_t pec_byte = calculate_pec_byte(
-		smbus->txbuf,
-		SMBUS_COMMAND_CODE_SIZE + SMBUS_LENGTH_FIELD_SIZE + sizeof(*hdr)
-			+ pkt_length,
-		MCTP_SLAVE_ADDRESS, 0);
+	uint8_t pec_byte = calculate_pec_byte(smbus->txbuf,
+					      SMBUS_COMMAND_CODE_SIZE +
+						      SMBUS_LENGTH_FIELD_SIZE +
+						      sizeof(*hdr) + pkt_length,
+					      MCTP_SLAVE_ADDRESS, 0);
 
 	*buf_ptr = pec_byte;
 
-	i2c_message_len = SMBUS_COMMAND_CODE_SIZE + SMBUS_LENGTH_FIELD_SIZE
-			  + sizeof(*hdr) + pkt_length
-			  + SMBUS_PEC_BYTE_SIZE; // command code, length,
-						 // header, data, pec byte
+	i2c_message_len = SMBUS_COMMAND_CODE_SIZE + SMBUS_LENGTH_FIELD_SIZE +
+			  sizeof(*hdr) + pkt_length +
+			  SMBUS_PEC_BYTE_SIZE; // command code, length,
+		// header, data, pec byte
 
 	if (mctp_smbus_tx(smbus, i2c_message_len)) {
 		mctp_prerr("Can't hold mux");
@@ -223,8 +222,8 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 		}
 
 		hdr = (void *)smbus->rxbuf;
-		if (hdr->destination_slave_address
-		    != (MCTP_SOURCE_SLAVE_ADDRESS & ~1)) {
+		if (hdr->destination_slave_address !=
+		    (MCTP_SOURCE_SLAVE_ADDRESS & ~1)) {
 			mctp_prerr("Got bad slave address %d",
 				   hdr->destination_slave_address);
 			ret = 0;
@@ -256,8 +255,8 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 		assert(smbus->rx_pkt);
 
 		if (mctp_pktbuf_push(smbus->rx_pkt, &smbus->rxbuf[sizeof(*hdr)],
-				     len - sizeof(*hdr) - SMBUS_PEC_BYTE_SIZE)
-		    != 0) {
+				     len - sizeof(*hdr) -
+					     SMBUS_PEC_BYTE_SIZE) != 0) {
 			mctp_prerr("Can't push tok pktbuf: %m");
 			ret = -1;
 			break;
@@ -284,17 +283,16 @@ int mctp_smbus_get_in_fd(struct mctp_binding_smbus *smbus)
 	return smbus->in_fd;
 }
 
-
 int mctp_smbus_set_in_fd(struct mctp_binding_smbus *smbus, int fd)
 {
 	smbus->in_fd = fd;
-    return 0;
+	return 0;
 }
 
 int mctp_smbus_set_out_fd(struct mctp_binding_smbus *smbus, int fd)
 {
 	smbus->out_fd = fd;
-    return 0;
+	return 0;
 }
 
 int mctp_smbus_get_out_fd(struct mctp_binding_smbus *smbus)

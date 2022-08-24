@@ -78,16 +78,19 @@ static void send_transport_control_message(void)
 	struct mctp_binding binding;
 	struct callback_data ctx;
 	static const struct msg_payload send_control_message_payload = {
-		.hdr = {
-			.dest = eid_1,
-			.src = eid_2,
-			.flags_seq_tag = MCTP_HDR_FLAG_SOM | MCTP_HDR_FLAG_EOM,
-		},
-		.ctrl_hdr = {
-			.ic_msg_type = MCTP_CTRL_HDR_MSG_TYPE,
-			.rq_dgram_inst = MCTP_CTRL_HDR_FLAG_REQUEST,
-			.command_code = 0xF2,
-		},
+		.hdr =
+			{
+				.dest = eid_1,
+				.src = eid_2,
+				.flags_seq_tag =
+					MCTP_HDR_FLAG_SOM | MCTP_HDR_FLAG_EOM,
+			},
+		.ctrl_hdr =
+			{
+				.ic_msg_type = MCTP_CTRL_HDR_MSG_TYPE,
+				.rq_dgram_inst = MCTP_CTRL_HDR_FLAG_REQUEST,
+				.command_code = 0xF2,
+			},
 	};
 
 	memset(&ctx, 0, sizeof(ctx));
