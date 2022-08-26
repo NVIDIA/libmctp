@@ -92,7 +92,8 @@ int mctp_spi_keepalive_event(mctp_ctrl_t *ctrl)
 
 	MCTP_CTRL_INFO("%s: Send 'Boot complete v2' message\n", __func__);
 
-	rc = boot_complete_v2(ctrl->sock, MCTP_NULL_ENDPOINT, 0, 0);
+	rc = boot_complete_v2(ctrl->sock, MCTP_NULL_ENDPOINT, 0, 0,
+			      VERBOSE_DISABLE);
 	MCTP_ASSERT_RET(rc == 0, MCTP_CMD_FAILED,
 			"Failed to send 'Boot complete' message\n");
 
@@ -104,7 +105,7 @@ int mctp_spi_keepalive_event(mctp_ctrl_t *ctrl)
 
 	MCTP_CTRL_INFO("%s: Send 'Enable Heartbeat' message\n", __func__);
 	rc = set_heartbeat_enable(ctrl->sock, MCTP_NULL_ENDPOINT,
-				  MCTP_SPI_HB_ENABLE_CMD);
+				  MCTP_SPI_HB_ENABLE_CMD, VERBOSE_DISABLE);
 	MCTP_ASSERT_RET(rc == 0, MCTP_CMD_FAILED,
 			"Failed MCTP_SPI_HEARTBEAT_ENABLE\n");
 
@@ -114,7 +115,7 @@ int mctp_spi_keepalive_event(mctp_ctrl_t *ctrl)
 	while (1) {
 		MCTP_CTRL_DEBUG("%s: Send 'Heartbeat' message\n", __func__);
 
-		rc = heartbeat(ctrl->sock, MCTP_NULL_ENDPOINT);
+		rc = heartbeat(ctrl->sock, MCTP_NULL_ENDPOINT, VERBOSE_DISABLE);
 
 		if (rc != 0) {
 			MCTP_CTRL_ERR("%s: Heartbeat message failed.\n",
@@ -225,7 +226,8 @@ void mctp_spi_test_cmd(mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmd)
 	case MCTP_SPI_BOOT_COMPLETE:
 
 		MCTP_CTRL_DEBUG("%s: MCTP_SPI_BOOT_COMPLETE\n", __func__);
-		rc = boot_complete_v1(ctrl->sock, MCTP_NULL_ENDPOINT);
+		rc = boot_complete_v1(ctrl->sock, MCTP_NULL_ENDPOINT,
+				      VERBOSE_EN);
 		if (rc != MCTP_REQUESTER_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed MCTP_SPI_BOOT_COMPLETE\n",
 				      __func__);
@@ -235,7 +237,7 @@ void mctp_spi_test_cmd(mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmd)
 
 	case MCTP_SPI_HEARTBEAT_SEND:
 		MCTP_CTRL_DEBUG("%s: MCTP_SPI_HEARTBEAT_SEND\n", __func__);
-		rc = heartbeat(ctrl->sock, MCTP_NULL_ENDPOINT);
+		rc = heartbeat(ctrl->sock, MCTP_NULL_ENDPOINT, VERBOSE_EN);
 		if (rc != MCTP_REQUESTER_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_SEND\n",
 				      __func__);
@@ -246,7 +248,7 @@ void mctp_spi_test_cmd(mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmd)
 	case MCTP_SPI_HEARTBEAT_ENABLE:
 		MCTP_CTRL_DEBUG("%s: MCTP_SPI_HEARTBEAT_ENABLE\n", __func__);
 		rc = set_heartbeat_enable(ctrl->sock, MCTP_NULL_ENDPOINT,
-					  MCTP_SPI_HB_ENABLE_CMD);
+					  MCTP_SPI_HB_ENABLE_CMD, VERBOSE_EN);
 		if (rc != MCTP_REQUESTER_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_ENABLE\n",
 				      __func__);
@@ -256,7 +258,8 @@ void mctp_spi_test_cmd(mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmd)
 
 	case MCTP_SPI_QUERY_BOOT_STATUS:
 		MCTP_CTRL_DEBUG("%s: MCTP_SPI_QUERY_BOOT_STATUS\n", __func__);
-		rc = query_boot_status(ctrl->sock, MCTP_NULL_ENDPOINT);
+		rc = query_boot_status(ctrl->sock, MCTP_NULL_ENDPOINT,
+				       VERBOSE_EN);
 		if (rc != MCTP_REQUESTER_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed MCTP_SPI_QUERY_BOOT_STATUS\n",
 				      __func__);

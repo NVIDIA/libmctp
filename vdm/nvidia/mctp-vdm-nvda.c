@@ -34,11 +34,19 @@ uint8_t g_verbose_level = 0;
 static const struct option options[] = {
 	{ "verbose", no_argument, 0, 'v' },
 	{ "teid", required_argument, 0, 't' },
-	{ "intf", required_argument, 0, 'i' },
 	{ "cmd", required_argument, 0, 'c' },
 	{ "help", no_argument, 0, 'h' },
 	{ 0 },
 };
+
+#define VMD_CMD_ASSERT_GOTO(cond, label, fmt, ...)                             \
+	do {                                                                   \
+		if (!(cond)) {                                                 \
+			fprintf(stderr, "at %s:%d " fmt, __func__, __LINE__,   \
+				##__VA_ARGS__);                                \
+			goto label;                                            \
+		}                                                              \
+	} while (0)
 
 /* MCTP-VDM utility usage function */
 static void usage(void)
@@ -46,7 +54,6 @@ static void usage(void)
 	fprintf(stderr, "usage: mctp-vdm-util -t [eid] -c [cmd] [params]\n");
 	fprintf(stderr, "-t/-teid: Endpoint EID\n");
 	fprintf(stderr, "-c/-cmd: Command\n");
-	//	fprintf(stderr, "intf: PCIe or SPI\n");
 	fprintf(stderr, "Available commands:\n \
 		selftest - need 4 bytes as the payload\n \
 		boot_complete_v1\n \
@@ -56,6 +63,9 @@ static void usage(void)
 		query_boot_status\n \
 		download_log\n \
 		restart_notification\n \
+		debug_token_install - need 256 bytes debug token\n \
+		debug_token_erase\n \
+		debug_token_query\n \
 		background_copy_init\n \
 		background_copy_disable, background_copy_enable\n \
 		background_copy_disable_one, background_copy_enable_one\n \
@@ -95,10 +105,10 @@ int main(int argc, char *const *argv)
 	int fd = 0;
 	uint8_t teid = 0;
 	uint8_t payload_required = 0;
-	uint8_t payload[MCTP_VDM_SELFTEST_PAYLOAD_SIZE] = { '\0' };
+	uint8_t payload[MCTP_VDM_MESSAGE_SIZE] = { '\0' };
 
 	for (;;) {
-		rc = getopt_long(argc, argv, "vt:i:c:h", options, NULL);
+		rc = getopt_long(argc, argv, "vt:c:h", options, NULL);
 		if (rc == -1)
 			break;
 
@@ -114,9 +124,8 @@ int main(int argc, char *const *argv)
 			snprintf(item, sizeof(item), "%s", optarg);
 			printf("Test command = %s\n", item);
 			payload_required = (strcmp(item, "selftest") == 0);
-			break;
-		case 'i':
-			snprintf(intf, sizeof(intf), "%s", optarg);
+			payload_required |=
+				(strcmp(item, "debug_token_install") == 0);
 			break;
 		case 'h':
 			usage();
@@ -129,7 +138,7 @@ int main(int argc, char *const *argv)
 	/* need more data as the payload passing to selftest commands */
 	if (payload_required && optind == argc) {
 		fprintf(stderr,
-			"Error! Selftest command needs 4 bytes payload.\n\n");
+			"Error! the command needs n-bytes payload.\n\n");
 		usage();
 		return EXIT_FAILURE;
 	} else if (payload_required == 0 && optind != argc) {
@@ -140,8 +149,8 @@ int main(int argc, char *const *argv)
 	/* For selftest command, we may need more data as the payload
     * for which items to be tested.
     */
-	for (i = optind, len = 0;
-	     i < argc && i < MCTP_VDM_SELFTEST_PAYLOAD_SIZE; i++, len++) {
+	for (i = optind, len = 0; i < argc && len < MCTP_VDM_MESSAGE_SIZE;
+	     i++, len++) {
 		rc = check_hex_number(&argv[i][0]);
 		if (rc == -1) {
 			fprintf(stderr, "Error! we need hex-based data.\n\n");
@@ -152,146 +161,111 @@ int main(int argc, char *const *argv)
 		payload[len] = strtol(argv[i], NULL, 16);
 	}
 
+	/* Endpoint ID zero is for SPI device. */
 	path[0] = 0;
 	snprintf(&path[1], sizeof(path) - 1, "mctp-pcie-mux");
-	/*  Disable option for interface selection which will be the feature.
-    if (!strncmp (intf, "pcie", 4)) {
-	    snprintf (&path[1], sizeof(path) - 1, "mctp-pcie-mux");
-    }
-    else if (!strncmp (intf, "spi", 3)) {
-	    snprintf (&path[1], sizeof(path) - 1, "mctp-spi-mux");
-    }
-    else {
-	    fprintf(stderr, "please specify the interface spi or pcie\n");
-	    return EXIT_FAILURE;
-    }*/
 
 	/* Establish the socket connection */
 	rc = mctp_usr_socket_init(&fd, path, MCTP_MESSAGE_TYPE_VDIANA);
-	if (MCTP_REQUESTER_SUCCESS != rc) {
-		fprintf(stderr, "Failed to open mctp socket\n");
-		return EXIT_FAILURE;
-	}
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, EXIT_FAILURE,
+			"Failed to open mctp socket\n");
 
 	if (!strcmp(item, "selftest")) {
-		rc = selftest(fd, teid, payload, len);
-		if (rc) {
-			fprintf(stderr, "fail to do selfets: %d\n", rc);
-			goto exit;
-		}
+		rc = selftest(fd, teid, payload, len, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to do selftest: %d\n",
+				    rc);
 	} else if (!strcmp(item, "boot_complete_v1")) {
-		rc = boot_complete_v1(fd, teid);
-		if (rc) {
-			fprintf(stderr, "fail to do boot complete: %d\n", rc);
-			goto exit;
-		}
+		rc = boot_complete_v1(fd, teid, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to do boot complete: %d\n", rc);
 	} else if (!strcmp(item, "boot_complete_v2_slot_0")) {
 		rc = boot_complete_v2(fd, teid, MCTP_VDM_BOOT_COMPLETE_VALID,
-				      MCTP_VDM_BOOT_COMPLETE_SLOT0);
-		if (rc) {
-			fprintf(stderr, "fail to do boot complete v2: %d\n",
-				rc);
-			goto exit;
-		}
+				      MCTP_VDM_BOOT_COMPLETE_SLOT0, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to do boot complete v2: %d\n", rc);
 	} else if (!strcmp(item, "boot_complete_v2_slot_1")) {
 		rc = boot_complete_v2(fd, teid, MCTP_VDM_BOOT_COMPLETE_VALID,
-				      MCTP_VDM_BOOT_COMPLETE_SLOT1);
-		if (rc) {
-			fprintf(stderr, "fail to do boot complete v2: %d\n",
-				rc);
-			goto exit;
-		}
+				      MCTP_VDM_BOOT_COMPLETE_SLOT1, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to do boot complete v2: %d\n", rc);
 	} else if (!strcmp(item, "set_heartbeat_enable")) {
-		rc = set_heartbeat_enable(fd, teid, MCTP_VDM_HEARTBEAT_ENABLE);
-		if (rc) {
-			fprintf(stderr, "fail to enable heartbeat %d\n", rc);
-			goto exit;
-		}
+		rc = set_heartbeat_enable(fd, teid, MCTP_VDM_HEARTBEAT_ENABLE,
+					  VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to enable heartbeat: %d\n", rc);
 	} else if (!strcmp(item, "set_heartbeat_disable")) {
-		rc = set_heartbeat_enable(fd, teid, MCTP_VDM_HEARTBEAT_DISABLE);
-		if (rc) {
-			fprintf(stderr, "fail to disable heartbeat %d\n", rc);
-			goto exit;
-		}
+		rc = set_heartbeat_enable(fd, teid, MCTP_VDM_HEARTBEAT_DISABLE,
+					  VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to disable heartbeat: %d\n", rc);
 	} else if (!strcmp(item, "heartbeat")) {
-		rc = heartbeat(fd, teid);
-		if (rc) {
-			fprintf(stderr, "fail to send heartbeat event: %d\n",
-				rc);
-			goto exit;
-		}
+		rc = heartbeat(fd, teid, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to send heartbeat event: %d\n", rc);
 	} else if (!strcmp(item, "restart_notification")) {
-		rc = restart_notification(fd, teid);
-		if (rc) {
-			fprintf(stderr,
-				"fail to send restart notification: %d\n", rc);
-			goto exit;
-		}
+		rc = restart_notification(fd, teid, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to send restart notification: %d\n",
+				    rc);
 	} else if (!strcmp(item, "query_boot_status")) {
-		rc = query_boot_status(fd, teid);
-		if (rc) {
-			fprintf(stderr,
-				"fail to send query_boot_status event: %d\n",
-				rc);
-			goto exit;
-		}
+		rc = query_boot_status(fd, teid, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to query boot status: %d\n", rc);
 	} else if (!strcmp(item, "download_log")) {
 		rc = download_log(fd, teid, MCTP_VDM_RESP_OUTPUT_FILE,
 				  ctx.verbose);
-		if (rc) {
-			fprintf(stderr, "fail to download log: %d\n", rc);
-			goto exit;
-		}
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to download log: %d\n",
+				    rc);
 	} else if (!strcmp(item, "background_copy_disable")) {
-		rc = background_copy(fd, teid,
-				     MCTP_VDM_BACKGROUND_COPY_DISABLE);
-		if (rc) {
-			fprintf(stderr, "fail to disable background copy: %d\n",
-				rc);
-			goto exit;
-		}
+		rc = background_copy(fd, teid, MCTP_VDM_BACKGROUND_COPY_DISABLE,
+				     VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to disable bg copy: %d\n", rc);
 	} else if (!strcmp(item, "background_copy_enable")) {
-		rc = background_copy(fd, teid, MCTP_VDM_BACKGROUND_COPY_ENABLE);
-		if (rc) {
-			fprintf(stderr, "fail to enable background copy: %d\n",
-				rc);
-			goto exit;
-		}
+		rc = background_copy(fd, teid, MCTP_VDM_BACKGROUND_COPY_ENABLE,
+				     VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to enable one bg copy: %d\n", rc);
 	} else if (!strcmp(item, "background_copy_disable_one")) {
 		rc = background_copy(fd, teid,
-				     MCTP_VDM_BACKGROUND_COPY_DISABLE_ONE_BOOT);
-		if (rc) {
-			fprintf(stderr, "fail to disable one bg copy: %d\n",
-				rc);
-			goto exit;
-		}
+				     MCTP_VDM_BACKGROUND_COPY_DISABLE_ONE_BOOT,
+				     VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to disable one bg copy: %d\n", rc);
 	} else if (!strcmp(item, "background_copy_enable_one")) {
 		rc = background_copy(fd, teid,
-				     MCTP_VDM_BACKGROUND_COPY_ENABLE_ONE_BOOT);
-		if (rc) {
-			fprintf(stderr, "fail to enble one bg copy: %d\n", rc);
-			goto exit;
-		}
+				     MCTP_VDM_BACKGROUND_COPY_ENABLE_ONE_BOOT,
+				     VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to enable one bg copy: %d\n", rc);
 	} else if (!strcmp(item, "background_copy_init")) {
-		rc = background_copy(fd, teid, MCTP_VDM_BACKGROUND_COPY_INIT);
-		if (rc) {
-			fprintf(stderr, "fail to init bg: %d\n", rc);
-			goto exit;
-		}
+		rc = background_copy(fd, teid, MCTP_VDM_BACKGROUND_COPY_INIT,
+				     VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to init bg: %d\n", rc);
 	} else if (!strcmp(item, "background_copy_query_status")) {
 		rc = background_copy(fd, teid,
-				     MCTP_VDM_BACKGROUND_COPY_QUERY_STATUS);
-		if (rc) {
-			fprintf(stderr, "fail to query bg: %d\n", rc);
-			goto exit;
-		}
+				     MCTP_VDM_BACKGROUND_COPY_QUERY_STATUS,
+				     VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to query bg: %d\n",
+				    rc);
 	} else if (!strcmp(item, "background_copy_query_progress")) {
 		rc = background_copy(fd, teid,
-				     MCTP_VDM_BACKGROUND_COPY_PROGRESS);
-		if (rc) {
-			fprintf(stderr, "fail to query prog bg: %d\n", rc);
-			goto exit;
-		}
+				     MCTP_VDM_BACKGROUND_COPY_PROGRESS,
+				     VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to query prog bg: %d\n", rc);
+	} else if (!strcmp(item, "debug_token_install")) {
+		rc = debug_token_install(fd, teid, payload, len, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "failed to install debug token: %d\n", rc);
+	} else if (!strcmp(item, "debug_token_erase")) {
+		rc = debug_token_erase(fd, teid, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "failed to erase debug token: %d\n", rc);
+	} else if (!strcmp(item, "debug_token_query")) {
+		rc = debug_token_query(fd, teid, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "failed to query debug token: %d\n", rc);
 	} else {
 		fprintf(stderr, "Unknown test cmd\n");
 	}

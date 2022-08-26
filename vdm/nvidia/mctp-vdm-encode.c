@@ -12,6 +12,8 @@
 #include "libmctp-vdm-cmds.h"
 #include "libmctp.h"
 #include "libmctp-cmds.h"
+#include "libmctp-log.h"
+
 #include "mctp-vdm-nvda.h"
 
 /* Default instance ID macro */
@@ -22,6 +24,14 @@
 #define MCTP_VDM_HDR_VENDOR_MSG_TYPE 0x01
 #define MCTP_VDM_HDR_MSG_VER_1 0x01
 #define MCTP_VDM_HDR_MSG_VER_2 0x02
+
+#define ENCODE_VMD_CMD_FUNC(_name)                                             \
+	do {                                                                   \
+		MCTP_ASSERT_RET(cmd != NULL, false, "cmd is NULL\n");          \
+		encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(),  \
+					 MCTP_VENDOR_CMD_##_name);             \
+		return true;                                                   \
+	} while (0)
 
 static uint8_t createInstanceId()
 {
@@ -48,11 +58,27 @@ static void encode_vendor_cmd_header(struct mctp_vendor_msg_hdr *mctp_vdr_hdr,
 	mctp_vdr_hdr->msg_version = MCTP_VDM_HDR_MSG_VER_1;
 }
 
+bool mctp_encode_vendor_cmd_dbg_token_inst(
+	struct mctp_vendor_cmd_dbg_token_inst *cmd)
+{
+	ENCODE_VMD_CMD_FUNC(DBG_TOKEN_INST);
+}
+
+bool mctp_encode_vendor_cmd_dbg_token_erase(
+	struct mctp_vendor_cmd_dbg_token_erase *cmd)
+{
+	ENCODE_VMD_CMD_FUNC(DBG_TOKEN_ERASE);
+}
+
+bool mctp_encode_vendor_cmd_dbg_token_query(
+	struct mctp_vendor_cmd_dbg_token_query *cmd)
+{
+	ENCODE_VMD_CMD_FUNC(DBG_TOKEN_QUERY);
+}
+
 bool mctp_encode_vendor_cmd_selftest(struct mctp_vendor_cmd_selftest *cmd)
 {
-	if (!cmd) {
-		return false;
-	}
+	MCTP_ASSERT_RET(cmd != NULL, false, "cmd is NULL\n");
 
 	encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(),
 				 MCTP_VENDOR_CMD_SELFTEST);
@@ -63,9 +89,7 @@ bool mctp_encode_vendor_cmd_selftest(struct mctp_vendor_cmd_selftest *cmd)
 bool mctp_encode_vendor_cmd_downloadlog(struct mctp_vendor_cmd_downloadlog *cmd,
 					uint8_t session)
 {
-	if (!cmd) {
-		return false;
-	}
+	MCTP_ASSERT_RET(cmd != NULL, false, "cmd is NULL\n");
 
 	encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(),
 				 MCTP_VENDOR_CMD_DOWNLOAD_LOG);
@@ -75,22 +99,13 @@ bool mctp_encode_vendor_cmd_downloadlog(struct mctp_vendor_cmd_downloadlog *cmd,
 
 bool mctp_encode_vendor_cmd_bootcmplt(struct mctp_vendor_cmd_bootcmplt *cmd)
 {
-	if (!cmd) {
-		return false;
-	}
-
-	encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(),
-				 MCTP_VENDOR_CMD_BOOTCOMPLETE);
-
-	return true;
+	ENCODE_VMD_CMD_FUNC(BOOTCOMPLETE);
 }
 
 bool mctp_encode_vendor_cmd_bootcmplt_v2(
 	struct mctp_vendor_cmd_bootcomplete_v2 *cmd)
 {
-	if (!cmd) {
-		return false;
-	}
+	MCTP_ASSERT_RET(cmd != NULL, false, "cmd is NULL\n");
 
 	encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(),
 				 MCTP_VENDOR_CMD_BOOTCOMPLETE);
@@ -101,61 +116,26 @@ bool mctp_encode_vendor_cmd_bootcmplt_v2(
 
 bool mctp_encode_vendor_cmd_hbenable(struct mctp_vendor_cmd_hbenable *cmd)
 {
-	if (!cmd) {
-		return false;
-	}
-
-	encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(),
-				 MCTP_VENDOR_CMD_ENABLE_HEARTBEAT);
-
-	return true;
+	ENCODE_VMD_CMD_FUNC(ENABLE_HEARTBEAT);
 }
 
 bool mctp_encode_vendor_cmd_background_copy(
 	struct mctp_vendor_cmd_background_copy *cmd)
 {
-	if (!cmd) {
-		return false;
-	}
-
-	encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(),
-				 MCTP_VENDOR_CMD_BG_COPY);
-
-	return true;
+	ENCODE_VMD_CMD_FUNC(BG_COPY);
 }
 
 bool mctp_encode_vendor_cmd_hbenvent(struct mctp_vendor_cmd_hbenvent *cmd)
 {
-	if (!cmd) {
-		return false;
-	}
-
-	encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(),
-				 MCTP_VENDOR_CMD_HEARTBEAT);
-
-	return true;
+	ENCODE_VMD_CMD_FUNC(HEARTBEAT);
 }
 
 bool mctp_encode_vendor_cmd_restartnoti(struct mctp_vendor_cmd_restartnoti *cmd)
 {
-	if (!cmd) {
-		return false;
-	}
-
-	encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(),
-				 MCTP_VENDOR_CMD_RESTART);
-
-	return true;
+	ENCODE_VMD_CMD_FUNC(RESTART);
 }
 
 bool mctp_encode_vendor_cmd_bootstatus(struct mctp_vendor_cmd_bootstatus *cmd)
 {
-	if (!cmd) {
-		return false;
-	}
-
-	encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(),
-				 MCTP_VENDOR_CMD_QUERYBOOTSTATUS);
-
-	return true;
+	ENCODE_VMD_CMD_FUNC(QUERYBOOTSTATUS);
 }

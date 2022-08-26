@@ -96,7 +96,7 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 	size_t min_len = sizeof(eid) + sizeof(MCTP_MSG_TYPE_HDR) +
 			 sizeof(struct mctp_ctrl_cmd_msg_hdr);
 
-	int length = recv(mctp_fd, NULL, 0, MSG_PEEK | MSG_TRUNC);
+	ssize_t length = recv(mctp_fd, NULL, 0, MSG_PEEK | MSG_TRUNC);
 
 	if (length < 0 && errno == EAGAIN) {
 		MCTP_CTRL_INFO("%s: Recv failed: due to timedout\n", __func__);

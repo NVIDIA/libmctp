@@ -14,17 +14,9 @@ extern "C" {
 /* VDM command name size from commandline option */
 #define MCTP_VDM_COMMAND_NAME_SIZE 128
 
-/* Download log buffer length */
-#define MCTP_VDM_DOWNLOAD_LOG_BUFFER_SIZE 52
-
-/* Download log buffer length */
-#define MCTP_VDM_VENDOR_IANA_SIZE 4
-
-/* MCTP VDM selftest command payload size
-* MCTP baseline transmission unit - the size of IC field (1 byte)
-* - vendor IANA(4 bytes) - selftest command header(4 bytes)
+/* MCTP VDM message size
 */
-#define MCTP_VDM_SELFTEST_PAYLOAD_SIZE (64 - 9)
+#define MCTP_VDM_MESSAGE_SIZE 256
 
 /* MCTP VDM command operation */
 #define MCTP_VDM_CMD_OP_SUCCESS 0xff
@@ -68,20 +60,6 @@ typedef enum {
 } mctp_vdm_io_vectors_t;
 
 typedef uint8_t mctp_eid_t;
-
-/* MCTP-VDM Download log response structure */
-typedef struct __attribute__((__packed__)) {
-	uint8_t vmdtype;
-	uint8_t iana[MCTP_VDM_VENDOR_IANA_SIZE];
-	uint8_t rq_dgram_inst;
-	uint8_t msg_type;
-	uint8_t cmd;
-	uint8_t version;
-	uint8_t cc;
-	uint8_t session;
-	uint8_t length;
-	uint8_t data[MCTP_VDM_DOWNLOAD_LOG_BUFFER_SIZE];
-} mctp_vdm_log_rep_hdr_t;
 
 #ifdef __cplusplus
 }

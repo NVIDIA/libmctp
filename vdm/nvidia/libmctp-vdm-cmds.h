@@ -25,6 +25,12 @@ extern "C" {
 #define MCTP_VENDOR_CMD_SELFTEST 0x08
 #define MCTP_VENDOR_CMD_BG_COPY 0x09
 #define MCTP_VENDOR_CMD_RESTART 0x0A
+#define MCTP_VENDOR_CMD_DBG_TOKEN_INST 0xB
+#define MCTP_VENDOR_CMD_DBG_TOKEN_ERASE 0xC
+#define MCTP_VENDOR_CMD_DBG_TOKEN_QUERY 0xF
+
+/* Download log buffer length */
+#define MCTP_VDM_DOWNLOAD_LOG_BUFFER_SIZE 52
 
 struct mctp_vendor_msg_hdr {
 	uint32_t iana;
@@ -74,12 +80,35 @@ struct mctp_vendor_cmd_downloadlog {
 	uint8_t session_id;
 } __attribute__((__packed__));
 
+/* MCTP-VDM Download log response structure */
+struct mctp_vendor_cmd_downloadlog_resp {
+	uint8_t msg_type;
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	uint8_t cc;
+	uint8_t session;
+	uint8_t length;
+	uint8_t data[MCTP_VDM_DOWNLOAD_LOG_BUFFER_SIZE];
+} __attribute__((__packed__));
+
 struct mctp_vendor_cmd_enable_ib_update {
 	struct mctp_vendor_msg_hdr vdr_msg_hdr;
 	uint8_t enable;
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_restartnoti {
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+} __attribute__((__packed__));
+
+struct mctp_vendor_cmd_dbg_token_inst {
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	unsigned char payload[256];
+} __attribute__((__packed__));
+
+struct mctp_vendor_cmd_dbg_token_erase {
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+} __attribute__((__packed__));
+
+struct mctp_vendor_cmd_dbg_token_query {
 	struct mctp_vendor_msg_hdr vdr_msg_hdr;
 } __attribute__((__packed__));
 
@@ -96,6 +125,12 @@ bool mctp_encode_vendor_cmd_downloadlog(struct mctp_vendor_cmd_downloadlog *cmd,
 					uint8_t session);
 bool mctp_encode_vendor_cmd_background_copy(
 	struct mctp_vendor_cmd_background_copy *cmd);
+bool mctp_encode_vendor_cmd_dbg_token_inst(
+	struct mctp_vendor_cmd_dbg_token_inst *cmd);
+bool mctp_encode_vendor_cmd_dbg_token_erase(
+	struct mctp_vendor_cmd_dbg_token_erase *cmd);
+bool mctp_encode_vendor_cmd_dgb_token_query(
+	struct mctp_vendor_cmd_dbg_token_query *cmd);
 
 #ifdef __cplusplus
 }
