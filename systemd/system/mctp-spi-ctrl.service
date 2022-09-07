@@ -6,7 +6,7 @@ Requires=mctp-spi-demux.service
 [Service]
 Restart=always
 Environment=MCTP_SPI_CTRL_OPTS=null
-EnvironmentFile=-/etc/default/mctp
+EnvironmentFile=-/usr/share/mctp/mctp
 ExecStart=/usr/bin/mctp-spi-ctrl $MCTP_SPI_CTRL_OPTS
 SyslogIdentifier=mctp-spi-ctrl
 

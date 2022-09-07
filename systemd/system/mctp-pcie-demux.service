@@ -5,6 +5,6 @@ Description=MCTP PCIe demultiplexer daemon
 Type=notify
 Restart=always
 Environment=DEMUX_PCIE_BINDING_OPTS=null
-EnvironmentFile=-/etc/default/mctp
+EnvironmentFile=-/usr/share/mctp/mctp
 ExecStart=/usr/bin/mctp-demux-daemon $DEMUX_PCIE_BINDING_OPTS
 SyslogIdentifier=mctp-pcie-demux
