@@ -27,10 +27,20 @@ extern "C" {
 #define MCTP_VENDOR_CMD_RESTART 0x0A
 #define MCTP_VENDOR_CMD_DBG_TOKEN_INST 0xB
 #define MCTP_VENDOR_CMD_DBG_TOKEN_ERASE 0xC
+#define MCTP_VENDOR_CMD_CERTIFICATE_INSTALL 0xD
 #define MCTP_VENDOR_CMD_DBG_TOKEN_QUERY 0xF
 
 /* Download log buffer length */
 #define MCTP_VDM_DOWNLOAD_LOG_BUFFER_SIZE 52
+
+/* currently, we have three certificates. each one has 1k bytes at the wrose
+ * case
+ * 2(version)+2(size)+3K(certificate chain)+96(signature) = 3172 bytes
+ * */
+#define MCTP_CERTIFICATE_CHAIN_SIZE  3172
+
+/* Maximum debug token size */
+#define MCTP_DEBUG_TOKEN_SIZE 256
 
 struct mctp_vendor_msg_hdr {
 	uint32_t iana;
@@ -101,7 +111,7 @@ struct mctp_vendor_cmd_restartnoti {
 
 struct mctp_vendor_cmd_dbg_token_inst {
 	struct mctp_vendor_msg_hdr vdr_msg_hdr;
-	unsigned char payload[256];
+	unsigned char payload[MCTP_DEBUG_TOKEN_SIZE];
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_dbg_token_erase {
@@ -110,6 +120,11 @@ struct mctp_vendor_cmd_dbg_token_erase {
 
 struct mctp_vendor_cmd_dbg_token_query {
 	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+} __attribute__((__packed__));
+
+struct mctp_vendor_cmd_certificate_install {
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	unsigned char payload[MCTP_CERTIFICATE_CHAIN_SIZE];
 } __attribute__((__packed__));
 
 /* MCTP-VDM encoder API's */
@@ -131,7 +146,8 @@ bool mctp_encode_vendor_cmd_dbg_token_erase(
 	struct mctp_vendor_cmd_dbg_token_erase *cmd);
 bool mctp_encode_vendor_cmd_dgb_token_query(
 	struct mctp_vendor_cmd_dbg_token_query *cmd);
-
+bool mctp_encode_vendor_cmd_certificate_install(
+	struct mctp_vendor_cmd_certificate_install *cmd);
 #ifdef __cplusplus
 }
 #endif

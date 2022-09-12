@@ -14,9 +14,8 @@ extern "C" {
 /* VDM command name size from commandline option */
 #define MCTP_VDM_COMMAND_NAME_SIZE 128
 
-/* MCTP VDM message size
-*/
-#define MCTP_VDM_MESSAGE_SIZE 256
+/* MCTP VDM message size */
+#define MCTP_VDM_MESSAGE_SIZE MCTP_CERTIFICATE_CHAIN_SIZE
 
 /* MCTP VDM command operation */
 #define MCTP_VDM_CMD_OP_SUCCESS 0xff

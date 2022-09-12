@@ -560,3 +560,32 @@ int debug_token_query(int fd, uint8_t tid, uint8_t verbose)
 			"%s: fail to recv [rc: %d] response\n", __func__, rc);
 	return 0;
 }
+
+int certificate_install(int fd, uint8_t tid, uint8_t *payload, size_t length,
+			uint8_t verbose)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_certificate_install cmd = { 0 };
+
+	MCTP_ASSERT_RET(length <= MCTP_CERTIFICATE_CHAIN_SIZE, -1,
+			"the length is out of the spec.\n");
+
+	/* Encode the VDM headers for debug token query*/
+	mctp_encode_vendor_cmd_certificate_install(&cmd);
+
+	memcpy(&cmd.payload, payload, length);
+	length += sizeof(struct mctp_vendor_msg_hdr);
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, length,
+				       (uint8_t **)&resp, &resp_len, verbose);
+
+	/* free memory */
+	free(resp);
+
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+			"%s: fail to recv [rc: %d] response\n", __func__, rc);
+
+	return 0;
+}

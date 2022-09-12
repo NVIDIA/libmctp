@@ -139,3 +139,9 @@ bool mctp_encode_vendor_cmd_bootstatus(struct mctp_vendor_cmd_bootstatus *cmd)
 {
 	ENCODE_VMD_CMD_FUNC(QUERYBOOTSTATUS);
 }
+
+bool mctp_encode_vendor_cmd_certificate_install(
+	struct mctp_vendor_cmd_certificate_install *cmd)
+{
+	ENCODE_VMD_CMD_FUNC(CERTIFICATE_INSTALL);
+}

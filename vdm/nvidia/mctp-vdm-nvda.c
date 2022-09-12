@@ -66,6 +66,7 @@ static void usage(void)
 		debug_token_install - need 256 bytes debug token\n \
 		debug_token_erase\n \
 		debug_token_query\n \
+		program_certificate_chain - need 2048 bytes certificate\n \
 		background_copy_init\n \
 		background_copy_disable, background_copy_enable\n \
 		background_copy_disable_one, background_copy_enable_one\n \
@@ -99,13 +100,14 @@ int main(int argc, char *const *argv)
 {
 	int rc = -1;
 	int i = 0, len = 0;
+	int fd = 0;
 	char item[MCTP_VDM_COMMAND_NAME_SIZE] = { '\0' };
 	char intf[16] = { 0 };
 	char path[32] = { 0 };
-	int fd = 0;
+	unsigned int max_len = 0;
 	uint8_t teid = 0;
 	uint8_t payload_required = 0;
-	uint8_t payload[MCTP_VDM_MESSAGE_SIZE] = { '\0' };
+	uint8_t payload[MCTP_CERTIFICATE_CHAIN_SIZE] = { '\0' };
 
 	for (;;) {
 		rc = getopt_long(argc, argv, "vt:c:h", options, NULL);
@@ -126,6 +128,17 @@ int main(int argc, char *const *argv)
 			payload_required = (strcmp(item, "selftest") == 0);
 			payload_required |=
 				(strcmp(item, "debug_token_install") == 0);
+			payload_required |=
+				(strcmp(item, "program_certificate_chain") ==
+				 0);
+			if (strcmp(item, "selftest") == 0)
+				max_len = 8;
+			else if (strcmp(item, "debug_token_install") == 0)
+				max_len = MCTP_DEBUG_TOKEN_SIZE;
+			else if (strcmp(item, "program_certificate_chain") == 0)
+				max_len = MCTP_CERTIFICATE_CHAIN_SIZE;
+			else
+				max_len = 0;
 			break;
 		case 'h':
 			usage();
@@ -135,6 +148,7 @@ int main(int argc, char *const *argv)
 			return EXIT_FAILURE;
 		}
 	}
+
 	/* need more data as the payload passing to selftest commands */
 	if (payload_required && optind == argc) {
 		fprintf(stderr,
@@ -147,13 +161,13 @@ int main(int argc, char *const *argv)
 		return EXIT_FAILURE;
 	}
 	/* For selftest command, we may need more data as the payload
-    * for which items to be tested.
-    */
-	for (i = optind, len = 0; i < argc && len < MCTP_VDM_MESSAGE_SIZE;
-	     i++, len++) {
+	* for which items to be tested.
+	*/
+	for (i = optind, len = 0; i < argc && len < max_len; i++, len++) {
 		rc = check_hex_number(&argv[i][0]);
 		if (rc == -1) {
-			fprintf(stderr, "Error! we need hex-based data.\n\n");
+			fprintf(stderr, "Error! we need %u-bytes data.\n\n",
+				max_len);
 			usage();
 			return EXIT_FAILURE;
 		}
@@ -266,6 +280,11 @@ int main(int argc, char *const *argv)
 		rc = debug_token_query(fd, teid, VERBOSE_EN);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "failed to query debug token: %d\n", rc);
+	} else if (!strcmp(item, "program_certificate_chain")) {
+		rc = certificate_install(fd, teid, payload, len, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "failed to program certificate chain: %d\n",
+				    rc);
 	} else {
 		fprintf(stderr, "Unknown test cmd\n");
 	}
