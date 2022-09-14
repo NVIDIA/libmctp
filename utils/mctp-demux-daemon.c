@@ -82,6 +82,8 @@ struct ctx {
 
 	struct client *clients;
 	int n_clients;
+
+	bool clients_changed;
 };
 
 static void mctp_print_hex(uint8_t *data, size_t length)
@@ -158,8 +160,10 @@ static void client_remove_inactive(struct ctx *ctx)
 
 	for (i = 0; i < ctx->n_clients; i++) {
 		struct client *client = &ctx->clients[i];
+
 		if (client->active)
 			continue;
+
 		close(client->sock);
 
 		ctx->n_clients--;
@@ -208,12 +212,9 @@ static void rx_message(uint8_t eid, void *data, void *msg, size_t len)
 		rc = sendmsg(client->sock, &msghdr, 0);
 		if (rc != (ssize_t)(len + 1)) {
 			client->active = false;
-			removed = true;
+			ctx->clients_changed = true;
 		}
 	}
-
-	if (removed)
-		client_remove_inactive(ctx);
 }
 
 static int binding_null_init(struct mctp *mctp __unused,
@@ -605,7 +606,6 @@ enum { FD_BINDING = 0,
 
 static int run_daemon(struct ctx *ctx)
 {
-	bool clients_changed = false;
 	int rc, i;
 
 	ctx->pollfds = malloc(FD_NR * sizeof(struct pollfd));
@@ -622,10 +622,12 @@ static int run_daemon(struct ctx *ctx)
 	ctx->pollfds[FD_SOCKET].fd = ctx->sock;
 	ctx->pollfds[FD_SOCKET].events = POLLIN;
 
+	ctx->clients_changed = false;
+
 	mctp_set_rx_all(ctx->mctp, rx_message, ctx);
 
 	for (;;) {
-		if (clients_changed) {
+		if (ctx->clients_changed) {
 			int i;
 
 			ctx->pollfds = realloc(ctx->pollfds,
@@ -637,7 +639,7 @@ static int run_daemon(struct ctx *ctx)
 					ctx->clients[i].sock;
 				ctx->pollfds[FD_NR + i].events = POLLIN;
 			}
-			clients_changed = false;
+			ctx->clients_changed = false;
 		}
 
 		rc = poll(ctx->pollfds, ctx->n_clients + FD_NR, -1);
@@ -660,20 +662,21 @@ static int run_daemon(struct ctx *ctx)
 		for (i = 0; i < ctx->n_clients; i++) {
 			if (!ctx->pollfds[FD_NR + i].revents)
 				continue;
-
+			MCTP_ASSERT(ctx->pollfds[FD_NR + i].fd ==
+			    ctx->clients[i].sock, "Socket fd mismatch!");
 			rc = client_process_recv(ctx, i);
 			if (rc)
-				clients_changed = true;
+				ctx->clients_changed = true;
 		}
 
 		if (ctx->pollfds[FD_SOCKET].revents) {
 			rc = socket_process(ctx);
 			if (rc)
 				break;
-			clients_changed = true;
+			ctx->clients_changed = true;
 		}
 
-		if (clients_changed)
+		if (ctx->clients_changed)
 			client_remove_inactive(ctx);
 	}
 
