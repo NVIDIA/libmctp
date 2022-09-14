@@ -320,6 +320,12 @@ static int mctp_start_daemon(mctp_ctrl_t *ctrl)
 
 	for (;;) {
 		rc = poll(ctrl->pollfds, MCTP_CTRL_FD_NR, -1);
+
+		if (rc == -1 && errno == EINTR) {
+			warn("poll(2) interrupted by signal");
+			continue;
+		}
+
 		if (rc < 0) {
 			warn("poll failed");
 			break;
