@@ -203,6 +203,10 @@ static void rx_message(uint8_t eid, void *data, void *msg, size_t len)
 	for (i = 0; i < ctx->n_clients; i++) {
 		struct client *client = &ctx->clients[i];
 
+		if (ctx->verbose)
+			fprintf(stderr, " %i client type: %hhu type: %hhu\n",
+			    i, client->type, type);
+
 		if (client->type != type)
 			continue;
 
