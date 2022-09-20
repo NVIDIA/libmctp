@@ -122,11 +122,8 @@ int mctp_spi_keepalive_event(mctp_ctrl_t *ctrl)
 				      __func__);
 			break;
 		}
-		/*
-         * sleep for 10 seconds (it should be less than 60 seconds as per Galcier
-         * firmware
-         */
-		sleep(MCTP_SPI_HEARTBEAT_DELAY_SECS);
+		mctp_ctrl_wait_and_discard(
+			ctrl->sock, MCTP_SPI_HEARTBEAT_DELAY_SECS * 1000);
 	}
 
 	mctp_ctrl_sdbus_stop();

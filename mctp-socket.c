@@ -2,12 +2,14 @@
 
 #include <err.h>
 #include <errno.h>
+#include <poll.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/time.h>
 
 #include "libmctp.h"
 #include "libmctp-log.h"
@@ -22,7 +24,7 @@ const uint8_t MCTP_CTRL_MSG_TYPE = 0;
 const uint8_t MCTP_MSG_TYPE_HDR = 0;
 
 /* MCTP Tx/Rx timeouts */
-#define MCTP_CTRL_TXRX_TIMEOUT_SECS 5
+#define MCTP_CTRL_TXRX_TIMEOUT_SECS	  5
 #define MCTP_CTRL_TXRX_TIMEOUT_MICRO_SECS 0
 
 /* MCTP TX/RX retry threshold */
@@ -34,6 +36,77 @@ void mctp_ctrl_print_buffer(const char *str, const uint8_t *buffer, int size)
 	for (int i = 0; i < size; i++)
 		MCTP_CTRL_TRACE("0x%x ", buffer[i]);
 	MCTP_CTRL_TRACE("\n");
+}
+
+static int64_t mctp_timediff_ms(struct timeval *tv1, struct timeval *tv2)
+{
+	int64_t diff_ms = 0;
+
+	diff_ms = (tv2->tv_sec - tv1->tv_sec) * 1000;
+	diff_ms += (tv2->tv_usec - tv1->tv_usec) / 1000;
+
+	return diff_ms;
+}
+
+void mctp_ctrl_wait_and_discard(int fd, int timeout)
+{
+	int rc = -1;
+	struct timeval target = { 0 };
+	struct timeval curr = { 0 };
+	struct pollfd pollfd = { 0 };
+	ssize_t len = 0;
+
+	rc = gettimeofday(&target, NULL);
+	if (rc != 0) {
+		warn("gettimeofday failed");
+		return;
+	}
+
+	target.tv_sec += timeout / 1000;
+	target.tv_usec += (timeout % 1000) * 1000;
+
+	rc = gettimeofday(&curr, NULL);
+	if (rc != 0) {
+		warn("gettimeofday failed");
+		return;
+	}
+
+	pollfd.fd = fd;
+	pollfd.events = POLLIN;
+	pollfd.revents = 0;
+
+	rc = gettimeofday(&curr, NULL);
+	if (rc != 0) {
+		warn("gettimeofday(2) failed");
+		return;
+	}
+
+	timeout = (int)mctp_timediff_ms(&curr, &target);
+	timeout = timeout > 0 ? timeout : 0;
+
+	while (timeout > 0) {
+		rc = poll(&pollfd, 1, timeout);
+		if (rc < 0)
+			warn("poll(2) failed");
+
+		if (rc == 1) {
+			/* Discard message. */
+			len = recv(fd, NULL, 0, MSG_TRUNC);
+			if (len < 0) {
+				warn("recv(2) failed");
+				return;
+			}
+		}
+
+		rc = gettimeofday(&curr, NULL);
+		if (rc != 0) {
+			warn("gettimeofday(2) failed");
+			return;
+		}
+
+		timeout = (int)mctp_timediff_ms(&curr, &target);
+		timeout = timeout > 0 ? timeout : 0;
+	}
 }
 
 mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
