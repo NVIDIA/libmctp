@@ -13,6 +13,9 @@
 #include <time.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <poll.h>
+
+#include <systemd/sd-bus.h>
 
 #include "libmctp-vdm-cmds.h"
 #include "libmctp.h"
@@ -23,12 +26,18 @@
 #include "mctp-vdm-commands.h"
 
 #include "ctrld/mctp-ctrl.h"
+#include "ctrld/mctp-sdbus.h"
 
 /* MCTP-VDM response binary file */
 #define MCTP_VDM_RESP_OUTPUT_FILE "/var/mctp-vdm-output.bin"
 
+#define _cleanup_(f) __attribute__((cleanup(f)))
+
 /* Global definitions */
 uint8_t g_verbose_level = 0;
+
+/* Global socket name */
+uint8_t g_sock_name[32] = { 0 };
 
 /* Global commandline options */
 static const struct option options[] = {
@@ -37,6 +46,11 @@ static const struct option options[] = {
 	{ "cmd", required_argument, 0, 'c' },
 	{ "help", no_argument, 0, 'h' },
 	{ 0 },
+};
+
+static char *dbus_services[] = {
+	"xyz.openbmc_project.MCTP.Control.PCIe",
+	"xyz.openbmc_project.MCTP.Control.SPI",
 };
 
 #define VMD_CMD_ASSERT_GOTO(cond, label, fmt, ...)                             \
@@ -79,6 +93,172 @@ struct ctx {
 
 struct ctx ctx = { 0 };
 
+static int iterate_dbus_dict(sd_bus_message *m, const char *type, uint8_t eid,
+			     int (*callback)(sd_bus_message *m, uint8_t eid))
+{
+	int rc = 0;
+	int found = 0;
+
+	/* Enter the nested structre in order to retrieve sdbus message */
+	while ((rc = sd_bus_message_enter_container(m, SD_BUS_TYPE_DICT_ENTRY,
+						    type)) > 0) {
+		rc = callback(m, eid);
+		/* We can't break since we have to interate all elements */
+		if (rc == 1) {
+			found = 1;
+		}
+
+		/* Exit the nested structure*/
+		rc = sd_bus_message_exit_container(m);
+		if (rc < 0)
+			fprintf(stderr,
+				"%s: sd_bus_message_exit_container rc = %d\n",
+				__FUNCTION__, rc);
+	}
+	return found;
+}
+
+static int cb_dbus_properity(sd_bus_message *m, uint8_t eid)
+{
+	int rc;
+	int len;
+	char type = 0;
+	const char *contents;
+	const char *name;
+	const char *value;
+	const void *ptr;
+
+	rc = sd_bus_message_read_basic(m, SD_BUS_TYPE_STRING, &name);
+	MCTP_ASSERT_RET(rc >= 0, -1, "sd_bus_message_read_basic fail rc=%d\n",
+			rc);
+
+	rc = sd_bus_message_peek_type(m, NULL, &contents);
+	MCTP_ASSERT_RET(rc >= 0, -1, "sd_bus_message_peek_type fail rc=%d\n",
+			rc);
+
+	rc = sd_bus_message_enter_container(m, SD_BUS_TYPE_VARIANT, contents);
+	MCTP_ASSERT_RET(rc >= 0, -1,
+			"sd_bus_message_enter_contain fail rc=%d\n", rc);
+
+	rc = sd_bus_message_peek_type(m, &type, &contents);
+	/* hit some error, skip msg and do exit container*/
+	if (rc < 0) {
+		fprintf(stderr, "sd_bus_message_peek_type fail rc=%d\n", rc);
+	}
+
+	/* Get socket name from Address properity */
+	if (type == SD_BUS_TYPE_ARRAY && strcmp(name, "Address") == 0) {
+		rc = sd_bus_message_read_array(m, 'y', &ptr, &len);
+		MCTP_ASSERT_RET(rc >= 0, -1,
+				"sd_bus_message_read_array fail rc=%d\n", rc);
+
+		memcpy(g_sock_name, ptr, len);
+	} else {
+		sd_bus_message_skip(m, NULL);
+	}
+
+	rc = sd_bus_message_exit_container(m);
+	MCTP_ASSERT_RET(rc >= 0, -1,
+			"sd_bus_message_exit_container fail rc=%d\n", rc);
+	return 0;
+}
+
+static int cb_dbus_interfaces(sd_bus_message *m, uint8_t eid)
+{
+	int rc = 0;
+	const char *iface;
+
+	rc = sd_bus_message_read_basic(m, SD_BUS_TYPE_STRING, &iface);
+	MCTP_ASSERT_RET(rc >= 0, -1, "sd_bus_message_read_basic fail rc= %d\n",
+			rc);
+
+	if (strcmp(iface, "xyz.openbmc_project.Common.UnixSocket") != 0) {
+		sd_bus_message_skip(m, NULL);
+		return 0;
+	}
+
+	rc = sd_bus_message_enter_container(m, SD_BUS_TYPE_ARRAY, "{sv}");
+	MCTP_ASSERT_RET(rc >= 0, -1,
+			"sd_bus_message_enter_contain fail rc=%d\n", rc);
+
+	/* Traverse dbus properities */
+	rc = iterate_dbus_dict(m, "sv", eid, cb_dbus_properity);
+	if (rc < 0)
+		fprintf(stderr, "cb_dbus_properity fail rc=%d\n", rc);
+
+	rc = sd_bus_message_exit_container(m);
+	MCTP_ASSERT_RET(rc >= 0, -1,
+			"sd_bus_message_exit_container fail rc=%d\n", rc);
+
+	return 0;
+}
+
+static int cb_dbus_paths(sd_bus_message *m, uint8_t eid)
+{
+	int rc;
+	const char *obj_path;
+	char path[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE] = { 0 };
+
+	rc = sd_bus_message_read_basic(m, SD_BUS_TYPE_OBJECT_PATH, &obj_path);
+	MCTP_ASSERT_RET(rc >= 0, -1, "sd_bus_message_read_basic fail rc=%d\n",
+			rc);
+
+	/* Compare object paths to match the one by eid */
+	snprintf(path, sizeof(path), "/xyz/openbmc_project/mctp/0/%d", eid);
+	if (strcmp(path, obj_path) != 0) {
+		sd_bus_message_skip(m, NULL);
+		return 0;
+	}
+
+	rc = sd_bus_message_enter_container(m, SD_BUS_TYPE_ARRAY, "{sa{sv}}");
+	MCTP_ASSERT_RET(rc >= 0, -1,
+			"sd_bus_message_enter_container fail rc=%d\n", rc);
+
+	/* Traverse all interfaces per object */
+	rc = iterate_dbus_dict(m, "sa{sv}", eid, cb_dbus_interfaces);
+	if (rc < 0)
+		fprintf(stderr, "cb_dbus_interfaces fail rc=%d\n", rc);
+
+	rc = sd_bus_message_exit_container(m);
+	MCTP_ASSERT_RET(rc >= 0, -1,
+			"sd_bus_message_exit_container fail rc=%d\n", rc);
+	return 1;
+}
+
+static int sock_name_helper(sd_bus *bus, const char *service, uint8_t eid)
+{
+	int rc;
+	int found = 0;
+	_cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL;
+	_cleanup_(sd_bus_error_free) sd_bus_error err = SD_BUS_ERROR_NULL;
+
+	rc = sd_bus_call_method(bus, service, "/xyz/openbmc_project/mctp",
+				"org.freedesktop.DBus.ObjectManager",
+				"GetManagedObjects", &err, &m, NULL);
+	if (rc < 0) {
+		/* Return the negative value to switch another interface */
+		return -1;
+	}
+
+	rc = sd_bus_message_enter_container(m, SD_BUS_TYPE_ARRAY,
+					    "{oa{sa{sv}}}");
+	MCTP_ASSERT_RET(rc >= 0, -1,
+			"%s: sd_bus_message_enter_container fail rc= %d\n",
+			service, rc);
+
+	/* traverse object paths */
+	found = iterate_dbus_dict(m, "oa{sa{sv}}", eid, cb_dbus_paths);
+	if (found < 0) {
+		fprintf(stderr, "sd_bus_message_exit_container fail rc=%d\n",
+			found);
+	}
+
+	rc = sd_bus_message_exit_container(m);
+	MCTP_ASSERT_RET(rc >= 0, -1,
+			"sd_bus_message_exit_container fail rc=%d\n", rc);
+	return found;
+}
+
 static int check_hex_number(char *s)
 {
 	char ch = *s;
@@ -101,6 +281,7 @@ int main(int argc, char *const *argv)
 	int rc = -1;
 	int i = 0, len = 0;
 	int fd = 0;
+	int found = 0;
 	char item[MCTP_VDM_COMMAND_NAME_SIZE] = { '\0' };
 	char intf[16] = { 0 };
 	char path[32] = { 0 };
@@ -108,6 +289,7 @@ int main(int argc, char *const *argv)
 	uint8_t teid = 0;
 	uint8_t payload_required = 0;
 	uint8_t payload[MCTP_CERTIFICATE_CHAIN_SIZE] = { '\0' };
+	sd_bus *bus = NULL;
 
 	for (;;) {
 		rc = getopt_long(argc, argv, "vt:c:h", options, NULL);
@@ -148,6 +330,7 @@ int main(int argc, char *const *argv)
 			return EXIT_FAILURE;
 		}
 	}
+	mctp_set_log_stdio(ctx.verbose ? MCTP_LOG_DEBUG : MCTP_LOG_WARNING);
 
 	/* need more data as the payload passing to selftest commands */
 	if (payload_required && optind == argc) {
@@ -175,12 +358,23 @@ int main(int argc, char *const *argv)
 		payload[len] = strtol(argv[i], NULL, 16);
 	}
 
-	/* Endpoint ID zero is for SPI device. */
-	path[0] = 0;
-	snprintf(&path[1], sizeof(path) - 1, "mctp-pcie-mux");
+	rc = sd_bus_default(&bus);
+	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "sd_bus_default failed\n");
+
+	found = 0;
+	for (i = 0; i < sizeof(dbus_services) / sizeof(dbus_services[0]); i++) {
+		found = sock_name_helper(bus, dbus_services[i], teid);
+		if (found == 1)
+			break;
+	}
+
+	/* free dbus*/
+	sd_bus_unref(bus);
+
+	MCTP_ASSERT_RET(found == 1, EXIT_FAILURE, "can't find the interface\n");
 
 	/* Establish the socket connection */
-	rc = mctp_usr_socket_init(&fd, path, MCTP_MESSAGE_TYPE_VDIANA);
+	rc = mctp_usr_socket_init(&fd, g_sock_name, MCTP_MESSAGE_TYPE_VDIANA);
 	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, EXIT_FAILURE,
 			"Failed to open mctp socket\n");
 
