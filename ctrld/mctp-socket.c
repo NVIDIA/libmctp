@@ -89,14 +89,19 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 	return MCTP_REQUESTER_SUCCESS;
 }
 
-mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
+static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 				     uint8_t **mctp_resp_msg,
-				     size_t *resp_msg_len)
+				     size_t *resp_msg_len, uint8_t *resp_eid)
 {
+	size_t mctp_prefix_len = sizeof(eid);
+	uint8_t mctp_prefix[mctp_prefix_len];
+	struct iovec iov[2];
+	size_t mctp_len;
 	size_t min_len = sizeof(eid) + sizeof(MCTP_MSG_TYPE_HDR) +
 			 sizeof(struct mctp_ctrl_cmd_msg_hdr);
+	ssize_t length;
 
-	ssize_t length = recv(mctp_fd, NULL, 0, MSG_PEEK | MSG_TRUNC);
+	length = recv(mctp_fd, NULL, 0, MSG_PEEK | MSG_TRUNC);
 
 	if (length < 0 && errno == EAGAIN) {
 		MCTP_CTRL_INFO("%s: Recv failed: due to timedout\n", __func__);
@@ -105,7 +110,7 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 
 	if ((length <= 0) || (length > 4096)) {
 		MCTP_CTRL_INFO(
-			"%s: Recv failed: Invalid length: %ld or timedout\n",
+			"%s: Recv failed: Invalid length: %d or timedout\n",
 			__func__, length);
 		return MCTP_REQUESTER_RECV_FAIL;
 	} else if (length < min_len) {
@@ -117,14 +122,6 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 				       length);
 		return MCTP_REQUESTER_INVALID_RECV_LEN;
 	} else {
-		struct iovec iov[2];
-
-		//size_t mctp_prefix_len = sizeof(eid) + sizeof(MCTP_MSG_TYPE_HDR);
-		size_t mctp_prefix_len = sizeof(eid);
-
-		uint8_t mctp_prefix[mctp_prefix_len];
-		size_t mctp_len;
-
 		mctp_len = length - mctp_prefix_len;
 
 		iov[0].iov_len = mctp_prefix_len;
@@ -156,6 +153,7 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 			free(*mctp_resp_msg);
 			return MCTP_REQUESTER_INVALID_RECV_LEN;
 		}
+		*resp_eid = mctp_prefix[0];
 
 		/* Update the response length */
 		*resp_msg_len = mctp_len;
@@ -166,6 +164,47 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 	}
 
 	return MCTP_REQUESTER_SUCCESS;
+}
+
+mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
+				     uint8_t **mctp_resp_msg,
+				     size_t *resp_msg_len)
+{
+	char resp_eid[1] = { 0 };
+	return mctp_recv(eid, mctp_fd, mctp_resp_msg, resp_msg_len, resp_eid);
+}
+
+static mctp_requester_rc_t mctp_client_recv1(mctp_eid_t eid, int mctp_fd,
+					     uint8_t **mctp_resp_msg,
+					     size_t *resp_msg_len)
+{
+	char resp_eid[1] = { 0 };
+	mctp_requester_rc_t rc;
+
+	do {
+		rc = mctp_recv(eid, mctp_fd, mctp_resp_msg, resp_msg_len,
+			       resp_eid);
+
+		if (rc != MCTP_REQUESTER_SUCCESS) {
+			return rc;
+		}
+		/* Mctp demux will forard the response to all mctp client
+		 * regiestered with the same message type.
+		 * We may receive the unexpected data and need to read it again
+		 */
+		if (eid == resp_eid[0]) {
+			break;
+		}
+
+		/* free the msg and will read it again */
+		free(*mctp_resp_msg);
+		*mctp_resp_msg = NULL;
+
+		MCTP_CTRL_DEBUG("%s: I'm not the requester - %d, EID: %d\n",
+				__func__, eid, resp_eid[0]);
+	} while (1);
+
+	return rc;
 }
 
 mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
@@ -210,8 +249,8 @@ mctp_requester_rc_t mctp_client_send_recv(mctp_eid_t eid, int fd,
 		MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, rc,
 				"fail to send [rc: %d] request\n", rc);
 
-		/* Receive the MCTP packets*/
-		rc = mctp_client_recv(eid, fd, resp_msg, resp_len);
+		/* Receive the data again if EID mismatch */
+		rc = mctp_client_recv1(eid, fd, resp_msg, resp_len);
 		if (rc == MCTP_REQUESTER_SUCCESS) {
 			break;
 		}
