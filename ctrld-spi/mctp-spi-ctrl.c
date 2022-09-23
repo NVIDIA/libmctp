@@ -38,8 +38,8 @@
 
 #include "ctrld/mctp-ctrl.h"
 #include "ctrld/mctp-sdbus.h"
-#include "ctrld/mctp-socket.h"
 
+#include "mctp-socket.h"
 #include "mctp-ctrl-log.h"
 #include "mctp-spi-ctrl.h"
 #include "mctp-spi-ctrl-cmdline.h"

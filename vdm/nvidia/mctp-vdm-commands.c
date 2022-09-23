@@ -22,7 +22,8 @@
 #include "mctp-vdm-commands.h"
 
 #include "ctrld/mctp-ctrl.h"
-#include "ctrld/mctp-socket.h"
+
+#include "mctp-socket.h"
 
 /* MCTP-VDM response binary file */
 #define MCTP_VDM_RESP_OUTPUT_FILE "/var/mctp-vdm-output.bin"

@@ -13,9 +13,9 @@
 #include "libmctp-log.h"
 #include "libmctp-cmds.h"
 
-#include "mctp-ctrl-log.h"
-#include "mctp-ctrl-cmds.h"
-#include "mctp-ctrl.h"
+#include "ctrld/mctp-ctrl-log.h"
+#include "ctrld/mctp-ctrl-cmds.h"
+#include "ctrld/mctp-ctrl.h"
 
 /* Set MCTP message Type */
 const uint8_t MCTP_CTRL_MSG_TYPE = 0;
@@ -166,6 +166,9 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 	return MCTP_REQUESTER_SUCCESS;
 }
 
+/* The function won't do eid checking mainly for mctp control messages,
+ * especailly mctp discovery messages.
+ * */
 mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 				     uint8_t **mctp_resp_msg,
 				     size_t *resp_msg_len)
@@ -174,7 +177,10 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 	return mctp_recv(eid, mctp_fd, mctp_resp_msg, resp_msg_len, resp_eid);
 }
 
-static mctp_requester_rc_t mctp_client_recv1(mctp_eid_t eid, int mctp_fd,
+/* The function will check EID and ignore the incomming response and receive
+ * the response again if EID mismatches.
+ * */
+static mctp_requester_rc_t mctp_client_recv_from_eid(mctp_eid_t eid, int mctp_fd,
 					     uint8_t **mctp_resp_msg,
 					     size_t *resp_msg_len)
 {
@@ -189,7 +195,7 @@ static mctp_requester_rc_t mctp_client_recv1(mctp_eid_t eid, int mctp_fd,
 			return rc;
 		}
 		/* Mctp demux will forard the response to all mctp client
-		 * regiestered with the same message type.
+		 * registered with the same message type.
 		 * We may receive the unexpected data and need to read it again
 		 */
 		if (eid == resp_eid[0]) {
@@ -250,7 +256,7 @@ mctp_requester_rc_t mctp_client_send_recv(mctp_eid_t eid, int fd,
 				"fail to send [rc: %d] request\n", rc);
 
 		/* Receive the data again if EID mismatch */
-		rc = mctp_client_recv1(eid, fd, resp_msg, resp_len);
+		rc = mctp_client_recv_from_eid(eid, fd, resp_msg, resp_len);
 		if (rc == MCTP_REQUESTER_SUCCESS) {
 			break;
 		}
