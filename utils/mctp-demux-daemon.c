@@ -39,6 +39,7 @@
 #include "libmctp-log.h"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
+#define __unused      __attribute__((unused))
 
 #define MCTP_BIND_INFO_OFFSET (sizeof(uint8_t))
 #define MCTP_PCIE_EID_OFFSET                                                   \
@@ -221,8 +222,8 @@ rx_message(uint8_t eid, bool tag_owner __unused, uint8_t msg_tag __unused,
 		struct client *client = &ctx->clients[i];
 
 		if (ctx->verbose)
-			fprintf(stderr, " %i client type: %hhu type: %hhu\n",
-			    i, client->type, type);
+			fprintf(stderr, " %i client type: %hhu type: %hhu\n", i,
+				client->type, type);
 
 		if (client->type != type)
 			continue;
@@ -375,13 +376,85 @@ static int binding_astpcie_process(struct binding *binding)
 	return rc;
 }
 
+static void binding_astspi_usage(void)
+{
+	fprintf(stderr,
+		"Usage: astspi\n"
+		"\tgpio=<line num> - GPIO line num to monitor\n"
+		"\tdevice=<dev num> - SPI device to open\n"
+		"\tchannel=<chan num> - SPI channel to open\n"
+		"\tmode=<mode num> - SPI mode (default: 0)\n"
+		"\tdisablecs=<0|1> - enable / disable CS (default: 0)\n"
+		"\tsinglemode=<0|1> - enable / disable single mode (default: 0)\n");
+
+	fprintf(stderr, "Example: astpspi gpio=11 disablecs=1\n");
+}
+
+static int binding_astspi_parse_num(const char *param)
+{
+	intmax_t num;
+	char *endptr = NULL;
+
+	num = strtoimax(param, &endptr, 10);
+
+	if (*endptr != '\0' && *endptr != ' ') {
+		fprintf(stderr, "Invalid number: %s\n", param);
+		exit(1);
+	}
+
+	return (int)num;
+}
+
 static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
 			       mctp_eid_t eid, int n_params,
 			       char *const *params)
 {
 	struct mctp_binding_spi *astspi;
+	struct mctp_astspi_device_conf config = {
+		.gpio = SPB_GPIO_INTR_NUM,
+		.dev = AST_MCTP_SPI_DEV_NUM,
+		.channel = AST_MCTP_SPI_CHANNEL_NUM,
+		.mode = 0,
+		.disablecs = 0,
+		.singlemode = 0,
+	};
+	struct {
+		char *prefix;
+		void *target;
+	} options[] = {
+		{ "gpio=", &config.gpio },
+		{ "device=", &config.dev },
+		{ "channel=", &config.channel },
+		{ "mode=", &config.mode },
+		{ "disablecs=", &config.disablecs },
+		{ "singlemode=", &config.singlemode },
+		{ NULL, NULL },
+	};
 
-	astspi = mctp_spi_bind_init();
+	for (int ii = 0; ii < n_params; ii++) {
+		bool parsed = false;
+
+		for (int jj = 0; options[jj].prefix != NULL; jj++) {
+			const char *prefix = options[jj].prefix;
+			const size_t len = strlen(prefix);
+
+			if (strncmp(params[ii], prefix, len) == 0) {
+				int val = 0;
+				char *arg = strstr(params[ii], "=") + 1;
+
+				val = binding_astspi_parse_num(arg);
+				*(int *)options[ii].target = val;
+				parsed = true;
+			}
+		}
+
+		if (!parsed) {
+			binding_astspi_usage();
+			exit(1);
+		}
+	}
+
+	astspi = mctp_spi_bind_init(&config);
 	MCTP_ASSERT(astspi != NULL, "mctp_spi_bind_init failed.");
 
 	mctp_register_bus(mctp, mctp_binding_astspi_core(astspi), eid);
@@ -748,7 +821,8 @@ static int run_daemon(struct ctx *ctx)
 			if (!ctx->pollfds[FD_NR + i].revents)
 				continue;
 			MCTP_ASSERT(ctx->pollfds[FD_NR + i].fd ==
-			    ctx->clients[i].sock, "Socket fd mismatch!");
+					    ctx->clients[i].sock,
+				    "Socket fd mismatch!");
 			rc = client_process_recv(ctx, i);
 			if (rc)
 				ctx->clients_changed = true;

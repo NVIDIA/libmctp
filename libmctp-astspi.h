@@ -18,17 +18,19 @@ extern "C" {
 #include <stdbool.h>
 #include "libmctp.h"
 
-#define MCTP_HEADER_SIZE 4
-#define MCTP_PAYLOAD_SIZE 64
+#define MCTP_HEADER_SIZE	  4
+#define MCTP_PAYLOAD_SIZE	  64
 #define MCTP_WRITE_DATA_BUFF_SIZE 1024
-#define MCTP_READ_DATA_BUFF_SIZE 1024
-#define MCTP_PVT_BIND_BUFF_SIZE 64
+#define MCTP_READ_DATA_BUFF_SIZE  1024
+#define MCTP_PVT_BIND_BUFF_SIZE	  64
 
 /* SPI device and channel details */
-#define AST_MCTP_SPI_DEV_NUM 0
+#define AST_MCTP_SPI_DEV_NUM	 0
 #define AST_MCTP_SPI_CHANNEL_NUM 2
 
 #define ASTP_SPI_RAW_RW_BUFF_LEN 64
+
+#define SPB_GPIO_INTR_NUM 986
 
 /* Command line options for various operations */
 typedef enum mctp_cmdline_ops {
@@ -165,6 +167,16 @@ typedef struct {
 #define SPI_BINDING_MAGIC3 0xdaad1111
 #define SPI_BINDING_MAGIC4 0xf00d43ee
 
+struct mctp_astspi_device_conf {
+	unsigned int gpio;
+
+	int dev;
+	int channel;
+	int mode;
+	int disablecs;
+	int singlemode;
+};
+
 struct mctp_binding_spi;
 
 struct mctp_astspi_pkt_private {
@@ -176,7 +188,8 @@ struct mctp_astspi_pkt_private {
 	uint8_t _reserved[32];
 } __attribute__((packed));
 
-struct mctp_binding_spi *mctp_spi_bind_init(void);
+struct mctp_binding_spi *
+mctp_spi_bind_init(struct mctp_astspi_device_conf *conf);
 void mctp_binding_destroy(struct mctp_binding_spi *spi);
 struct mctp_binding *mctp_binding_astspi_core(struct mctp_binding_spi *spi);
 

@@ -14,18 +14,18 @@
 #include <stdbool.h>
 
 #define SYSFS_GPIO_DIR "/sys/class/gpio"
-#define POLL_TIMEOUT (3 * 1000) /* 3 seconds */
-#define MAX_BUF 64
+#define POLL_TIMEOUT   (3 * 1000) /* 3 seconds */
+#define MAX_BUF	       64
 
 #define MCTP_SPI_CMD_DELAY_USECS 100
 #
 #define SPI_GPIO_INPUT_POLL 250
 
 /* GPIO interrupt poll macros */
-#define SPB_GPIO_INTR_NUM 986
+
 #define SPB_GPIO_INTR_OCCURED 1
-#define SPB_GPIO_INTR_RESET 0
-#define SPB_GPIO_INTR_STOP 0x1000
+#define SPB_GPIO_INTR_RESET   0
+#define SPB_GPIO_INTR_STOP    0x1000
 
 enum ast_spi_intr_status {
 	AST_SPI_INTR_NONE,
@@ -59,7 +59,7 @@ int ast_spi_set_udelay(int usecond);
 
 /* Function prototypes */
 int ast_spi_gpio_poll_thread(void *data);
-int ast_spi_gpio_intr_init(void);
+int ast_spi_gpio_intr_init(unsigned int gpio);
 enum ast_spi_intr_status ast_spi_gpio_intr_check(int gpio_fd, int timeout_ms,
 						 bool polling);
 int ast_spi_gpio_fd_close(int gpio_fd);

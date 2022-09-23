@@ -42,7 +42,7 @@
 #define pr_fmt(x) "spi: " x
 #endif
 
-#define AST_GPIO_POLL_LOW 0
+#define AST_GPIO_POLL_LOW  0
 #define AST_GPIO_POLL_HIGH 1
 
 #ifndef container_of
@@ -58,7 +58,7 @@
 #define MCTP_SPI_LOAD_CMD_SIZE 128
 
 /* MCTP message interrupt macros */
-#define MCTP_RX_MSG_INTR 1
+#define MCTP_RX_MSG_INTR     1
 #define MCTP_RX_MSG_INTR_RST 0
 
 /* MCTP SPI Control daemon delay default */
@@ -74,14 +74,6 @@
 	"insmod /lib/modules/*/kernel/drivers/spi/fmc_spi.ko"
 
 #define MCTP_SPI_LOAD_UNLOAD_DELAY_SECS 2
-
-struct spi_device {
-	uint8_t bpw;
-	uint8_t mode;
-	uint16_t delay;
-	uint32_t speed;
-	int fd;
-};
 
 struct mctp_binding_spi {
 	struct mctp_binding binding;
@@ -462,7 +454,8 @@ static int mctp_binding_spi_start(struct mctp_binding *b)
 	mctp_binding_set_tx_enabled(b, true);
 }
 
-struct mctp_binding_spi *mctp_spi_bind_init(void)
+struct mctp_binding_spi *
+mctp_spi_bind_init(struct mctp_astspi_device_conf *conf)
 {
 	struct mctp_binding_spi *spi = NULL;
 	int count = 0;
@@ -480,7 +473,7 @@ struct mctp_binding_spi *mctp_spi_bind_init(void)
 	}
 
 	mctp_prinfo("Initializing GPIO intr notifications...");
-	spi->gpio_fd = ast_spi_gpio_intr_init();
+	spi->gpio_fd = ast_spi_gpio_intr_init(conf->gpio);
 	if (spi->gpio_fd < 0) {
 		mctp_prerr("Could not open GPIO fd.");
 		__mctp_free(spi);
@@ -488,8 +481,8 @@ struct mctp_binding_spi *mctp_spi_bind_init(void)
 	}
 
 	mctp_prinfo("Opening SPI device...");
-	spi->spi_fd = ast_spi_open(AST_MCTP_SPI_DEV_NUM,
-				   AST_MCTP_SPI_CHANNEL_NUM, 0, 0, 0);
+	spi->spi_fd = ast_spi_open(conf->dev, conf->channel, conf->mode,
+				   conf->disablecs, conf->singlemode);
 	if (spi->spi_fd < 0) {
 		mctp_prerr("Could not open SPI fd.");
 		close(spi->gpio_fd);
@@ -733,7 +726,7 @@ int ast_spi_set_udelay(int usecond)
 	return (0);
 }
 
-int ast_spi_open(int dev, int channel, int mode, int disableCS, int singleMode)
+int ast_spi_open(int dev, int channel, int mode, int disablecs, int singlemode)
 {
 	int fd = 0, ret = 0;
 	char spiDev[32] = "";
@@ -745,10 +738,10 @@ int ast_spi_open(int dev, int channel, int mode, int disableCS, int singleMode)
 			errno, strerror(errno));
 
 	spiMode = mode;
-	if (singleMode)
+	if (singlemode)
 		spiMode |= SPI_3WIRE;
 
-	if (disableCS)
+	if (disablecs)
 		spiMode |= SPI_NO_CS;
 
 	return (fd);
@@ -901,10 +894,9 @@ int ast_spi_gpio_fd_close(int gpio_fd)
 	return (close(gpio_fd));
 }
 
-int ast_spi_gpio_intr_init(void)
+int ast_spi_gpio_intr_init(unsigned int gpio)
 {
 	int gpio_fd = 0;
-	const unsigned int gpio = SPB_GPIO_INTR_NUM;
 
 	/* Set GPIO params */
 	ast_spi_gpio_export(gpio);
