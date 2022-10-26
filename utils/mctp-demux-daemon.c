@@ -427,9 +427,9 @@ struct binding bindings[] = { {
 			      {
 				      .name = "astlpc",
 				      .init = binding_astlpc_init,
-					  .destroy = NULL,
+				      .destroy = NULL,
 				      .destroy = binding_astlpc_destroy,
-				      .init_pollfd = binding_astlpc_init_pollfd,					  
+				      .init_pollfd = binding_astlpc_init_pollfd,					
 				      .process = binding_astlpc_process,
 				      .sockname = "\0mctp-lpc-mux",
 				      .events = POLLIN,
@@ -437,7 +437,7 @@ struct binding bindings[] = { {
 			      {
 				      .name = "astpcie",
 				      .init = binding_astpcie_init,
-					  .destroy = NULL,
+				      .destroy = NULL,
 				      .init_pollfd = binding_astpcie_init_pollfd,
 				      .process = binding_astpcie_process,
 				      .sockname = "\0mctp-pcie-mux",
@@ -446,7 +446,7 @@ struct binding bindings[] = { {
 			      {
 				      .name = "astspi",
 				      .init = binding_astspi_init,
-					  .destroy = NULL,
+				      .destroy = NULL,
 				      .init_pollfd = binding_astspi_init_pollfd,
 				      .process = binding_astspi_process,
 				      .sockname = "\0mctp-spi-mux",
@@ -662,9 +662,7 @@ static int run_daemon(struct ctx *ctx)
 
 	ctx->pollfds = malloc(FD_NR * sizeof(struct pollfd));
 
-	if (!ctx->binding->init_pollfd) {
-		ctx->pollfds[FD_BINDING].events = ctx->binding->events;
-	} else {
+	if (ctx->binding->init_pollfd) {
 		ctx->pollfds[FD_BINDING].fd = -1;
 		ctx->pollfds[FD_BINDING].events = 0;
 	}
@@ -705,9 +703,11 @@ static int run_daemon(struct ctx *ctx)
 			ctx->clients_changed = false;
 		}
 
-		if (ctx->binding->init_pollfd)
+		if (ctx->binding->init_pollfd) {
 			ctx->binding->init_pollfd(ctx->binding,
 						  &ctx->pollfds[FD_BINDING]);
+			ctx->pollfds[FD_BINDING].events = ctx->binding->events;
+	        }
 		rc = poll(ctx->pollfds, ctx->n_clients + FD_NR, -1);
 		if (rc < 0) {
 			warn("poll failed");
@@ -808,7 +808,7 @@ int main(int argc, char *const *argv)
 	mctp_prinfo("MCTP demux started.");
 
 	for (;;) {
-		rc = getopt_long(argc, argv, "b:es::v", options, NULL);
+		rc = getopt_long(argc, argv, "b:e:s::v", options, NULL);
 		if (rc == -1)
 			break;
 		switch (rc) {
@@ -867,16 +867,6 @@ int main(int argc, char *const *argv)
 	ctx->mctp = mctp_init();
 	MCTP_ASSERT(ctx->mctp != NULL, "ctx->mctp is NULL");
 
-	rc = sd_notify(0, "STATUS=Initializing binding.");
-	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
-
-	mctp_prinfo("Binding init called.");
-	rc = binding_init(ctx, argv[optind], argc - optind - 1,
-			  argv + optind + 1);
-	mctp_prinfo("Binding init returned: %d.", rc);
-	if (rc)
-		return EXIT_FAILURE;
-
 	if (ctx->pcap.binding.path || ctx->pcap.socket.path) {
 		if (capture_init()) {
 			rc = EXIT_FAILURE;
@@ -905,12 +895,15 @@ int main(int argc, char *const *argv)
 		}
 	}
 
-	rc = binding_init(ctx, argv[optind], argc - optind - 1, argv + optind + 1);
-	if (rc) {
-		fprintf(stderr, "Failed to initialise binding: %d\n", rc);
-		rc = EXIT_FAILURE;
-		goto cleanup_pcap_socket;
-	}
+	rc = sd_notify(0, "STATUS=Initializing binding.");
+	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
+
+	mctp_prinfo("Binding init called.");
+	rc = binding_init(ctx, argv[optind], argc - optind - 1,
+			  argv + optind + 1);
+	mctp_prinfo("Binding init returned: %d.", rc);
+	if (rc)
+		return EXIT_FAILURE;
 
 	rc = sd_notify(0, "STATUS=Creating sockets.");
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
@@ -943,6 +936,7 @@ cleanup_pcap_binding:
 
 	rc = rc ? EXIT_FAILURE : EXIT_SUCCESS;
 cleanup_mctp:
+	mctp_destroy(ctx->mctp);
 
 	return rc;
 
