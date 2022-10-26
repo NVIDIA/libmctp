@@ -590,3 +590,39 @@ int certificate_install(int fd, uint8_t tid, uint8_t *payload, size_t length,
 
 	return 0;
 }
+
+/*
+ * Enable IB Update v1:
+ * By default firmware update is supported through both In-band and OOB paths, 
+ * but for some CSP, they do not want to allow IB update for security reasons.
+ * For parameter "code" equals 0, the command disables "in-band".
+ * For parameter "code" equals 1, the command enables "in-band".
+ * For parameter "code" equals 2, the command returns status of "in-band"
+ *  returns 0, for disabled "in-band"
+ *  returns 1, for enabled "in-band" 
+ */
+int in_band(int fd, uint8_t tid, uint8_t code, uint8_t verbose)
+{
+    uint8_t                                 *resp = NULL;
+    size_t                                  resp_len = 0;
+    mctp_requester_rc_t                     rc = -1;
+    struct mctp_vendor_cmd_in_band cmd = {0};
+
+    /* Encode the VDM headers for Enable IB Update */
+    mctp_encode_vendor_cmd_in_band(&cmd);
+
+    /* Update the code field */
+    cmd.code = code;
+
+    /* Send and Receive the MCTP-VDM command */
+    rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
+				       (uint8_t **)&resp, &resp_len, verbose);
+
+    /* free memory */
+    free(resp);
+	
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+			"%s: fail to recv [rc: %d] response\n", __func__, rc);
+	
+    return 0;
+}

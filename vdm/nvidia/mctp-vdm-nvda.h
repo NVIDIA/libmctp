@@ -31,6 +31,11 @@ extern "C" {
 #define MCTP_VDM_HEARTBEAT_ENABLE 1
 #define MCTP_VDM_HEARTBEAT_DISABLE 0
 
+/* In-Band command enable/disable macros */
+#define MCTP_VDM_IN_BAND_DISABLE        0
+#define MCTP_VDM_IN_BAND_ENABLE         1
+#define MCTP_VDM_IN_BAND_QUERY_STATUS   2
+
 /* Background copy operation macros */
 #define MCTP_VDM_BACKGROUND_COPY_DISABLE 0x00
 #define MCTP_VDM_BACKGROUND_COPY_ENABLE 0x01
@@ -39,6 +44,7 @@ extern "C" {
 #define MCTP_VDM_BACKGROUND_COPY_INIT 0x04
 #define MCTP_VDM_BACKGROUND_COPY_QUERY_STATUS 0x05
 #define MCTP_VDM_BACKGROUND_COPY_PROGRESS 0x06
+#define MCTP_VDM_BACKGROUND_COPY_PENDING 0x07
 
 /* Download log session ID for first request */
 #define MCTP_VDM_DOWNLOAD_LOG_SESSION_ID_START 0xff

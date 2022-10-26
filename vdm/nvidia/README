@@ -24,6 +24,9 @@ Supported commands:
              background_copy_disable, background_copy_enable
              background_copy_disable_one, background_copy_enable_one
              background_copy_query_status, background_copy_query_progress
+             background_copy_query_pending      
+		     in_band_disable, in_band_enable
+             in_band_query_status
 
 Buffer allocation/deallocation: (implementation details)
 -------------------------------

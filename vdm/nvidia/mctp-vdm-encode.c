@@ -145,3 +145,14 @@ bool mctp_encode_vendor_cmd_certificate_install(
 {
 	ENCODE_VMD_CMD_FUNC(CERTIFICATE_INSTALL);
 }
+
+bool mctp_encode_vendor_cmd_in_band(struct mctp_vendor_cmd_in_band *cmd)
+{
+    if (!cmd) {
+        return false;
+    }
+
+    encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(), MCTP_VENDOR_CMD_IN_BAND);
+
+    return true;
+}

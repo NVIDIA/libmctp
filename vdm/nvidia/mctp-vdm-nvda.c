@@ -84,7 +84,10 @@ static void usage(void)
 		background_copy_init\n \
 		background_copy_disable, background_copy_enable\n \
 		background_copy_disable_one, background_copy_enable_one\n \
-		background_copy_query_status, background_copy_query_progress\n");
+		background_copy_query_status, background_copy_query_progress\n \
+		background_copy_query_pending\n \        
+		in_band_disable, in_band_enable\n \
+		in_band_query_status\n");
 }
 
 struct ctx {
@@ -462,7 +465,13 @@ int main(int argc, char *const *argv)
 				     VERBOSE_EN);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to query prog bg: %d\n", rc);
-	} else if (!strcmp(item, "debug_token_install")) {
+	} else if (!strcmp(item, "background_copy_query_pending")) {
+        rc = background_copy(fd, teid, 
+                     MCTP_VDM_BACKGROUND_COPY_PENDING,
+                     VERBOSE_EN);
+        VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to query pending bg: %d\n", rc);
+    } else if (!strcmp(item, "debug_token_install")) {
 		rc = debug_token_install(fd, teid, payload, len, VERBOSE_EN);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "failed to install debug token: %d\n", rc);
@@ -479,7 +488,25 @@ int main(int argc, char *const *argv)
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "failed to program certificate chain: %d\n",
 				    rc);
-	} else {
+	} else if (!strcmp(item, "in_band_disable")) {
+        rc = in_band(fd, teid, 
+                     MCTP_VDM_IN_BAND_DISABLE,
+                     VERBOSE_EN);
+       VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to disable in-band: %d\n", rc);
+    } else if (!strcmp(item, "in_band_enable")) {
+        rc = in_band(fd, teid, 
+                     MCTP_VDM_IN_BAND_ENABLE,
+                     VERBOSE_EN);
+        VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to enable in-band: %d\n", rc);
+    } else if (!strcmp(item, "in_band_query_status")) {
+        rc = in_band(fd, teid, 
+                     MCTP_VDM_IN_BAND_QUERY_STATUS,
+                     VERBOSE_EN);
+        VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to query in-band: %d\n", rc);
+    } else {
 		fprintf(stderr, "Unknown test cmd\n");
 	}
 
