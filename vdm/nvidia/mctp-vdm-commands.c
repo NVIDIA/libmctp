@@ -108,17 +108,27 @@ static int vdm_resp_output(char *msg, int len, uint8_t result, uint8_t enable)
 	}
 	wlen = fwrite(&mctp_vdm_op_success, MCTP_VDM_RESP_OP_BYTE_FORMAT,
 		      sizeof(uint8_t), fptr);
-	MCTP_ASSERT_RET(wlen == 1, errno, "[err: %d] Unable to write %s\n",
-			errno, MCTP_VDM_RESP_OUTPUT_FILE);
+
+	if (wlen != 1) {
+		/* Close the Output fptr */
+		fclose(fptr);
+		MCTP_ERR("[err: %d] Unable to write %s\n",
+				 errno, MCTP_VDM_RESP_OUTPUT_FILE);
+		return (errno);
+	}
+
 	/* Update the Message */
 	if ((msg) && (len > MCTP_VDM_NVDA_MSG_TYPE_OFFSET)) {
 		wlen = fwrite(&msg[MCTP_VDM_NVDA_MSG_TYPE_OFFSET],
 			      MCTP_VDM_RESP_OP_BYTE_FORMAT,
 			      (len - MCTP_VDM_NVDA_MSG_TYPE_OFFSET), fptr);
-
-		MCTP_ASSERT_RET(wlen == len - MCTP_VDM_NVDA_MSG_TYPE_OFFSET,
-				errno, "[err: %d] Unable to write %s\n", errno,
-				MCTP_VDM_RESP_OUTPUT_FILE);
+		if (wlen != (len - MCTP_VDM_NVDA_MSG_TYPE_OFFSET)) {
+			/* Close the Output fptr */
+			fclose(fptr);
+			MCTP_ERR("[err: %d] Unable to write %s\n",
+					 errno, MCTP_VDM_RESP_OUTPUT_FILE);
+			return (errno);
+		}
 	}
 
 	/* Close the Output fptr */
@@ -407,6 +417,7 @@ int download_log(int fd, uint8_t eid, char *dl_path, uint8_t verbose)
 			fprintf(stderr, "%s: fail to recv [rc: %d] response\n",
 				__func__, rc);
 			free(resp);
+			fclose(fptr);
 			return -1;
 		}
 
@@ -424,6 +435,7 @@ int download_log(int fd, uint8_t eid, char *dl_path, uint8_t verbose)
 			fprintf(stderr, "%s: Invalid cc[%d] DownloadLog fail\n",
 				__func__, resp->cc);
 			free(resp);
+			fclose(fptr);
 			return -1;
 		}
 
@@ -434,6 +446,7 @@ int download_log(int fd, uint8_t eid, char *dl_path, uint8_t verbose)
 				"%s: Bytes received [%d] is more than expected log size\n",
 				__func__, bytes_count);
 			free(resp);
+			fclose(fptr);
 			return -1;
 		}
 

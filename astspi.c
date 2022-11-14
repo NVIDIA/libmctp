@@ -190,10 +190,10 @@ int mctp_unload_flash_driver(void)
 	MCTP_ASSERT_RET(fd >= 0, fd, "Could not open %s.", path);
 
 	ret = write(fd, data, sizeof(data));
-	MCTP_ASSERT_RET(ret == sizeof(data), ret, "Could not write to %s.",
-			path);
-
 	close(fd);
+
+	MCTP_ASSERT_RET(ret == sizeof(data), ret, "Could not write to %s.", path);
+
 	return (0);
 }
 

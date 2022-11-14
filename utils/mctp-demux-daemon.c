@@ -111,7 +111,7 @@ static void mctp_print_hex(uint8_t *data, size_t length)
 
 static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 {
-	int rc;
+	int rc = 0;
 	mctp_binding_ids_t bind_id;
 	union {
 		struct mctp_astpcie_pkt_private pcie;
@@ -146,6 +146,9 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 			       pvt_binding.pcie.routing,
 			       pvt_binding.pcie.remote_id);
 		}
+		if (rc) {
+			warnx("Failed to send message: %d", rc);
+		}
 		break;
 	case MCTP_BINDING_SPI:
 		memcpy(&pvt_binding.spi, (msg + MCTP_BIND_INFO_OFFSET),
@@ -155,9 +158,6 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		warnx("Invalid/Unsupported binding ID %d", bind_id);
 		break;
 	}
-
-	if (rc)
-		warnx("Failed to send message: %d", rc);
 }
 
 static void tx_message(struct ctx *ctx, mctp_eid_t eid, void *msg, size_t len)
