@@ -39,7 +39,6 @@
 #include "libmctp-log.h"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
-#define __unused      __attribute__((unused))
 
 #define MCTP_BIND_INFO_OFFSET (sizeof(uint8_t))
 #define MCTP_PCIE_EID_OFFSET                                                   \
