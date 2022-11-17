@@ -412,7 +412,7 @@ int download_log(int fd, uint8_t eid, char *dl_path, uint8_t verbose)
 
 		/* The verbose option can be enabled if user want to see each packet transfers */
 		if (verbose) {
-			printf("resp_len: %d\n", resp_len);
+			printf("resp_len: %zu\n", resp_len);
 			print_hex("Response for DownloadLog", (uint8_t *)resp,
 				  resp_len, verbose);
 			printf("DL: cc is %d, session is %d, length is %d\n",

@@ -255,17 +255,21 @@ static void astlpc_test_packetised_message_bmc_to_host(void)
 
 	ctx.msg = &msg[0];
 	ctx.count = 0;
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_set_rx_all(ctx.host.mctp, rx_message, &ctx);
 
 	/* BMC sends a message */
+	/* coverity[var_deref_model:SUPPRESS] */
 	rc = mctp_message_tx(ctx.bmc.mctp, 9, MCTP_MESSAGE_TO_SRC, 0, msg,
 			     sizeof(msg));
 	assert(rc == 0);
 
 	/* Host receives the first packet */
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_astlpc_poll(ctx.host.astlpc);
 
 	/* BMC dequeues ownership hand-over and sends the queued packet */
+	/* coverity[var_deref_model:SUPPRESS] */
 	rc = mctp_astlpc_poll(ctx.bmc.astlpc);
 	assert(rc == 0);
 
@@ -297,18 +301,22 @@ static void astlpc_test_simple_message_host_to_bmc(void)
 
 	ctx.msg = &msg[0];
 	ctx.count = 0;
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_set_rx_all(ctx.bmc.mctp, rx_message, &ctx);
 
 	/* Host sends the single-packet message */
+	/* coverity[var_deref_model:SUPPRESS] */
 	rc = mctp_message_tx(ctx.host.mctp, 8, MCTP_MESSAGE_TO_DST, tag, msg,
 			     sizeof(msg));
 	assert(rc == 0);
 	assert(ctx.kcs[MCTP_ASTLPC_KCS_REG_STATUS] & KCS_STATUS_IBF);
 	assert(ctx.kcs[MCTP_ASTLPC_KCS_REG_DATA] == 0x01);
 
+	/* coverity[var_deref_model:SUPPRESS] */
 	astlpc_assert_tx_packet(&ctx.host, &msg[0], MCTP_BTU);
 
 	/* BMC receives the single-packet message */
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_astlpc_poll(ctx.bmc.astlpc);
 	assert(ctx.count == 1);
 
@@ -339,18 +347,22 @@ static void astlpc_test_simple_message_bmc_to_host(void)
 
 	ctx.msg = &msg[0];
 	ctx.count = 0;
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_set_rx_all(ctx.host.mctp, rx_message, &ctx);
 
 	/* BMC sends the single-packet message */
+	/* coverity[var_deref_model:SUPPRESS] */
 	rc = mctp_message_tx(ctx.bmc.mctp, 9, MCTP_MESSAGE_TO_SRC, tag, msg,
 			     sizeof(msg));
 	assert(rc == 0);
 	assert(ctx.kcs[MCTP_ASTLPC_KCS_REG_STATUS] & KCS_STATUS_OBF);
 	assert(ctx.kcs[MCTP_ASTLPC_KCS_REG_DATA] == 0x01);
 
+	/* coverity[var_deref_model:SUPPRESS] */
 	astlpc_assert_tx_packet(&ctx.bmc, &msg[0], MCTP_BTU);
 
 	/* Host receives the single-packet message */
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_astlpc_poll(ctx.host.astlpc);
 	assert(ctx.count == 1);
 
@@ -637,12 +649,15 @@ static void astlpc_test_host_tx_bmc_gone(void)
 	ctx.count = 0;
 
 	/* Clear bmc-ready */
+	/* coverity[var_deref_model:SUPPRESS] */
 	endpoint_destroy(&ctx.bmc);
 
 	/* Host detects that the BMC is disabled */
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_astlpc_poll(ctx.host.astlpc);
 
 	/* Host attempts to send the single-packet message, but is prevented */
+	/* coverity[var_deref_model:SUPPRESS] */
 	rc = mctp_message_tx(ctx.host.mctp, 8, MCTP_MESSAGE_TO_DST, tag, msg,
 			     sizeof(msg));
 	assert(rc == 0);
@@ -1205,15 +1220,18 @@ static void astlpc_test_corrupt_host_tx(void)
 
 	ctx.msg = &msg[0];
 	ctx.count = 0;
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_set_rx_all(ctx.bmc.mctp, rx_message, &ctx);
 
 	/* Host sends the single-packet message */
+	/* coverity[var_deref_model:SUPPRESS] */
 	rc = mctp_message_tx(ctx.host.mctp, 8, MCTP_MESSAGE_TO_DST, tag, msg,
 			     sizeof(msg));
 	assert(rc == 0);
 	assert(ctx.kcs[MCTP_ASTLPC_KCS_REG_STATUS] & KCS_STATUS_IBF);
 	assert(ctx.kcs[MCTP_ASTLPC_KCS_REG_DATA] == 0x01);
 
+	/* coverity[var_deref_model:SUPPRESS] */
 	astlpc_assert_tx_packet(&ctx.host, &msg[0], MCTP_BTU);
 
 	/* Corrupt the CRC-32 in the message trailer */
@@ -1225,6 +1243,7 @@ static void astlpc_test_corrupt_host_tx(void)
 	memcpy(tlr, &code, sizeof(code));
 
 	/* BMC receives the single-packet message */
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_astlpc_poll(ctx.bmc.astlpc);
 	assert(ctx.count == 0);
 
@@ -1259,9 +1278,11 @@ static void astlpc_test_corrupt_bmc_tx(void)
 
 	ctx.msg = &msg[0];
 	ctx.count = 0;
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_set_rx_all(ctx.host.mctp, rx_message, &ctx);
 
 	/* BMC sends the single-packet message */
+	/* coverity[var_deref_model:SUPPRESS] */
 	rc = mctp_message_tx(ctx.bmc.mctp, 9, MCTP_MESSAGE_TO_SRC, tag, msg,
 			     sizeof(msg));
 	assert(rc == 0);
@@ -1269,6 +1290,7 @@ static void astlpc_test_corrupt_bmc_tx(void)
 	assert(ctx.kcs[MCTP_ASTLPC_KCS_REG_DATA] == 0x01);
 
 	/* Check that the BMC sent a fully-formed packet */
+	/* coverity[var_deref_model:SUPPRESS] */
 	astlpc_assert_tx_packet(&ctx.bmc, &msg[0], MCTP_BTU);
 
 	/* Corrupt the CRC-32 in the message trailer */
@@ -1280,6 +1302,7 @@ static void astlpc_test_corrupt_bmc_tx(void)
 	memcpy(tlr, &code, sizeof(code));
 
 	/* Host drops the single-packet message */
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_astlpc_poll(ctx.host.astlpc);
 	assert(ctx.count == 0);
 
@@ -1310,12 +1333,14 @@ static void astlpc_test_async_exchange(void)
 	 * Fill the KCS transmit buffer by sending a message from the BMC to the host without
 	 * dequeuing it on the host side
 	 */
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_message_tx(ctx.bmc.mctp, 9, MCTP_MESSAGE_TO_SRC, tag, msg,
 			sizeof(msg));
 
 	/* (2)
 	 * Assert that we're still listening for in-bound messages on the BMC
 	 */
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_astlpc_init_pollfd(ctx.bmc.astlpc, &pollfd);
 	assert(pollfd.events & POLLIN);
 	assert(!(pollfd.events & POLLOUT));
@@ -1324,6 +1349,7 @@ static void astlpc_test_async_exchange(void)
 	 * Send a message from the host to the BMC and dequeue the message on the BMC, triggering a
 	 * buffer ownership transfer command back to the host
 	 */
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_message_tx(ctx.host.mctp, 8, MCTP_MESSAGE_TO_SRC, tag, msg,
 			sizeof(msg));
 	mctp_astlpc_poll(ctx.bmc.astlpc);
@@ -1340,6 +1366,7 @@ static void astlpc_test_async_exchange(void)
 	 * Dequeue the message from (1) on the host side, allowing transmisson of the outstanding
 	 * ownership transfer command from (3)
 	 */
+	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_astlpc_poll(ctx.host.astlpc);
 
 	/* (6)

@@ -265,6 +265,9 @@ static int mctp_spi_tx(struct mctp_binding_spi *spi, const uint8_t len,
 {
 	SpbApStatus status = 0;
 
+	MCTP_ASSERT_RET(len <= SPI_TX_BUFF_SIZE, -1, "spb_ap_send length: %id",
+			len);
+
 	mctp_trace_tx(spi->txbuf, len);
 	mctp_prdebug("spb_ap_send");
 
@@ -316,7 +319,7 @@ static void mctp_spi_hexdump(const char *prefix, int len, void *buf)
 	int ii = 0;
 
 	printf("%s> ", prefix);
-	printf("SPI HDR (%d bytes): ", sizeof(struct mctp_spi_header));
+	printf("SPI HDR (%ld bytes): ", sizeof(struct mctp_spi_header));
 	for (ii = 0; ii < sizeof(struct mctp_spi_header); ii++) {
 		printf("%02x ", data[ii]);
 	}
@@ -402,7 +405,7 @@ static int mctp_spi_rx(struct mctp_binding_spi *spi)
 	payload_len = spi_hdr_rx->byte_count;
 	len = payload_len + hdr_size;
 
-	MCTP_ASSERT_RET(len >= hdr_size, -1, "Invalid packet size: %d", len);
+	MCTP_ASSERT_RET(len >= hdr_size, -1, "Invalid packet size: %zi", len);
 	MCTP_ASSERT_RET(payload_len > 0, -1, "Invalid payload size: %zi",
 			payload_len);
 
@@ -431,6 +434,8 @@ static int mctp_spi_rx(struct mctp_binding_spi *spi)
 int mctp_spi_set_spi_fd(struct mctp_binding_spi *spi, int fd)
 {
 	spi->spi_fd = fd;
+
+    return 0;
 }
 
 int mctp_spi_register_bus(struct mctp_binding_spi *spi, struct mctp *mctp,
@@ -452,6 +457,8 @@ static int mctp_binding_spi_start(struct mctp_binding *b)
 	struct mctp_binding_spi *spi = binding_to_spi(b);
 
 	mctp_binding_set_tx_enabled(b, true);
+
+    return 0;
 }
 
 struct mctp_binding_spi *

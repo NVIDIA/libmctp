@@ -110,14 +110,14 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 
 	if ((length <= 0) || (length > 4096)) {
 		MCTP_CTRL_INFO(
-			"%s: Recv failed: Invalid length: %d or timedout\n",
+			"%s: Recv failed: Invalid length: %zi or timedout\n",
 			__func__, length);
 		return MCTP_REQUESTER_RECV_FAIL;
 	} else if (length < min_len) {
 		/* read and discard */
 		uint8_t buf[length];
 
-		recv(mctp_fd, buf, length, 0);
+		length = recv(mctp_fd, buf, length, 0);
 		mctp_ctrl_print_buffer("mctp_recv_msg_invalid_len", buf,
 				       length);
 		return MCTP_REQUESTER_INVALID_RECV_LEN;
@@ -131,7 +131,7 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 
 		MCTP_ASSERT_RET(*mctp_resp_msg != NULL,
 				MCTP_REQUESTER_RECV_FAIL,
-				"fail to allocate %d bytes memory\n", mctp_len);
+				"fail to allocate %zu bytes memory\n", mctp_len);
 
 		iov[1].iov_len = mctp_len;
 		iov[1].iov_base = *mctp_resp_msg;

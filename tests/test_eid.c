@@ -57,6 +57,7 @@ int main(void)
 
 	create_packet(&pktbuf.hdr, remote_eid, local_eid);
 
+    /* coverity[uninit_use_in_call:SUPPRESS] */
 	mctp_binding_test_rx_raw(ctx->binding, &pktbuf, sizeof(pktbuf));
 
 	assert(ctx->rx_count == 1);

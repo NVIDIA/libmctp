@@ -994,6 +994,11 @@ static void mctp_astlpc_rx_start(struct mctp_binding_astlpc *astlpc)
 		return;
 	}
 
+	/* Suppress Coverity errors
+     * CID 3469725 (#1 of 1): Macro compares unsigned to 0 (NO_EFFECT)
+     * CID 3469738 (#1 of 1): Operands don't affect result (CONSTANT_EXPRESSION_RESULT)
+     */
+	/* coverity[unsigned_compare:SUPPRESS] */ /* coverity[result_independent_of_operands:SUPPRESS] */
 	assert(astlpc->binding.pkt_size >= 0);
 	if (body > (uint32_t)astlpc->binding.pkt_size) {
 		astlpc_prwarn(astlpc, "invalid RX len 0x%x", body);
@@ -1073,11 +1078,16 @@ static int mctp_astlpc_finalise_channel(struct mctp_binding_astlpc *astlpc)
 	if (rc < 0)
 		return rc;
 
+    /*
+     * CID 3473980 (#1 of 1): Uninitialized scalar variable (UNINIT)
+     */
 	if (!mctp_astlpc_layout_validate(astlpc, &layout)) {
+	/* coverity[end_of_path:SUPPRESS] */
 		mctp_prerr("BMC proposed invalid buffer parameters");
 		return -EINVAL;
 	}
 
+	/* coverity[uninit_use:SUPPRESS] */
 	astlpc->layout = layout;
 
 	if (negotiated >= 2)

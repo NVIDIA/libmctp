@@ -865,7 +865,7 @@ static void usage(const char *progname)
 
 int main(int argc, char *const *argv)
 {
-	struct ctx *ctx, _ctx;
+	struct ctx *ctx = NULL, _ctx = {0};
 	int rc;
 
 	ctx = &_ctx;
@@ -874,6 +874,7 @@ int main(int argc, char *const *argv)
 	ctx->local_eid = local_eid_default;
 	ctx->verbose = false;
 	ctx->pcap.binding.path = NULL;
+	ctx->pcap.binding.dumper = NULL;
 	ctx->pcap.binding.linktype = -1;
 	ctx->pcap.socket.path = NULL;
 	ctx->pcap.socket.linktype = -1;
