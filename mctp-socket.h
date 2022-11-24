@@ -6,14 +6,6 @@ extern "C" {
 #endif
 
 /**
- * @brief Wait timeout ms discarding all of the packets received from demux
- *        daemon.
- * @param[in] fd - MCTP socket fd
- * @param[in] timeout - Timeout in milliseconds to wait.
- */
-void mctp_ctrl_wait_and_discard(int fd, int timeout);
-
-/**
  * @brief Open the MCTp-VDM socket interface, return success only if
  *        Socket is opened and Register with the message type.
  *

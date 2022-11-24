@@ -28,6 +28,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/signalfd.h>
 
 #include "libmctp.h"
 #include "libmctp-serial.h"
@@ -62,6 +63,7 @@ const char *mctp_medium_type = "SPI";
 
 /* Static variables for clean up*/
 static int g_socket_fd = -1;
+static int g_signal_fd = -1;
 static pthread_t g_keepalive_thread;
 
 extern int mctp_spi_keepalive_event(mctp_ctrl_t *ctrl);
@@ -113,17 +115,16 @@ const char mctp_spi_help_str[] =
 	"-> To send Heartbeat (ping) command:\n"
 	"\tmctp-spi-ctrl -i 3 -t 6 -m 2 -v 2\n";
 
-void mctp_ctrl_clean_up(void)
+static void mctp_ctrl_clean_up(void)
 {
 	/* Close the socket connection */
-	close(g_socket_fd);
 	pthread_join(g_keepalive_thread, NULL);
-}
 
-/* Signal handler for MCTP client app - can be called asynchronously */
-void mctp_signal_handler(int signum)
-{
-	mctp_ctrl_sdbus_stop();
+	/* Wait for all threads to exit and close socket */
+	close(g_socket_fd);
+
+	/* Close signal fd */
+	close(g_signal_fd);
 }
 
 mctp_requester_rc_t
@@ -354,6 +355,7 @@ static int mctp_start_daemon(mctp_ctrl_t *ctrl)
 
 int main(int argc, char *const *argv)
 {
+	int r = 0;
 	int length = 0;
 	char buffer[50];
 	int fd = -1;
@@ -363,6 +365,7 @@ int main(int argc, char *const *argv)
 	uint8_t *tx_buff = NULL, *rx_buff = NULL;
 	int rc = 0;
 	int ret = 0;
+	sigset_t mask;
 	mctp_ctrl_t *mctp_ctrl = NULL, _mctp_ctrl;
 	mctp_requester_rc_t mctp_ret = 0;
 	pthread_t keepalive_thread;
@@ -377,10 +380,6 @@ int main(int argc, char *const *argv)
 
 	/* Initialize the cmdline structure */
 	memset(&cmdline, 0, sizeof(cmdline));
-
-	/* Register signals */
-	signal(SIGINT, mctp_signal_handler);
-	signal(SIGTERM, mctp_signal_handler);
 
 	/* Update the cmdline sturcture with default values */
 	const char *const mctp_ctrl_name = argv[0];
@@ -456,17 +455,45 @@ int main(int argc, char *const *argv)
 	/* Return if it is unknown mode */
 	MCTP_ASSERT_RET(cmdline.mode >= 0, EXIT_FAILURE, " Unsupported mode");
 
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGTERM);
+	sigaddset(&mask, SIGINT);
+
+	if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0) {
+		MCTP_CTRL_ERR("Failed to signalmask\n");
+		return EXIT_FAILURE;
+	}
+
+	/* Queue the signal and then do cleanup stuff */
+	g_signal_fd = signalfd(-1, &mask, SFD_NONBLOCK);
+	if (g_signal_fd < 0) {
+		MCTP_CTRL_ERR("Failed to signalfd\n");
+		return EXIT_FAILURE;
+	}
+
 	/* Open the user socket file-descriptor */
 	rc = mctp_usr_socket_init(&fd, mctp_sock_path,
 				  MCTP_MESSAGE_TYPE_VDIANA);
+	if (rc != MCTP_REQUESTER_SUCCESS) {
+		MCTP_CTRL_ERR("Failed to open mctp sock\n");
+		close(g_signal_fd);
 
-	MCTP_ASSERT_RET(MCTP_REQUESTER_SUCCESS == rc, EXIT_FAILURE,
-			"Failed to open mctp socket\n");
+		return EXIT_FAILURE;
+	}
 
 	/* Update the MCTP socket descriptor */
 	mctp_ctrl->sock = fd;
 	/* Update global socket pointer */
 	g_socket_fd = mctp_ctrl->sock;
+
+	/* Check for test mode */
+	if (cmdline.mode == MCTP_SPI_MODE_TEST) {
+		mctp_spi_test_cmd(mctp_ctrl, &cmdline);
+		close(g_socket_fd);
+		close(g_signal_fd);
+
+		return EXIT_SUCCESS;
+	}
 
 	ret = pthread_cond_init(&mctp_ctrl->worker_cv, NULL);
 	MCTP_ASSERT_RET(ret == 0, EXIT_FAILURE, "pthread_cond_init(3) failed.");
@@ -474,13 +501,6 @@ int main(int argc, char *const *argv)
 	ret = pthread_mutex_init(&mctp_ctrl->worker_mtx, NULL);
 	MCTP_ASSERT_RET(ret == 0, EXIT_FAILURE,
 			"pthread_mutex_init(3) failed.");
-
-	/* Check for test mode */
-	if (cmdline.mode == MCTP_SPI_MODE_TEST) {
-		mctp_spi_test_cmd(mctp_ctrl, &cmdline);
-
-		return EXIT_SUCCESS;
-	}
 
 	/* Create static endpoint 0 for spi ctrl daemon */
 	mctp_spi_static_endpoint();
@@ -495,7 +515,14 @@ int main(int argc, char *const *argv)
 	pthread_cond_wait(&mctp_ctrl->worker_cv, &mctp_ctrl->worker_mtx);
 
 	/* Populate Dbus objects */
-	mctp_ctrl_sdbus_init();
+	r = mctp_ctrl_sdbus_init(g_signal_fd);
+
+	/* Pass the signal to threads and notify we are going to exit */
+	if (r < 0) {
+		MCTP_CTRL_INFO(
+			"Deliver the termination signal to keepalive thread\n");
+		pthread_kill(g_keepalive_thread, SIGUSR2);
+	}
 	mctp_ctrl_clean_up();
 
 	return EXIT_SUCCESS;

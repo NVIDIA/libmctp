@@ -32,7 +32,8 @@ extern "C" {
 #define MCTP_CTRL_SDBUS_NETWORK_ID 0
 
 #define MCTP_CTRL_SD_BUS_FD 0
-#define MCTP_CTRL_TOTAL_FDS 1
+#define MCTP_CTRL_SIGNAL_FD 1
+#define MCTP_CTRL_TOTAL_FDS 2
 
 #define MCTP_CTRL_POLL_TIMEOUT 1000
 #define MCTP_CTRL_SDBUS_MAX_MSG_SIZE 256
@@ -50,8 +51,7 @@ typedef struct mctp_sdbus_context {
 
 enum { SDBUS_POLLING_TIMEOUT = 1, SDBUS_PROCESS_EVENT };
 
-int mctp_ctrl_sdbus_init(void);
-void mctp_ctrl_sdbus_stop(void);
+int mctp_ctrl_sdbus_init(int signalfd);
 mctp_sdbus_context_t *mctp_ctrl_sdbus_create_context(void);
 int mctp_ctrl_sdbus_dispatch(mctp_sdbus_context_t *context);
 

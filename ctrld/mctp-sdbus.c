@@ -40,7 +40,7 @@ extern int g_msg_type_table_len;
 extern const char *mctp_sock_path;
 extern const char *mctp_medium_type;
 
-static int mctp_ctrl_running = 1;
+int mctp_ctrl_running = 1;
 
 /* String map for supported bus type */
 char g_mctp_ctrl_supported_buses[MCTP_CTRL_MAX_BUS_TYPES][10] = { "PCIe Bus ",
@@ -292,6 +292,29 @@ static int mctp_ctrl_sdbus_get_uuid(sd_bus *bus, const char *path,
 	return sd_bus_message_append(reply, "s", uuid_data);
 }
 
+static int mctp_ctrl_monitor_signal_events(mctp_sdbus_context_t *context)
+{
+	int ret;
+	struct signalfd_siginfo si;
+
+	if (context->fds[MCTP_CTRL_SIGNAL_FD].revents) {
+		ret = read(context->fds[MCTP_CTRL_SIGNAL_FD].fd, &si,
+			   sizeof(si));
+		if (ret < 0 || ret != sizeof(si)) {
+			MCTP_CTRL_ERR("Error read signal event: %s\n",
+				      strerror(-ret));
+			return 0;
+		}
+
+		if (si.ssi_signo == SIGINT || si.ssi_signo == SIGTERM) {
+			mctp_ctrl_sdbus_stop();
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
 static int mctp_ctrl_dispatch_sd_bus(mctp_sdbus_context_t *context)
 {
 	int r = 0;
@@ -348,10 +371,16 @@ int mctp_ctrl_sdbus_dispatch(mctp_sdbus_context_t *context)
 	if (polled == 0)
 		return SDBUS_POLLING_TIMEOUT;
 	if (polled < 0) {
-		r = -errno;
 		MCTP_CTRL_ERR("Error from poll(): %s\n", strerror(errno));
 		return -1;
 	}
+
+	r = mctp_ctrl_monitor_signal_events(context);
+	if (r < 0) {
+		MCTP_CTRL_INFO("Signal event is capatured\n");
+		return -1;
+	}
+
 	r = mctp_ctrl_dispatch_sd_bus(context);
 	if (r < 0) {
 		MCTP_CTRL_ERR("Error handling dbus event: %s\n", strerror(-r));
@@ -468,6 +497,7 @@ mctp_sdbus_context_t *mctp_ctrl_sdbus_create_context(void)
 	}
 
 	context->fds[MCTP_CTRL_SD_BUS_FD].events = POLLIN;
+	context->fds[MCTP_CTRL_SD_BUS_FD].revents = 0;
 	return context;
 
 finish:
@@ -483,18 +513,23 @@ void mctp_ctrl_sdbus_stop(void)
 }
 
 /* MCTP ctrl sdbus initialization */
-int mctp_ctrl_sdbus_init()
+int mctp_ctrl_sdbus_init(int signal_fd)
 {
+	int r = 0;
 	mctp_sdbus_context_t *context;
 
 	context = mctp_ctrl_sdbus_create_context();
 	if (!context) {
 		return -1;
 	}
+	context->fds[MCTP_CTRL_SIGNAL_FD].fd = signal_fd;
+	context->fds[MCTP_CTRL_SIGNAL_FD].events = POLLIN;
+	context->fds[MCTP_CTRL_SIGNAL_FD].revents = 0;
 
 	MCTP_CTRL_DEBUG("%s: Entering polling loop\n", __func__);
+
 	while (mctp_ctrl_running) {
-		if (mctp_ctrl_sdbus_dispatch(context) < 0) {
+		if ((r = mctp_ctrl_sdbus_dispatch(context)) < 0) {
 			break;
 		}
 	}
@@ -503,5 +538,5 @@ finish:
 	sd_bus_unref(context->bus);
 	free(context);
 
-	return 0;
+	return r;
 }

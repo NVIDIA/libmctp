@@ -28,16 +28,19 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <pthread.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/signalfd.h>
 
 #include "libmctp.h"
 #include "libmctp-cmds.h"
 #include "libmctp-log.h"
 
 #include "ctrld/mctp-ctrl.h"
+#include "ctrld/mctp-sdbus.h"
 
 #include "mctp-socket.h"
 #include "mctp-ctrl-log.h"
@@ -49,6 +52,8 @@
 #include "vdm/nvidia/mctp-vdm-commands.h"
 
 #define MCTP_NULL_ENDPOINT 0
+
+extern int mctp_ctrl_running;
 
 int mctp_spi_set_endpoint_id(mctp_spi_cmdline_args_t *cmd)
 {
@@ -83,19 +88,130 @@ int mctp_spi_set_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
 	return 0;
 }
 
+static int64_t mctp_timediff_ms(struct timeval *tv1, struct timeval *tv2)
+{
+	int64_t diff_ms = 0;
+
+	diff_ms = (tv2->tv_sec - tv1->tv_sec) * 1000;
+	diff_ms += (tv2->tv_usec - tv1->tv_usec) / 1000;
+
+	return diff_ms;
+}
+
+static void mctp_ctrl_wait_and_discard(mctp_ctrl_t *ctrl, int signal_fd,
+				       int timeout)
+{
+	int rc = -1;
+	struct timeval target = { 0 };
+	struct timeval curr = { 0 };
+	struct pollfd pollfd[2] = { 0 };
+	struct signalfd_siginfo si;
+	ssize_t len = 0;
+
+	rc = gettimeofday(&target, NULL);
+	if (rc != 0) {
+		warn("gettimeofday failed");
+		return;
+	}
+
+	target.tv_sec += timeout / 1000;
+	target.tv_usec += (timeout % 1000) * 1000;
+
+	rc = gettimeofday(&curr, NULL);
+	if (rc != 0) {
+		warn("gettimeofday failed");
+		return;
+	}
+
+	pollfd[0].fd = ctrl->sock;
+	pollfd[0].events = POLLIN;
+	pollfd[0].revents = 0;
+
+	pollfd[1].fd = signal_fd;
+	pollfd[1].events = POLLIN;
+	pollfd[1].revents = 0;
+
+	rc = gettimeofday(&curr, NULL);
+	if (rc != 0) {
+		warn("gettimeofday(2) failed");
+		return;
+	}
+
+	timeout = (int)mctp_timediff_ms(&curr, &target);
+	timeout = timeout > 0 ? timeout : 0;
+
+	while (timeout > 0) {
+		rc = poll(&pollfd, 2, timeout);
+		if (rc < 0) {
+			warn("poll(2) failed");
+			/* handle signal to exit blocking poll and exit loop immediately */
+			if (errno == EINTR) {
+				return;
+			}
+		}
+
+		if (rc == 1 && pollfd[0].revents) {
+			/* Discard message. */
+			len = recv(pollfd[0].fd, NULL, 0, MSG_TRUNC);
+			if (len < 0) {
+				warn("recv(2) failed");
+				return;
+			}
+		} else if (rc == 1 && pollfd[1].revents) {
+			len = read(pollfd[1].fd, &si, sizeof(si));
+			if (len < 0 || len != sizeof(si)) {
+				MCTP_CTRL_ERR("Error read signal event: %s\n",
+					      strerror(-len));
+				return;
+			}
+
+			if (si.ssi_signo == SIGUSR2) {
+				MCTP_CTRL_INFO(
+					"The termination signal is captured by the keepalive thread");
+				return;
+			}
+		}
+
+		rc = gettimeofday(&curr, NULL);
+		if (rc != 0) {
+			warn("gettimeofday(2) failed");
+			return;
+		}
+
+		timeout = (int)mctp_timediff_ms(&curr, &target);
+		timeout = timeout > 0 ? timeout : 0;
+	}
+}
+
 int mctp_spi_keepalive_event(mctp_ctrl_t *ctrl)
 {
 	size_t resp_msg_len = 0;
 	int rc = 0;
+	int signal_fd = -1;
+	sigset_t mask;
+
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGUSR2);
+
+	if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0) {
+		MCTP_CTRL_ERR("Failed to signalmask\n");
+		return 0;
+	}
+
+	/* Queue the signal and then do cleanup stuff */
+	signal_fd = signalfd(-1, &mask, SFD_NONBLOCK);
+	if (signal_fd < 0) {
+		MCTP_CTRL_ERR("Failed to signalfd\n");
+		return 0;
+	}
 
 	pthread_mutex_lock(&ctrl->worker_mtx);
-
-	MCTP_CTRL_INFO("%s: Send 'Boot complete v2' message\n", __func__);
 
 	rc = boot_complete_v2(ctrl->sock, MCTP_NULL_ENDPOINT, 0, 0,
 			      VERBOSE_DISABLE);
 	MCTP_ASSERT_RET(rc == 0, MCTP_CMD_FAILED,
 			"Failed to send 'Boot complete' message\n");
+	MCTP_CTRL_INFO("%s: Send 'Boot complete v2' message\n", __func__);
 
 	pthread_cond_signal(&ctrl->worker_cv);
 	pthread_mutex_unlock(&ctrl->worker_mtx);
@@ -103,16 +219,16 @@ int mctp_spi_keepalive_event(mctp_ctrl_t *ctrl)
 	/* Give some delay before sending next command */
 	usleep(MCTP_SPI_CMD_DELAY_USECS);
 
-	MCTP_CTRL_INFO("%s: Send 'Enable Heartbeat' message\n", __func__);
 	rc = set_heartbeat_enable(ctrl->sock, MCTP_NULL_ENDPOINT,
 				  MCTP_SPI_HB_ENABLE_CMD, VERBOSE_DISABLE);
 	MCTP_ASSERT_RET(rc == 0, MCTP_CMD_FAILED,
 			"Failed MCTP_SPI_HEARTBEAT_ENABLE\n");
+	MCTP_CTRL_INFO("%s: Send 'Enable Heartbeat' message\n", __func__);
 
 	/* Give some delay before sending next command */
 	usleep(MCTP_SPI_CMD_DELAY_USECS);
 
-	while (1) {
+	while (mctp_ctrl_running) {
 		MCTP_CTRL_DEBUG("%s: Send 'Heartbeat' message\n", __func__);
 
 		rc = heartbeat(ctrl->sock, MCTP_NULL_ENDPOINT, VERBOSE_DISABLE);
@@ -122,8 +238,9 @@ int mctp_spi_keepalive_event(mctp_ctrl_t *ctrl)
 				      __func__);
 			break;
 		}
+		/* Consume forwarding resposnses from other mctp client */
 		mctp_ctrl_wait_and_discard(
-			ctrl->sock, MCTP_SPI_HEARTBEAT_DELAY_SECS * 1000);
+			ctrl, signal_fd, MCTP_SPI_HEARTBEAT_DELAY_SECS * 1000);
 	}
 
 	mctp_ctrl_sdbus_stop();

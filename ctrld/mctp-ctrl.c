@@ -61,6 +61,7 @@ const char *mctp_sock_path = MCTP_SOCK_PATH;
 const char *mctp_medium_type = "PCIe";
 
 static int g_socket_fd = -1;
+static int g_signal_fd = -1;
 
 extern void mctp_routing_entry_delete_all(void);
 extern void mctp_uuid_delete_all(void);
@@ -68,10 +69,13 @@ extern void mctp_msg_types_delete_all(void);
 extern mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd,
 						mctp_ctrl_t *ctrl);
 
-void mctp_ctrl_clean_up(void)
+static void mctp_ctrl_clean_up(void)
 {
 	/* Close the socket connection */
 	close(g_socket_fd);
+
+	/* Close the signalfd socket */
+	close(g_signal_fd);
 
 	/* Delete Routing table entries */
 	mctp_routing_entry_delete_all();
@@ -81,13 +85,6 @@ void mctp_ctrl_clean_up(void)
 
 	/* Delete Msg type entries */
 	mctp_msg_types_delete_all();
-}
-
-/* Signal handler for MCTP client app - can be called asynchronously */
-void mctp_signal_handler(int signum)
-{
-	mctp_ctrl_clean_up();
-	exit(0);
 }
 
 mctp_requester_rc_t
@@ -431,6 +428,8 @@ int main(int argc, char *const *argv)
 	uint8_t mctp_eid = 8;
 	uint8_t *tx_buff, *rx_buff;
 	int rc;
+	int signal_fd = -1;
+	sigset_t mask;
 	mctp_ctrl_t *mctp_ctrl, _mctp_ctrl;
 	mctp_requester_rc_t mctp_ret;
 	mctp_cmdline_args_t cmdline;
@@ -441,9 +440,6 @@ int main(int argc, char *const *argv)
 
 	/* Initialize the cmdline structure */
 	memset(&cmdline, 0, sizeof(cmdline));
-
-	/* Register signals */
-	signal(SIGINT, mctp_signal_handler);
 
 	/* Update the cmdline sturcture with default values */
 	const char *const mctp_ctrl_name = argv[0];
@@ -542,13 +538,30 @@ int main(int argc, char *const *argv)
 		}
 	}
 
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGTERM);
+	sigaddset(&mask, SIGINT);
+
+	if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0) {
+		printf("Failed to signalmask\n");
+		return -1;
+	}
+
+	g_signal_fd = signalfd(-1, &mask, 0);
+	MCTP_ASSERT_RET(g_signal_fd >= 0, EXIT_FAILURE,
+			"Failed to open signalfd\n");
+
 	/* sleep before starting the daemon */
 	sleep(cmdline.delay);
 
 	/* Open the user socket file-descriptor */
 	rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_CTRL_MSG_TYPE);
-	MCTP_ASSERT_RET(MCTP_REQUESTER_SUCCESS == rc, EXIT_FAILURE,
-			"Failed to open mctp socket\n");
+	if (rc != MCTP_REQUESTER_SUCCESS) {
+		MCTP_CTRL_ERR("Failed to open mctp socket\n");
+
+		close(g_signal_fd);
+		return EXIT_FAILURE;
+	}
 
 	/* Update the MCTP socket descriptor */
 	mctp_ctrl->sock = fd;
@@ -566,8 +579,13 @@ int main(int argc, char *const *argv)
 		rc = mctp_pcie_eids_sanity_check(cmdline.pci_own_eid,
 						 cmdline.pci_bridge_eid,
 						 cmdline.pci_bridge_pool_start);
-		MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE,
-				"MCTP-Ctrl discovery unsuccessful\n");
+		if (rc < 0) {
+			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
+
+			close(g_socket_fd);
+			close(g_signal_fd);
+			return EXIT_FAILURE;
+		}
 
 		/* Discover endpoints */
 		mctp_err_ret = mctp_discover_endpoints(&cmdline, mctp_ctrl);
@@ -576,24 +594,18 @@ int main(int argc, char *const *argv)
 		}
 
 		/* Start sdbus initialization and monitoring */
-		mctp_ctrl_sdbus_init();
+		rc = mctp_ctrl_sdbus_init(g_signal_fd);
+		if (rc < 0) {
+			MCTP_CTRL_INFO("MCTP-Ctrl is going to terminate.\n");
+			mctp_ctrl_clean_up();
+			return EXIT_SUCCESS;
+		}
 
 		/* Start MCTP control daemon */
 		MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....", __func__);
 		mctp_start_daemon(mctp_ctrl);
 	}
 
-	/* Close the socket connection */
-	close(mctp_ctrl->sock);
-
-	/* Delete Routing table entries */
-	mctp_routing_entry_delete_all();
-
-	/* Delete UUID entries */
-	mctp_uuid_delete_all();
-
-	/* Delete Msg type entries */
-	mctp_msg_types_delete_all();
-
+	mctp_ctrl_clean_up();
 	return EXIT_SUCCESS;
 }
