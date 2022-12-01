@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <poll.h>
+#include <linux/limits.h>
 
 #include <systemd/sd-bus.h>
 
@@ -44,6 +45,7 @@ static const struct option options[] = {
 	{ "verbose", no_argument, 0, 'v' },
 	{ "teid", required_argument, 0, 't' },
 	{ "cmd", required_argument, 0, 'c' },
+	{ "file", required_argument, 0, 'f' },
 	{ "help", no_argument, 0, 'h' },
 	{ 0 },
 };
@@ -75,7 +77,7 @@ static void usage(void)
 		set_heartbeat_enable, set_heartbeat_disable\n \
 		heartbeat\n \
 		query_boot_status\n \
-		download_log\n \
+		download_log -f filename(not required)\n \
 		restart_notification\n \
 		debug_token_install - need 256 bytes debug token\n \
 		debug_token_erase\n \
@@ -288,6 +290,7 @@ int main(int argc, char *const *argv)
 	char item[MCTP_VDM_COMMAND_NAME_SIZE] = { '\0' };
 	char intf[16] = { 0 };
 	char path[32] = { 0 };
+	char file[PATH_MAX] = { 0 };
 	unsigned int max_len = 0;
 	uint8_t teid = 0;
 	uint8_t payload_required = 0;
@@ -295,7 +298,7 @@ int main(int argc, char *const *argv)
 	sd_bus *bus = NULL;
 
 	for (;;) {
-		rc = getopt_long(argc, argv, "vt:c:h", options, NULL);
+		rc = getopt_long(argc, argv, "vt:c:f:h", options, NULL);
 		if (rc == -1)
 			break;
 
@@ -324,6 +327,9 @@ int main(int argc, char *const *argv)
 				max_len = MCTP_CERTIFICATE_CHAIN_SIZE;
 			else
 				max_len = 0;
+			break;
+		case 'f':
+			snprintf(file, sizeof(file), "%s", optarg);
 			break;
 		case 'h':
 			usage();
@@ -423,8 +429,11 @@ int main(int argc, char *const *argv)
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to query boot status: %d\n", rc);
 	} else if (!strcmp(item, "download_log")) {
-		rc = download_log(fd, teid, MCTP_VDM_RESP_OUTPUT_FILE,
-				  ctx.verbose);
+		/* no filename is specified and go to the default file name */
+		if (file[0] == 0) {
+			snprintf(file, sizeof(file), MCTP_VDM_RESP_OUTPUT_FILE);
+		}
+		rc = download_log(fd, teid, file, ctx.verbose);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to download log: %d\n",
 				    rc);
 	} else if (!strcmp(item, "background_copy_disable")) {
@@ -466,12 +475,11 @@ int main(int argc, char *const *argv)
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to query prog bg: %d\n", rc);
 	} else if (!strcmp(item, "background_copy_query_pending")) {
-        rc = background_copy(fd, teid, 
-                     MCTP_VDM_BACKGROUND_COPY_PENDING,
-                     VERBOSE_EN);
-        VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+		rc = background_copy(fd, teid, MCTP_VDM_BACKGROUND_COPY_PENDING,
+				     VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to query pending bg: %d\n", rc);
-    } else if (!strcmp(item, "debug_token_install")) {
+	} else if (!strcmp(item, "debug_token_install")) {
 		rc = debug_token_install(fd, teid, payload, len, VERBOSE_EN);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "failed to install debug token: %d\n", rc);
@@ -489,24 +497,19 @@ int main(int argc, char *const *argv)
 				    "failed to program certificate chain: %d\n",
 				    rc);
 	} else if (!strcmp(item, "in_band_disable")) {
-        rc = in_band(fd, teid, 
-                     MCTP_VDM_IN_BAND_DISABLE,
-                     VERBOSE_EN);
-       VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+		rc = in_band(fd, teid, MCTP_VDM_IN_BAND_DISABLE, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to disable in-band: %d\n", rc);
-    } else if (!strcmp(item, "in_band_enable")) {
-        rc = in_band(fd, teid, 
-                     MCTP_VDM_IN_BAND_ENABLE,
-                     VERBOSE_EN);
-        VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+	} else if (!strcmp(item, "in_band_enable")) {
+		rc = in_band(fd, teid, MCTP_VDM_IN_BAND_ENABLE, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to enable in-band: %d\n", rc);
-    } else if (!strcmp(item, "in_band_query_status")) {
-        rc = in_band(fd, teid, 
-                     MCTP_VDM_IN_BAND_QUERY_STATUS,
-                     VERBOSE_EN);
-        VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+	} else if (!strcmp(item, "in_band_query_status")) {
+		rc = in_band(fd, teid, MCTP_VDM_IN_BAND_QUERY_STATUS,
+			     VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to query in-band: %d\n", rc);
-    } else {
+	} else {
 		fprintf(stderr, "Unknown test cmd\n");
 	}
 
