@@ -467,8 +467,8 @@ int main(int argc, char *const *argv)
 	}
 
 	/* Open the user socket file-descriptor */
-	rc = mctp_usr_socket_init(&fd, mctp_sock_path,
-				  MCTP_MESSAGE_TYPE_VDIANA);
+	rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_MESSAGE_TYPE_VDIANA,
+				  MCTP_CTRL_TXRX_TIMEOUT_8SECS);
 	if (rc != MCTP_REQUESTER_SUCCESS) {
 		MCTP_CTRL_ERR("Failed to open mctp sock\n");
 		close(g_signal_fd);

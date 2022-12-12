@@ -82,9 +82,6 @@ void mctp_ctrl_print_buffer(const char *str, const uint8_t *buffer, int size);
 
 int mctp_event_monitor(mctp_ctrl_t *mctp_evt);
 
-mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
-					 uint8_t msgtype);
-
 mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
 				     uint8_t msgtype,
 				     const uint8_t *mctp_req_msg,

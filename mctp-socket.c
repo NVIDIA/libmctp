@@ -26,7 +26,6 @@ const uint8_t MCTP_CTRL_MSG_TYPE = 0;
 const uint8_t MCTP_MSG_TYPE_HDR = 0;
 
 /* MCTP Tx/Rx timeouts */
-#define MCTP_CTRL_TXRX_TIMEOUT_SECS 5
 #define MCTP_CTRL_TXRX_TIMEOUT_MICRO_SECS 0
 
 /* MCTP TX/RX retry threshold */
@@ -41,7 +40,7 @@ void mctp_ctrl_print_buffer(const char *str, const uint8_t *buffer, int size)
 }
 
 mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
-					 uint8_t msgtype)
+					 uint8_t msgtype, time_t time_out)
 {
 	int rc = -1;
 	int len;
@@ -49,7 +48,7 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 	struct timeval timeout;
 
 	/* Set timeout as 5 seconds */
-	timeout.tv_sec = MCTP_CTRL_TXRX_TIMEOUT_SECS;
+	timeout.tv_sec = time_out;
 	timeout.tv_usec = MCTP_CTRL_TXRX_TIMEOUT_MICRO_SECS;
 
 	/* Create a socket connection */
@@ -135,7 +134,8 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 
 		MCTP_ASSERT_RET(*mctp_resp_msg != NULL,
 				MCTP_REQUESTER_RECV_FAIL,
-				"fail to allocate %zu bytes memory\n", mctp_len);
+				"fail to allocate %zu bytes memory\n",
+				mctp_len);
 
 		iov[1].iov_len = mctp_len;
 		iov[1].iov_base = *mctp_resp_msg;

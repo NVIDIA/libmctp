@@ -1,6 +1,10 @@
 #ifndef __MCTP_SOCKET_H__
 #define __MCTP_SOCKET_H__
 
+/* MCTP default Tx/Rx timeouts */
+#define MCTP_CTRL_TXRX_TIMEOUT_5SECS 5
+#define MCTP_CTRL_TXRX_TIMEOUT_8SECS 8
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -12,10 +16,12 @@ extern "C" {
  * @param[in] *intf - Socket interface name
  * @param[in] *path - Unix socket name
  * @param[in] msgtype - MCTP Message type
+ * @param[in] timeout - MCTP Rx/Tx timeout
  *
  * @returns socket fd on successfull, errno on failure.
  */
-mctp_requester_rc_t mctp_usr_socket_init(int *, const char *, uint8_t);
+mctp_requester_rc_t mctp_usr_socket_init(int *intf, const char *path,
+					 uint8_t msgtype, time_t timeout);
 
 /**
  * @brief Read MCTP socket. If there's data available, return success only if

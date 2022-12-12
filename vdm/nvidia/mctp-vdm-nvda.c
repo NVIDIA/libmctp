@@ -29,6 +29,8 @@
 #include "ctrld/mctp-ctrl.h"
 #include "ctrld/mctp-sdbus.h"
 
+#include "mctp-socket.h"
+
 /* MCTP-VDM response binary file */
 #define MCTP_VDM_RESP_OUTPUT_FILE "/var/mctp-vdm-output.bin"
 
@@ -380,7 +382,8 @@ int main(int argc, char *const *argv)
 	MCTP_ASSERT_RET(found == 1, EXIT_FAILURE, "can't find the interface\n");
 
 	/* Establish the socket connection */
-	rc = mctp_usr_socket_init(&fd, g_sock_name, MCTP_MESSAGE_TYPE_VDIANA);
+	rc = mctp_usr_socket_init(&fd, g_sock_name, MCTP_MESSAGE_TYPE_VDIANA,
+				  MCTP_CTRL_TXRX_TIMEOUT_8SECS);
 	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, EXIT_FAILURE,
 			"Failed to open mctp socket\n");
 

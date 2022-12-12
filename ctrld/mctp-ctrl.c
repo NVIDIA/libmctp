@@ -33,6 +33,7 @@
 #include "mctp-ctrl-cmds.h"
 #include "mctp-encode.h"
 #include "mctp-sdbus.h"
+#include "mctp-socket.h"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #define __unused __attribute__((unused))
@@ -549,7 +550,8 @@ int main(int argc, char *const *argv)
 	sleep(cmdline.delay);
 
 	/* Open the user socket file-descriptor */
-	rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_CTRL_MSG_TYPE);
+	rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_CTRL_MSG_TYPE,
+				  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
 	if (rc != MCTP_REQUESTER_SUCCESS) {
 		MCTP_CTRL_ERR("Failed to open mctp socket\n");
 
