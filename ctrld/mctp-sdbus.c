@@ -92,7 +92,6 @@ static int mctp_ctrl_sdbus_get_nw_id(sd_bus *bus, const char *path,
 				     sd_bus_message *reply, void *userdata,
 				     sd_bus_error *error)
 {
-	int r, i = 0;
 	uint32_t mctp_nw_id = 0;
 	uint8_t eid_req = 0;
 	mctp_msg_type_table_t *entry = g_msg_type_entries;
@@ -119,7 +118,6 @@ static int mctp_ctrl_sdbus_get_endpoint(sd_bus *bus, const char *path,
 					sd_bus_message *reply, void *userdata,
 					sd_bus_error *error)
 {
-	int r, i = 0;
 	uint8_t eid_req = 0;
 	mctp_msg_type_table_t *entry = g_msg_type_entries;
 	uint32_t get_eid = 0;
@@ -165,7 +163,7 @@ static int mctp_ctrl_sdbus_get_msg_type(sd_bus *bus, const char *path,
 							  entry->data[i]);
 				if (r < 0) {
 					MCTP_CTRL_ERR(
-						"Failed sdbus message append: %s",
+						"Failed sd-Bus message append: %s",
 						strerror(-r));
 					return r;
 				}
@@ -220,14 +218,14 @@ static int mctp_ctrl_sdbus_get_sock_name(sd_bus *bus, const char *path,
 	len = strlen(&mctp_sock_path[1]) + 1;
 	r = sd_bus_message_open_container(reply, 'a', "y");
 	if (r < 0) {
-		MCTP_CTRL_ERR("Failed sdbus message open: %s", strerror(-r));
+		MCTP_CTRL_ERR("Failed sd-bus message open: %s", strerror(-r));
 		return r;
 	}
 
 	for (i = 0; i < len; i++) {
 		r = sd_bus_message_append(reply, "y", mctp_sock_path[i]);
 		if (r < 0) {
-			MCTP_CTRL_ERR("Failed sdbus message append: %s",
+			MCTP_CTRL_ERR("Failed sd-bus message append: %s",
 				      strerror(-r));
 			return r;
 		}
@@ -256,7 +254,6 @@ static int mctp_ctrl_sdbus_get_uuid(sd_bus *bus, const char *path,
 				    sd_bus_message *reply, void *userdata,
 				    sd_bus_error *error)
 {
-	int r, i = 0;
 	uint8_t eid_req = 0;
 	mctp_uuid_table_t *entry = g_uuid_entries;
 	char uuid_data[MCTP_CTRL_SDBUS_MAX_MSG_SIZE];
@@ -383,34 +380,28 @@ int mctp_ctrl_sdbus_dispatch(mctp_sdbus_context_t *context)
 
 	r = mctp_ctrl_dispatch_sd_bus(context);
 	if (r < 0) {
-		MCTP_CTRL_ERR("Error handling dbus event: %s\n", strerror(-r));
+		MCTP_CTRL_ERR("Error handling D-Bus event: %s\n", strerror(-r));
 		return -1;
 	}
 	return SDBUS_PROCESS_EVENT;
 }
 
-mctp_sdbus_context_t *mctp_ctrl_sdbus_create_context(void)
+static mctp_sdbus_context_t *mctp_ctrl_sdbus_create_context(sd_bus *bus)
 {
-	mctp_sdbus_context_t *context;
-	int opt, polled, r;
+	mctp_sdbus_context_t *context = NULL;
+	int r;
 	char mctp_ctrl_objpath[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE];
 	char mctp_ctrl_busname[MCTP_CTRL_SDBUS_NMAE_SIZE];
 	mctp_msg_type_table_t *entry = g_msg_type_entries;
 
 	context = calloc(1, sizeof(*context));
 	if (context == NULL) {
-		MCTP_CTRL_ERR("Failed to allocate dbus context\n");
+		MCTP_CTRL_ERR("Failed to allocate D-Bus context\n");
 		return NULL;
 	}
+	context->bus = bus;
 
-	r = sd_bus_default_system(&context->bus);
-	if (r < 0) {
-		MCTP_CTRL_ERR("Failed to connect to system bus: %s\n",
-			      strerror(-r));
-		goto finish;
-	}
-
-	/* Add Sdbus object manager */
+	/* Add sd-bus object manager */
 	r = sd_bus_add_object_manager(context->bus, NULL, MCTP_CTRL_OBJ_NAME);
 	if (r < 0) {
 		MCTP_CTRL_ERR("Failed to add object manager: %s\n",
@@ -420,7 +411,7 @@ mctp_sdbus_context_t *mctp_ctrl_sdbus_create_context(void)
 
 	snprintf(mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE, "%s.%s",
 		 MCTP_CTRL_DBUS_NAME, mctp_medium_type);
-	MCTP_CTRL_TRACE("Requesting dbus name: %s\n", mctp_ctrl_busname);
+	MCTP_CTRL_TRACE("Requesting D-Bus name: %s\n", mctp_ctrl_busname);
 	r = sd_bus_request_name(context->bus, mctp_ctrl_busname,
 				SD_BUS_NAME_ALLOW_REPLACEMENT |
 					SD_BUS_NAME_REPLACE_EXISTING);
@@ -487,7 +478,7 @@ mctp_sdbus_context_t *mctp_ctrl_sdbus_create_context(void)
 		entry = entry->next;
 	}
 
-	MCTP_CTRL_TRACE("Getting dbus file descriptors\n");
+	MCTP_CTRL_TRACE("Getting D-Bus file descriptors\n");
 	context->fds[MCTP_CTRL_SD_BUS_FD].fd = sd_bus_get_fd(context->bus);
 	if (context->fds[MCTP_CTRL_SD_BUS_FD].fd < 0) {
 		r = -errno;
@@ -501,7 +492,6 @@ mctp_sdbus_context_t *mctp_ctrl_sdbus_create_context(void)
 	return context;
 
 finish:
-	sd_bus_unref(context->bus);
 	free(context);
 
 	return NULL;
@@ -512,13 +502,13 @@ void mctp_ctrl_sdbus_stop(void)
 	mctp_ctrl_running = 0;
 }
 
-/* MCTP ctrl sdbus initialization */
-int mctp_ctrl_sdbus_init(int signal_fd)
+/* MCTP ctrl D-Bus initialization */
+int mctp_ctrl_sdbus_init(sd_bus *bus, int signal_fd)
 {
 	int r = 0;
-	mctp_sdbus_context_t *context;
+	mctp_sdbus_context_t *context = NULL;
 
-	context = mctp_ctrl_sdbus_create_context();
+	context = mctp_ctrl_sdbus_create_context(bus);
 	if (!context) {
 		return -1;
 	}
@@ -534,9 +524,6 @@ int mctp_ctrl_sdbus_init(int signal_fd)
 		}
 	}
 
-finish:
-	sd_bus_unref(context->bus);
 	free(context);
-
 	return r;
 }

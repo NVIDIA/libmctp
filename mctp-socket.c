@@ -93,7 +93,7 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 
 static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 				     uint8_t **mctp_resp_msg,
-				     size_t *resp_msg_len, uint8_t *resp_eid)
+				     size_t *resp_msg_len, char *resp_eid)
 {
 	size_t mctp_prefix_len = sizeof(eid);
 	uint8_t mctp_prefix[mctp_prefix_len];

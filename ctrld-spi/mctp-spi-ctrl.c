@@ -39,9 +39,9 @@
 
 #include "ctrld/mctp-ctrl.h"
 #include "ctrld/mctp-sdbus.h"
+#include "ctrld/mctp-ctrl-log.h"
 
 #include "mctp-socket.h"
-#include "mctp-ctrl-log.h"
 #include "mctp-spi-ctrl.h"
 #include "mctp-spi-ctrl-cmdline.h"
 #include "mctp-spi-ctrl-cmds.h"
@@ -57,16 +57,18 @@ uint8_t g_verbose_level = 0;
 extern const uint8_t MCTP_MSG_TYPE_HDR;
 extern const uint8_t MCTP_CTRL_MSG_TYPE;
 
-/* Variables for dbus serice and properity */
+/* Variables for D-Bus serice and properity */
 const char *mctp_sock_path = MCTP_SOCK_PATH;
 const char *mctp_medium_type = "SPI";
 
 /* Static variables for clean up*/
 static int g_socket_fd = -1;
 static int g_signal_fd = -1;
+static sd_bus *g_sdbus = NULL;
+
 static pthread_t g_keepalive_thread;
 
-extern int mctp_spi_keepalive_event(mctp_ctrl_t *ctrl);
+extern void *mctp_spi_keepalive_event(void *arg);
 extern mctp_ret_codes_t mctp_spi_static_endpoint(void);
 
 const char mctp_spi_help_str[] =
@@ -117,7 +119,9 @@ const char mctp_spi_help_str[] =
 
 static void mctp_ctrl_clean_up(void)
 {
-	/* Close the socket connection */
+	/* Close D-Bus */
+	sd_bus_unref(g_sdbus);
+
 	pthread_join(g_keepalive_thread, NULL);
 
 	/* Wait for all threads to exit and close socket */
@@ -355,23 +359,14 @@ static int mctp_start_daemon(mctp_ctrl_t *ctrl)
 
 int main(int argc, char *const *argv)
 {
-	int r = 0;
-	int length = 0;
-	char buffer[50];
 	int fd = -1;
-	uint8_t requestMsg[32];
-	size_t req_msg_len = 0;
-	uint8_t mctp_eid = 8;
-	uint8_t *tx_buff = NULL, *rx_buff = NULL;
 	int rc = 0;
 	int ret = 0;
 	sigset_t mask;
 	mctp_ctrl_t *mctp_ctrl = NULL, _mctp_ctrl;
-	mctp_requester_rc_t mctp_ret = 0;
 	pthread_t keepalive_thread;
 
 	mctp_spi_cmdline_args_t cmdline = { 0 };
-	mctp_spi_cmd_mode_t cmd_mode = { 0 };
 
 	/* Initialize MCTP ctrl structure */
 	mctp_ctrl = &_mctp_ctrl;
@@ -502,6 +497,15 @@ int main(int argc, char *const *argv)
 	MCTP_ASSERT_RET(ret == 0, EXIT_FAILURE,
 			"pthread_mutex_init(3) failed.");
 
+	/* Create D-Bus for loging event and handling D-Bus request*/
+	rc = sd_bus_default_system(&mctp_ctrl->bus);
+	if (rc < 0) {
+		MCTP_CTRL_ERR("D-Bus failed to create\n");
+		close(mctp_ctrl->sock);
+		return EXIT_FAILURE;
+	}
+	g_sdbus = mctp_ctrl->bus;
+
 	/* Create static endpoint 0 for spi ctrl daemon */
 	mctp_spi_static_endpoint();
 
@@ -514,15 +518,17 @@ int main(int argc, char *const *argv)
 	/* Wait until we can populate Dbus objects. */
 	pthread_cond_wait(&mctp_ctrl->worker_cv, &mctp_ctrl->worker_mtx);
 
-	/* Populate Dbus objects */
-	r = mctp_ctrl_sdbus_init(g_signal_fd);
+	/* Populate D-Bus objects */
+	rc = mctp_ctrl_sdbus_init(mctp_ctrl->bus, g_signal_fd);
 
 	/* Pass the signal to threads and notify we are going to exit */
-	if (r < 0) {
+	if (rc < 0) {
 		MCTP_CTRL_INFO(
 			"Deliver the termination signal to keepalive thread\n");
 		pthread_kill(g_keepalive_thread, SIGUSR2);
 	}
+
+	/* Clean up the resource */
 	mctp_ctrl_clean_up();
 
 	return EXIT_SUCCESS;

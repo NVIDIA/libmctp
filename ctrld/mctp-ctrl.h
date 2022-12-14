@@ -13,6 +13,8 @@ extern "C" {
 #include <stddef.h>
 #include <pthread.h>
 
+#include <systemd/sd-bus.h>
+
 #include "mctp-ctrl-cmdline.h"
 
 /* Define Max buffer size */
@@ -35,6 +37,9 @@ typedef struct {
 	void *pvt_binding_data;
 	unsigned int pvt_binding_len;
 	struct pollfd *pollfds;
+
+	/* used for log and D-Bus requests */
+	sd_bus *bus;
 
 	/* Used only by MCTP SPI ctrl. */
 	pthread_cond_t worker_cv;

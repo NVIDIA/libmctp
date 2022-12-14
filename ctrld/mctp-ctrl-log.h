@@ -23,11 +23,11 @@ extern uint8_t g_verbose_level;
 void mctp_ctrl_prlog(int level, const char *fmt, ...)
 	__attribute__((format(printf, 2, 3)));
 
-static enum {
+enum {
 	MCTP_CTRL_LOG_NONE = 0,
 	MCTP_CTRL_LOG_VERBOSE,
 	MCTP_CTRL_LOG_DEBUG
-} mctp_ctrl_verbosity_t;
+};
 
 #ifndef pr_fmt
 #define pr_fmt(x) x

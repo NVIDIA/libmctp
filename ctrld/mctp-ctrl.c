@@ -60,8 +60,10 @@ extern const uint8_t MCTP_CTRL_MSG_TYPE;
 const char *mctp_sock_path = MCTP_SOCK_PATH;
 const char *mctp_medium_type = "PCIe";
 
+/* Static variables for clean up*/
 static int g_socket_fd = -1;
 static int g_signal_fd = -1;
+static sd_bus *g_sdbus = NULL;
 
 extern void mctp_routing_entry_delete_all(void);
 extern void mctp_uuid_delete_all(void);
@@ -76,6 +78,9 @@ static void mctp_ctrl_clean_up(void)
 
 	/* Close the signalfd socket */
 	close(g_signal_fd);
+
+	/* Close D-Bus */
+	sd_bus_unref(g_sdbus);
 
 	/* Delete Routing table entries */
 	mctp_routing_entry_delete_all();
@@ -167,7 +172,6 @@ int mctp_cmdline_exec(mctp_cmdline_args_t *cmd, int sock_fd)
 	size_t resp_msg_len;
 	uint8_t *mctp_resp_msg;
 	struct mctp_astpcie_pkt_private pvt_binding;
-	time_t now;
 	int64_t t_start, t_end;
 	int retry = 0;
 
@@ -277,7 +281,7 @@ int mctp_cmdline_exec(mctp_cmdline_args_t *cmd, int sock_fd)
 		}
 	}
 
-	printf("Command Done in [%ld] ms\n", (t_end - t_start));
+	printf("Command Done in [%lld] ms\n", (t_end - t_start));
 
 	return MCTP_CMD_SUCCESS;
 }
@@ -302,7 +306,7 @@ uint16_t mctp_ctrl_get_target_bdf(mctp_cmdline_args_t *cmd)
 	return (pvt_binding.remote_id);
 }
 
-int mctp_cmdline_copy_tx_buff(uint8_t src[], uint8_t *dest, int len)
+int mctp_cmdline_copy_tx_buff(char src[], uint8_t *dest, int len)
 {
 	int i = 0, buff_len = 0;
 
@@ -419,19 +423,11 @@ static int mctp_pcie_eids_sanity_check(uint8_t pci_own_eid,
 
 int main(int argc, char *const *argv)
 {
-	int length;
-	char buffer[50];
-	char *string = "Hello from client";
 	int fd;
-	uint8_t requestMsg[32];
-	size_t req_msg_len;
-	uint8_t mctp_eid = 8;
-	uint8_t *tx_buff, *rx_buff;
 	int rc;
 	int signal_fd = -1;
 	sigset_t mask;
 	mctp_ctrl_t *mctp_ctrl, _mctp_ctrl;
-	mctp_requester_rc_t mctp_ret;
 	mctp_cmdline_args_t cmdline;
 
 	/* Initialize MCTP ctrl structure */
@@ -472,12 +468,10 @@ int main(int argc, char *const *argv)
 			break;
 		case 'e':
 			cmdline.dest_eid = (uint8_t)atoi(optarg);
-			;
 			mctp_ctrl->eid = cmdline.dest_eid;
 			break;
 		case 'm':
 			cmdline.mode = (uint8_t)atoi(optarg);
-			;
 			MCTP_CTRL_DEBUG("%s: Mode :%s", __func__,
 					cmdline.mode ? "Daemon mode" :
 						       "Command line mode");
@@ -575,15 +569,24 @@ int main(int argc, char *const *argv)
 	} else {
 		mctp_ret_codes_t mctp_err_ret;
 
+		/* Create D-Bus for loging event and handling D-Bus request*/
+		rc = sd_bus_default_system(&mctp_ctrl->bus);
+		if (rc < 0) {
+			MCTP_CTRL_ERR("D-Bus failed to create\n");
+			close(mctp_ctrl->sock);
+			return EXIT_FAILURE;
+		}
+		g_sdbus = mctp_ctrl->bus;
+
 		/* Make sure all PCIe EID options are available from commandline */
 		rc = mctp_pcie_eids_sanity_check(cmdline.pci_own_eid,
 						 cmdline.pci_bridge_eid,
 						 cmdline.pci_bridge_pool_start);
 		if (rc < 0) {
-			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
-
 			close(g_socket_fd);
 			close(g_signal_fd);
+			sd_bus_unref(mctp_ctrl->bus);
+			MCTP_CTRL_ERR("MCTP-Ctrl sanity check unsuccessful\n");
 			return EXIT_FAILURE;
 		}
 
@@ -593,17 +596,20 @@ int main(int argc, char *const *argv)
 			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
 		}
 
-		/* Start sdbus initialization and monitoring */
-		rc = mctp_ctrl_sdbus_init(g_signal_fd);
+		/* Start D-Bus initialization and monitoring */
+		rc = mctp_ctrl_sdbus_init(mctp_ctrl->bus, g_signal_fd);
 		if (rc < 0) {
 			MCTP_CTRL_INFO("MCTP-Ctrl is going to terminate.\n");
 			mctp_ctrl_clean_up();
 			return EXIT_SUCCESS;
 		}
 
-		/* Start MCTP control daemon */
-		MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....", __func__);
-		mctp_start_daemon(mctp_ctrl);
+		if (rc >= 0) {
+			/* Start MCTP control daemon */
+			MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....",
+				       __func__);
+			mctp_start_daemon(mctp_ctrl);
+		}
 	}
 
 	mctp_ctrl_clean_up();

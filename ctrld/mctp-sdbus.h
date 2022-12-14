@@ -43,7 +43,7 @@ extern "C" {
 
 #define MCTP_CTRL_MAX_BUS_TYPES 4
 
-/* MCTP ctrl sdbus poll struct */
+/* MCTP ctrl D-Bus poll struct */
 typedef struct mctp_sdbus_context {
 	struct pollfd fds[MCTP_CTRL_TOTAL_FDS];
 	struct sd_bus *bus;
@@ -51,8 +51,30 @@ typedef struct mctp_sdbus_context {
 
 enum { SDBUS_POLLING_TIMEOUT = 1, SDBUS_PROCESS_EVENT };
 
-int mctp_ctrl_sdbus_init(int signalfd);
-mctp_sdbus_context_t *mctp_ctrl_sdbus_create_context(void);
+/**
+ * @brief initialize D-Bus objects for mctp ctrl servies and hanlde D-Bus requests
+ *
+ * @param[in] bus - destination MCTP eid
+ * @param[in] signalfd - the signal fd to terminate threads,
+ *
+ * @return int (errno may be set). failure is returned.
+ */
+int mctp_ctrl_sdbus_init(sd_bus *bus, int signalfd);
+
+/**
+ * @brief stop serving the D-Bus requests
+ *
+ * @return N/A
+ */
+void mctp_ctrl_sdbus_stop(void);
+
+/**
+ * @brief D-Bus requests handling routine
+ *
+ * @param[in] context - mctp D-Bus context
+ *
+ * @return int (errno may be set). failure is returned.
+ */
 int mctp_ctrl_sdbus_dispatch(mctp_sdbus_context_t *context);
 
 #ifdef __cplusplus

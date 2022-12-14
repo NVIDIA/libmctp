@@ -38,7 +38,7 @@
 uint8_t g_verbose_level = 0;
 
 /* Global socket name */
-uint8_t g_sock_name[32] = { 0 };
+char g_sock_name[32] = { 0 };
 
 /* Global commandline options */
 static const struct option options[] = {
@@ -87,7 +87,7 @@ static void usage(void)
 		background_copy_disable, background_copy_enable\n \
 		background_copy_disable_one, background_copy_enable_one\n \
 		background_copy_query_status, background_copy_query_progress\n \
-		background_copy_query_pending\n \        
+		background_copy_query_pending\n \
 		in_band_disable, in_band_enable\n \
 		in_band_query_status\n");
 }
@@ -104,7 +104,7 @@ static int iterate_dbus_dict(sd_bus_message *m, const char *type, uint8_t eid,
 	int rc = 0;
 	int found = 0;
 
-	/* Enter the nested structre in order to retrieve sdbus message */
+	/* Enter the nested structre in order to retrieve sd-bus message */
 	while ((rc = sd_bus_message_enter_container(m, SD_BUS_TYPE_DICT_ENTRY,
 						    type)) > 0) {
 		rc = callback(m, eid);
@@ -130,7 +130,6 @@ static int cb_dbus_properity(sd_bus_message *m, uint8_t eid)
 	char type = 0;
 	const char *contents;
 	const char *name;
-	const char *value;
 	const void *ptr;
 
 	rc = sd_bus_message_read_basic(m, SD_BUS_TYPE_STRING, &name);
@@ -186,7 +185,7 @@ static int cb_dbus_interfaces(sd_bus_message *m, uint8_t eid)
 	MCTP_ASSERT_RET(rc >= 0, -1,
 			"sd_bus_message_enter_contain fail rc=%d\n", rc);
 
-	/* Traverse dbus properities */
+	/* Traverse D-Bus properities */
 	rc = iterate_dbus_dict(m, "sv", eid, cb_dbus_properity);
 	if (rc < 0)
 		fprintf(stderr, "cb_dbus_properity fail rc=%d\n", rc);
@@ -288,8 +287,6 @@ int main(int argc, char *const *argv)
 	int fd = 0;
 	int found = 0;
 	char item[MCTP_VDM_COMMAND_NAME_SIZE] = { '\0' };
-	char intf[16] = { 0 };
-	char path[32] = { 0 };
 	char file[PATH_MAX] = { 0 };
 	unsigned int max_len = 0;
 	uint8_t teid = 0;
@@ -377,7 +374,7 @@ int main(int argc, char *const *argv)
 			break;
 	}
 
-	/* free dbus*/
+	/* free D-Bus*/
 	sd_bus_unref(bus);
 
 	MCTP_ASSERT_RET(found == 1, EXIT_FAILURE, "can't find the interface\n");

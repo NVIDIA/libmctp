@@ -17,10 +17,7 @@
 #include "mctp-discovery.h"
 #include "mctp-ctrl.h"
 #include "mctp-ctrl-log.h"
-
-/* Global variable for MCTP discovery mode */
-static int mctp_discovered_endpoints = 0;
-static int mctp_discovered_mode = 0;
+#include "dbus_log_event.h"
 
 /* Structure for Getting MCTP response */
 struct mctp_ctrl_resp {
@@ -28,13 +25,6 @@ struct mctp_ctrl_resp {
 	uint8_t completion_code;
 	uint8_t data[MCTP_BTU];
 } resp __attribute__((__packed__));
-
-/*
- * Global variable for user to check the Routing table 
- * and UUI availablity
- */
-static int mctp_routing_table_available = 0;
-static int mctp_ep_uuids_available = 0;
 
 /* Global EID pool size and start position */
 uint8_t g_eid_pool_size = 0;
@@ -355,7 +345,6 @@ void mctp_msg_types_display(void)
 int mctp_msg_type_entry_add(mctp_msg_type_table_t *msg_type_tbl)
 {
 	mctp_msg_type_table_t *new_entry, *temp_entry;
-	static int routing_id = 0;
 
 	/* Create a new Message type entry */
 	new_entry =
@@ -426,7 +415,6 @@ void mctp_uuid_display(void)
 int mctp_uuid_entry_add(mctp_uuid_table_t *uuid_tbl)
 {
 	mctp_uuid_table_t *new_entry, *temp_entry;
-	static int routing_id = 0;
 
 	/* Create a new Message type entry */
 	new_entry = (mctp_uuid_table_t *)malloc(sizeof(mctp_uuid_table_t));
@@ -1188,7 +1176,6 @@ int mctp_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 			       size_t resp_msg_len)
 {
 	bool req_ret;
-	struct mctp_ctrl_resp ep_res;
 	struct mctp_ctrl_resp_get_msg_type_support *msg_type_resp;
 	int ret;
 	mctp_msg_type_table_t msg_type_table;
@@ -1234,12 +1221,15 @@ int mctp_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 }
 
 /* MCTP discovery response receive routine */
-static mctp_ret_codes_t mctp_discover_response(mctp_discovery_mode mode,
-					       mctp_eid_t eid, int sock,
+static mctp_ret_codes_t mctp_discover_response(mctp_ctrl_t *ctrl,
+					       mctp_discovery_mode mode,
+					       mctp_eid_t eid,
 					       uint8_t **mctp_resp_msg,
 					       size_t *mctp_resp_len)
 {
-	mctp_ret_codes_t mctp_ret;
+	int sock = ctrl->sock;
+	mctp_requester_rc_t mctp_ret;
+	char *device_name = "PCIe Device Enumeration Service";
 
 	/* Ignore request commands */
 	switch (mode) {
@@ -1268,12 +1258,32 @@ static mctp_ret_codes_t mctp_discover_response(mctp_discovery_mode mode,
 		/* Receive MCTP packets */
 		mctp_ret = mctp_client_recv(eid, sock, mctp_resp_msg,
 					    mctp_resp_len);
-		if (mctp_ret != MCTP_REQUESTER_SUCCESS) {
+
+		if (mctp_ret == MCTP_REQUESTER_TIMEOUT) {
+			if (mode == MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE) {
+				/* Get routing table commands has their own timeout */
+				doLog(ctrl->bus, device_name,
+				      "No valid routing table", EVT_CRITICAL,
+				      "Reset the baseboard");
+				return MCTP_RET_REQUEST_FAILED;
+			}
+			doLog(ctrl->bus, device_name, "Discovery Timed Out",
+			      EVT_CRITICAL, "Reset the baseboard");
+
+			return MCTP_RET_REQUEST_FAILED;
+		} else if (mctp_ret == MCTP_REQUESTER_RECV_FAIL ||
+			   mctp_ret == MCTP_REQUESTER_INVALID_RECV_LEN) {
+			if (mode == MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE) {
+				/* Get routing table commands has their error handling */
+				return MCTP_RET_REQUEST_FAILED;
+			}
 			MCTP_CTRL_ERR("%s: Failed to received message %d\n",
 				      __func__, mctp_ret);
+
+			doLog(ctrl->bus, device_name, "Failed to discover",
+			      EVT_CRITICAL, "Reset the baseboard");
 			return MCTP_RET_REQUEST_FAILED;
 		}
-
 		break;
 
 	default:
@@ -1290,19 +1300,14 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd,
 					 mctp_ctrl_t *ctrl)
 {
 	static int discovery_mode = MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST;
-	struct mctp_ctrl_req ep_discovery_req;
-	struct mctp_ctrl_resp ep_discovery_res;
 	mctp_ret_codes_t mctp_ret;
 	mctp_ctrl_cmd_set_eid_op set_eid_op;
 	mctp_ctrl_cmd_alloc_eid_op alloc_eid_op;
 	uint8_t eid = 0, eid_count = 0, eid_start = 0;
 	uint8_t entry_hdl = MCTP_ROUTING_ENTRY_START;
-	size_t mctp_resp_len;
 	uint8_t *mctp_resp_msg;
 	mctp_eid_t local_eid = 8;
 	size_t resp_msg_len;
-	int uuid_req_count = 0;
-	int msg_type_req_count = 0;
 	int timeout = 0;
 	mctp_routing_table_t *routing_entry = NULL;
 
@@ -1321,9 +1326,9 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd,
 
 	do {
 		/* Wait for MCTP response */
-		mctp_ret = mctp_discover_response(discovery_mode, local_eid,
-						  ctrl->sock, &mctp_resp_msg,
-						  &resp_msg_len);
+		mctp_ret =
+			mctp_discover_response(ctrl, discovery_mode, local_eid,
+					       &mctp_resp_msg, &resp_msg_len);
 		if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed to received message %d\n",
 				      __func__, mctp_ret);
@@ -1352,6 +1357,10 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd,
 			mctp_ret = mctp_prepare_ep_discovery_send_request(
 				ctrl->sock);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+				doLog(ctrl->bus,
+				      "PCIe Device Enumeration Service",
+				      "Failed to discover", EVT_CRITICAL,
+				      "Reset the baseboard");
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST\n",
 					__func__);
@@ -1388,6 +1397,11 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd,
 			/* Send the prepare endpoint message */
 			mctp_ret = mctp_ep_discovery_send_request(ctrl->sock);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+				doLog(ctrl->bus,
+				      "PCIe Device Enumeration Service",
+				      "Failed to discover", EVT_CRITICAL,
+				      "Reset the baseboard");
+
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_EP_DISCOVERY_REQUEST\n",
 					__func__);
@@ -1431,6 +1445,10 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd,
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_SET_EP_REQUEST\n",
 					__func__);
+				doLog(ctrl->bus,
+				      "PCIe Device Enumeration Service",
+				      "Failed to discover", EVT_CRITICAL,
+				      "Reset the baseboard");
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
@@ -1503,6 +1521,10 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd,
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_SET_EP_REQUEST\n",
 					__func__);
+				doLog(ctrl->bus,
+				      "PCIe Device Enumeration Service",
+				      "Failed to discover", EVT_CRITICAL,
+				      "Reset the baseboard");
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
@@ -1555,6 +1577,10 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd,
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST\n",
 					__func__);
+				doLog(ctrl->bus,
+				      "PCIe Device Enumeration Service",
+				      "No valid routing table", EVT_CRITICAL,
+				      "Reset the baseboard");
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
@@ -1592,6 +1618,12 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd,
 				MCTP_CTRL_ERR(
 					"%s: Timedout[%d secs]  MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE\n",
 					__func__, timeout);
+
+				doLog(ctrl->bus,
+				      "PCIe Device Enumeration Service",
+				      "No valid routing table", EVT_CRITICAL,
+				      "Reset the baseboard");
+
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
@@ -1640,6 +1672,11 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd,
 					MCTP_CTRL_ERR(
 						"%s: Failed MCTP_GET_EP_UUID_REQUEST\n",
 						__func__);
+					doLog(ctrl->bus,
+					      "PCIe Device Enumeration Service",
+					      "Failed to get unique identifier for endpoint",
+					      EVT_CRITICAL,
+					      "Reset the baseboard");
 					return MCTP_RET_DISCOVERY_FAILED;
 				}
 			}
@@ -1706,6 +1743,11 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd,
 					MCTP_CTRL_ERR(
 						"%s: Failed MCTP_GET_MSG_TYPE_REQUEST\n",
 						__func__);
+					doLog(ctrl->bus,
+					      "PCIe Device Enumeration Service",
+					      "Failed to get supported message types for endpoint",
+					      EVT_CRITICAL,
+					      "Reset the baseboard");
 					return MCTP_RET_DISCOVERY_FAILED;
 				}
 			}

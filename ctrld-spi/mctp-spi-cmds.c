@@ -41,12 +41,13 @@
 
 #include "ctrld/mctp-ctrl.h"
 #include "ctrld/mctp-sdbus.h"
+#include "ctrld/mctp-ctrl-log.h"
 
 #include "mctp-socket.h"
-#include "mctp-ctrl-log.h"
 #include "mctp-spi-ctrl.h"
 #include "mctp-spi-ctrl-cmdline.h"
 #include "mctp-spi-ctrl-cmds.h"
+#include "dbus_log_event.h"
 
 #include "vdm/nvidia/libmctp-vdm-cmds.h"
 #include "vdm/nvidia/mctp-vdm-commands.h"
@@ -183,12 +184,12 @@ static void mctp_ctrl_wait_and_discard(mctp_ctrl_t *ctrl, int signal_fd,
 	}
 }
 
-int mctp_spi_keepalive_event(mctp_ctrl_t *ctrl)
+void *mctp_spi_keepalive_event(void *arg)
 {
-	size_t resp_msg_len = 0;
 	int rc = 0;
 	int signal_fd = -1;
 	sigset_t mask;
+	mctp_ctrl_t *ctrl = (mctp_ctrl_t *) arg;
 
 	sigemptyset(&mask);
 	sigaddset(&mask, SIGUSR2);
@@ -209,7 +210,11 @@ int mctp_spi_keepalive_event(mctp_ctrl_t *ctrl)
 
 	rc = boot_complete_v2(ctrl->sock, MCTP_NULL_ENDPOINT, 0, 0,
 			      VERBOSE_DISABLE);
-	MCTP_ASSERT_RET(rc == 0, MCTP_CMD_FAILED,
+	if (rc != 0) {
+		doLog(ctrl->bus, "ERoT SPI", "Boot Complete failed",
+		      EVT_CRITICAL, "Reset the baseboard");
+	}
+	MCTP_ASSERT_RET(rc == 0, NULL,
 			"Failed to send 'Boot complete' message\n");
 	MCTP_CTRL_INFO("%s: Send 'Boot complete v2' message\n", __func__);
 
@@ -221,9 +226,11 @@ int mctp_spi_keepalive_event(mctp_ctrl_t *ctrl)
 
 	rc = set_heartbeat_enable(ctrl->sock, MCTP_NULL_ENDPOINT,
 				  MCTP_SPI_HB_ENABLE_CMD, VERBOSE_DISABLE);
-	MCTP_ASSERT_RET(rc == 0, MCTP_CMD_FAILED,
-			"Failed MCTP_SPI_HEARTBEAT_ENABLE\n");
-	MCTP_CTRL_INFO("%s: Send 'Enable Heartbeat' message\n", __func__);
+	if (rc != 0) {
+		doLog(ctrl->bus, "ERoT SPI", "Enable HeartBeat failed",
+		      EVT_CRITICAL, "Reset the baseboard");
+	}
+	MCTP_ASSERT_RET(rc == 0, NULL, "Failed MCTP_SPI_HEARTBEAT_ENABLE\n");
 
 	/* Give some delay before sending next command */
 	usleep(MCTP_SPI_CMD_DELAY_USECS);
@@ -236,6 +243,9 @@ int mctp_spi_keepalive_event(mctp_ctrl_t *ctrl)
 		if (rc != 0) {
 			MCTP_CTRL_ERR("%s: Heartbeat message failed.\n",
 				      __func__);
+
+			doLog(ctrl->bus, "ERoT SPI", "HeartBeat failed",
+			      EVT_CRITICAL, "Reset the baseboard");
 			break;
 		}
 		/* Consume forwarding resposnses from other mctp client */
@@ -244,14 +254,13 @@ int mctp_spi_keepalive_event(mctp_ctrl_t *ctrl)
 	}
 
 	mctp_ctrl_sdbus_stop();
-	return MCTP_CMD_SUCCESS;
+	return NULL;
 }
 
 void mctp_spi_test_cmd(mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmd)
 {
 	int rc = 0;
 	mctp_spi_iana_vdm_ops_t ops = cmd->vdm_ops;
-	int status = 0;
 
 	/* Check for Raw Read/write access */
 	if (cmd->cmd_mode) {

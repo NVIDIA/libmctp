@@ -52,6 +52,7 @@ ctrld_mctp_pcie_ctrl_LDFLAGS = "-lsystemd"
 ctrld_mctp_pcie_ctrl_SOURCES = ctrld/mctp-ctrl.c \
                     ctrld/mctp-discovery.c \
                     mctp-socket.c \
+                    dbus_log_event.c \
                     ctrld/mctp-encode.c \
                     ctrld/mctp-sdbus.c
 
@@ -62,6 +63,7 @@ ctrld_spi_mctp_spi_ctrl_SOURCES = ctrld-spi/mctp-spi-ctrl.c \
                     vdm/nvidia/mctp-vdm-commands.c \
                     vdm/nvidia/mctp-vdm-encode.c \
                     mctp-socket.c \
+                    dbus_log_event.c \
                     ctrld/mctp-discovery.c \
                     ctrld/mctp-encode.c \
                     ctrld/mctp-sdbus.c

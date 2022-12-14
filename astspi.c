@@ -384,7 +384,6 @@ int mctp_spi_process(struct mctp_binding_spi *spi)
 static int mctp_spi_rx(struct mctp_binding_spi *spi)
 {
 	ssize_t len;
-	ssize_t offset = 0;
 	ssize_t payload_len;
 	const size_t hdr_size = sizeof(struct mctp_spi_header);
 	int ret = 0;
@@ -454,8 +453,6 @@ int mctp_spi_register_bus(struct mctp_binding_spi *spi, struct mctp *mctp,
 
 static int mctp_binding_spi_start(struct mctp_binding *b)
 {
-	struct mctp_binding_spi *spi = binding_to_spi(b);
-
 	mctp_binding_set_tx_enabled(b, true);
 
     return 0;
@@ -735,7 +732,7 @@ int ast_spi_set_udelay(int usecond)
 
 int ast_spi_open(int dev, int channel, int mode, int disablecs, int singlemode)
 {
-	int fd = 0, ret = 0;
+	int fd = 0;
 	char spiDev[32] = "";
 
 	snprintf(spiDev, 31, "/dev/spidev%d.%d", dev, channel);
@@ -975,7 +972,6 @@ enum ast_spi_intr_status ast_spi_gpio_intr_check(int gpio_fd, int timeout_ms,
 						 bool polling)
 {
 	short revents = 0;
-	SpbApStatus status;
 
 	if (polling) {
 		revents = ast_spi_gpio_poll(gpio_fd, timeout_ms);
