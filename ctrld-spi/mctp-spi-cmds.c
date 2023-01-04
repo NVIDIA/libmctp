@@ -213,6 +213,13 @@ void *mctp_spi_keepalive_event(void *arg)
 	if (rc != 0) {
 		doLog(ctrl->bus, "ERoT SPI", "Boot Complete failed",
 		      EVT_CRITICAL, "Reset the baseboard");
+
+		/* Terminate the main thread */
+		mctp_ctrl_sdbus_stop();
+			  
+		/* Let the main thread continue to run and stop */
+		pthread_cond_signal(&ctrl->worker_cv);
+		pthread_mutex_unlock(&ctrl->worker_mtx);
 	}
 	MCTP_ASSERT_RET(rc == 0, NULL,
 			"Failed to send 'Boot complete' message\n");
