@@ -19,6 +19,8 @@
 #include "ctrld/mctp-ctrl-cmds.h"
 #include "ctrld/mctp-ctrl.h"
 
+#include "vdm/nvidia/libmctp-vdm-cmds.h"
+
 /* Set MCTP message Type */
 const uint8_t MCTP_CTRL_MSG_TYPE = 0;
 const uint8_t MCTP_MSG_TYPE_HDR = 0;
@@ -184,11 +186,13 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
  * */
 static mctp_requester_rc_t mctp_client_recv_from_eid(mctp_eid_t eid,
 						     int mctp_fd,
+							 uint8_t cmd_code,
 						     uint8_t **mctp_resp_msg,
 						     size_t *resp_msg_len)
 {
 	char resp_eid[1] = { 0 };
 	mctp_requester_rc_t rc;
+	struct mctp_vendor_msg_hdr *resp;
 
 	do {
 		rc = mctp_recv(eid, mctp_fd, mctp_resp_msg, resp_msg_len,
@@ -197,11 +201,14 @@ static mctp_requester_rc_t mctp_client_recv_from_eid(mctp_eid_t eid,
 		if (rc != MCTP_REQUESTER_SUCCESS) {
 			return rc;
 		}
+
+		/* Skip msg type */
+		resp = (struct mctp_vendor_msg_hdr *) (*mctp_resp_msg + 1);
 		/* Mctp demux will forard the response to all mctp client
 		 * registered with the same message type.
 		 * We may receive the unexpected data and need to read it again
 		 */
-		if (eid == resp_eid[0]) {
+		if (eid == resp_eid[0] && cmd_code == resp->command_code) {
 			break;
 		}
 
@@ -251,6 +258,8 @@ mctp_requester_rc_t mctp_client_send_recv(mctp_eid_t eid, int fd,
 	mctp_requester_rc_t rc = -1;
 	int timeout = -1;
 	int retry_count = 0;
+	uint8_t cmd_code;
+	struct mctp_vendor_msg_hdr *req = NULL;
 
 	while (1) {
 		rc = mctp_client_send(eid, fd, msgtype, req_msg, req_len);
@@ -258,8 +267,11 @@ mctp_requester_rc_t mctp_client_send_recv(mctp_eid_t eid, int fd,
 		MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, rc,
 				"fail to send [rc: %d] request\n", rc);
 
+		req = (struct mctp_vendor_msg_hdr *) req_msg;
+		cmd_code = req->command_code;
 		/* Receive the data again if EID mismatch */
-		rc = mctp_client_recv_from_eid(eid, fd, resp_msg, resp_len);
+		rc = mctp_client_recv_from_eid(eid, fd, cmd_code, resp_msg, resp_len);
+
 		if (rc == MCTP_REQUESTER_SUCCESS) {
 			break;
 		}
