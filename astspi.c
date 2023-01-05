@@ -308,6 +308,16 @@ static int mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 
 	ret = mctp_spi_tx(spi, spi_message_len, pkt_pvt);
 	mctp_spi_verify_magics(spi);
+
+	if (spb_ap_msgs_available(&spi->nvda_spb_ap) > 0) {
+		fprintf (stderr, "we have the msg during tx\n");
+		spb_ap_on_interrupt(&spi->nvda_spb_ap);
+
+		while (spb_ap_msgs_available(&spi->nvda_spb_ap) > 0)
+			mctp_spi_rx(spi);
+	}
+
+
 	MCTP_ASSERT_RET(ret >= 0, -1, "Error in tx of spi message");
 
 	return (0);
@@ -926,6 +936,7 @@ ssize_t ast_spi_gpio_intr_read(int gpio_fd)
 	ret = read(gpio_fd, buf, sizeof(buf));
 	MCTP_ASSERT_RET(ret > 0, ret, "read(2) failed: %d (%s)", errno,
 			strerror(errno));
+	
 
 	return (ret);
 }
