@@ -383,7 +383,7 @@ int main(int argc, char *const *argv)
 
 	/* Establish the socket connection */
 	rc = mctp_usr_socket_init(&fd, g_sock_name, MCTP_MESSAGE_TYPE_VDIANA,
-				  MCTP_CTRL_TXRX_TIMEOUT_8SECS);
+				  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
 	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, EXIT_FAILURE,
 			"Failed to open mctp socket\n");
 

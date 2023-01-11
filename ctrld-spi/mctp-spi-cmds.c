@@ -54,6 +54,8 @@
 
 #define MCTP_NULL_ENDPOINT 0
 
+#define MAX_HEARTBEAT_RETRY 10
+
 extern int mctp_ctrl_running;
 
 int mctp_spi_set_endpoint_id(mctp_spi_cmdline_args_t *cmd)
@@ -189,6 +191,7 @@ void *mctp_spi_keepalive_event(void *arg)
 	int rc = 0;
 	int signal_fd = -1;
 	sigset_t mask;
+	int retries = MAX_HEARTBEAT_RETRY;
 	mctp_ctrl_t *ctrl = (mctp_ctrl_t *) arg;
 
 	sigemptyset(&mask);
@@ -246,14 +249,21 @@ void *mctp_spi_keepalive_event(void *arg)
 		MCTP_CTRL_DEBUG("%s: Send 'Heartbeat' message\n", __func__);
 
 		rc = heartbeat(ctrl->sock, MCTP_NULL_ENDPOINT, VERBOSE_DISABLE);
-
 		if (rc != 0) {
 			MCTP_CTRL_ERR("%s: Heartbeat message failed.\n",
 				      __func__);
 
 			doLog(ctrl->bus, "ERoT SPI", "HeartBeat failed",
 			      EVT_CRITICAL, "Reset the baseboard");
-			break;
+			if (retries == 0) {
+				break;
+			}
+			else {
+				retries --;
+			}
+		}
+		else {
+			retries = MAX_HEARTBEAT_RETRY;
 		}
 		/* Consume forwarding resposnses from other mctp client */
 		mctp_ctrl_wait_and_discard(

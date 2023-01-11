@@ -30,7 +30,8 @@ extern "C" {
 
 #define ASTP_SPI_RAW_RW_BUFF_LEN 64
 
-#define SPB_GPIO_INTR_NUM 986
+/* This is default GPIO pin GPIOV2 on HMC */
+#define SPB_GPIO_INTR_NUM 986 
 
 /* Command line options for various operations */
 typedef enum mctp_cmdline_ops {

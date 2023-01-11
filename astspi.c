@@ -310,7 +310,6 @@ static int mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	mctp_spi_verify_magics(spi);
 
 	if (spb_ap_msgs_available(&spi->nvda_spb_ap) > 0) {
-		fprintf (stderr, "we have the msg during tx\n");
 		spb_ap_on_interrupt(&spi->nvda_spb_ap);
 
 		while (spb_ap_msgs_available(&spi->nvda_spb_ap) > 0)
