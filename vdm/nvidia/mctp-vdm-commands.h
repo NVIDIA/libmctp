@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#define VERBOSE_EN 1
+#define VERBOSE_EN	1
 #define VERBOSE_DISABLE 0
 
 int selftest(int fd, uint8_t tid, uint8_t *payload, int length,
@@ -29,6 +29,15 @@ int in_band(int fd, uint8_t tid, uint8_t code, uint8_t verbose);
 int boot_ap(int fd, uint8_t tid, uint8_t verbose);
 int set_query_boot_mode(int fd, uint8_t tid, uint8_t code, uint8_t verbose);
 
+int cak_install(int fd, uint8_t tid, uint8_t *payload, size_t length,
+		uint8_t verbose);
+int cak_lock(int fd, uint8_t tid, uint8_t *payload, size_t length,
+	     uint8_t verbose);
+int cak_test(int fd, uint8_t tid, uint8_t verbose);
+int dot_disable(int fd, uint8_t tid, uint8_t *payload, size_t length,
+		uint8_t verbose);
+int dot_token_install(int fd, uint8_t tid, uint8_t *payload, size_t length,
+		      uint8_t verbose);
 #ifdef __cplusplus
 }
 #endif

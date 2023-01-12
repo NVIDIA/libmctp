@@ -612,7 +612,7 @@ int certificate_install(int fd, uint8_t tid, uint8_t *payload, size_t length,
  * For parameter "code" equals 1, the command enables "in-band".
  * For parameter "code" equals 2, the command returns status of "in-band"
  *  returns 0, for disabled "in-band"
- *  returns 1, for enabled "in-band" 
+ *  returns 1, for enabled "in-band"
  */
 int in_band(int fd, uint8_t tid, uint8_t code, uint8_t verbose)
 {
@@ -669,8 +669,8 @@ int boot_ap(int fd, uint8_t tid, uint8_t verbose)
 }
 
 /*
- * This command/query is for the manual boot mode, whereupon ERoT reset, if the 
- * mode is on, the AP will be held in reset until the Boot AP command is 
+ * This command/query is for the manual boot mode, whereupon ERoT reset, if the
+ * mode is on, the AP will be held in reset until the Boot AP command is
  * given.  This mode is applied only once per ERoT reset.  After the AP has
  * been booted, any firmware upgrade and AP reset will result in the AP booting
  * without intervention as long as the secure boot checks on the AP firmware
@@ -690,6 +690,158 @@ int set_query_boot_mode(int fd, uint8_t tid, uint8_t code, uint8_t verbose)
 
 	/* Send and Receive the MCTP-VDM command */
 	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
+				       (uint8_t **)&resp, &resp_len, verbose);
+
+	/* free memory */
+	free(resp);
+
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+			"%s: fail to recv [rc: %d] response\n", __func__, rc);
+	return 0;
+}
+
+/* The command is used to install CAK */
+int cak_install(int fd, uint8_t tid, uint8_t *payload, size_t length,
+		uint8_t verbose)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_cak_install cmd = { 0 };
+
+	MCTP_ASSERT_RET(length <= (sizeof(cmd) - sizeof(cmd.vdr_msg_hdr)), -1,
+			"the length is out of the spec.\n");
+
+	/* Encode the VDM headers for CAK install */
+	mctp_encode_vendor_cmd_cak_install(&cmd);
+
+	memcpy((unsigned char *)&cmd.payload, payload, length);
+	length += sizeof(struct mctp_vendor_msg_hdr);
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, length,
+				       (uint8_t **)&resp, &resp_len, verbose);
+
+	/* free memory */
+	free(resp);
+
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+			"%s: fail to recv [rc: %d] response\n", __func__, rc);
+	return 0;
+}
+
+/*
+This command is used to lock/move CAK from SRAM to Glacier internal flash
+*/
+int cak_lock(int fd, uint8_t tid, uint8_t *payload, size_t length,
+	     uint8_t verbose)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_cak_lock cmd = { 0 };
+
+	MCTP_ASSERT_RET(length <= MCTP_ECDSA_P_384_DOT_ENABLE_KEY, -1,
+			"the length is out of the spec.\n");
+
+	/* Encode the VDM headers for CAK lock */
+	mctp_encode_vendor_cmd_cak_lock(&cmd);
+
+	memcpy(&cmd.payload, payload, length);
+	length += sizeof(struct mctp_vendor_msg_hdr);
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, length,
+				       (uint8_t **)&resp, &resp_len, verbose);
+
+	/* free memory */
+	free(resp);
+
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+			"%s: fail to recv [rc: %d] response\n", __func__, rc);
+	return 0;
+}
+
+/*
+ * Command to confirm if the current AP_FW Metadata can be successfully
+ * authenticated using the current DOT CAK.
+ */
+int cak_test(int fd, uint8_t tid, uint8_t verbose)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_cak_test cmd = { 0 };
+
+	/* Encode the VDM headers for CAK test */
+	mctp_encode_vendor_cmd_cak_test(&cmd);
+
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
+				       (uint8_t **)&resp, &resp_len, verbose);
+
+	/* free memory */
+	free(resp);
+
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+			"%s: fail to recv [rc: %d] response\n", __func__, rc);
+	return 0;
+}
+
+/* Command to disable DOT Functionality */
+int dot_disable(int fd, uint8_t tid, uint8_t *payload, size_t length,
+		uint8_t verbose)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+
+	struct mctp_vendor_cmd_dot_disable cmd = { 0 };
+
+	MCTP_ASSERT_RET(length <= MCTP_ECDSA_P_384_DOT_ENABLE_KEY, -1,
+			"the length is out of the spec.\n");
+
+	/* Encode the VDM headers for DOT disable */
+	mctp_encode_vendor_cmd_dot_disable(&cmd);
+
+	memcpy(&cmd.payload, payload, length);
+	length += sizeof(struct mctp_vendor_msg_hdr);
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, length,
+				       (uint8_t **)&resp, &resp_len, verbose);
+
+	/* free memory */
+	free(resp);
+
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+			"%s: fail to recv [rc: %d] response\n", __func__, rc);
+	return 0;
+}
+
+/*
+ * This command is used to install/flash DOT token onto Glacier internal SPI
+ * Flash. Upon receipt, ECFW will authenticate the token and after successful
+ * authentication, it shall perform DOT authorized commands like Unlock,
+ * Enable, Signing Test, or Override depending upon the 'type' field in DOT
+ * token structure. Processing error, if any, will be handled gracefully by
+ * ECFW and the error code will be reported back as response.
+ */
+int dot_token_install(int fd, uint8_t tid, uint8_t *payload, size_t length,
+		      uint8_t verbose)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_dot_token_inst cmd = { 0 };
+
+	MCTP_ASSERT_RET(length == 256, -1, "the length is out of the spec.\n");
+
+	/* Encode the VDM headers for debug token install */
+	mctp_encode_vendor_cmd_dot_token_inst(&cmd);
+
+	memcpy(&cmd.payload, payload, length);
+	length += sizeof(struct mctp_vendor_msg_hdr);
+
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, length,
 				       (uint8_t **)&resp, &resp_len, verbose);
 
 	/* free memory */

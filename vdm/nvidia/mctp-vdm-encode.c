@@ -20,10 +20,10 @@
 #define MCTP_VDM_INSTANCE_ID_DEFAULT 0x00
 
 /* VDM Header macros */
-#define MCTP_VDM_HDR_IANA 0x1647
+#define MCTP_VDM_HDR_IANA	     0x1647
 #define MCTP_VDM_HDR_VENDOR_MSG_TYPE 0x01
-#define MCTP_VDM_HDR_MSG_VER_1 0x01
-#define MCTP_VDM_HDR_MSG_VER_2 0x02
+#define MCTP_VDM_HDR_MSG_VER_1	     0x01
+#define MCTP_VDM_HDR_MSG_VER_2	     0x02
 
 #define ENCODE_VMD_CMD_FUNC(_name)                                             \
 	do {                                                                   \
@@ -74,6 +74,32 @@ bool mctp_encode_vendor_cmd_dbg_token_query(
 	struct mctp_vendor_cmd_dbg_token_query *cmd)
 {
 	ENCODE_VMD_CMD_FUNC(DBG_TOKEN_QUERY);
+}
+
+bool mctp_encode_vendor_cmd_cak_install(struct mctp_vendor_cmd_cak_install *cmd)
+{
+	ENCODE_VMD_CMD_FUNC(CAK_INSTALL);
+}
+
+bool mctp_encode_vendor_cmd_cak_lock(struct mctp_vendor_cmd_cak_lock *cmd)
+{
+	ENCODE_VMD_CMD_FUNC(CAK_LOCK);
+}
+
+bool mctp_encode_vendor_cmd_cak_test(struct mctp_vendor_cmd_cak_test *cmd)
+{
+	ENCODE_VMD_CMD_FUNC(CAK_TEST);
+}
+
+bool mctp_encode_vendor_cmd_dot_disable(struct mctp_vendor_cmd_dot_disable *cmd)
+{
+	ENCODE_VMD_CMD_FUNC(DOT_DISABLE);
+}
+
+bool mctp_encode_vendor_cmd_dot_token_inst(
+	struct mctp_vendor_cmd_dot_token_inst *cmd)
+{
+	ENCODE_VMD_CMD_FUNC(DOT_TOKEN_INST);
 }
 
 bool mctp_encode_vendor_cmd_selftest(struct mctp_vendor_cmd_selftest *cmd)

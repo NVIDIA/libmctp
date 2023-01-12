@@ -8,29 +8,34 @@ extern "C" {
 
 #include "libmctp.h"
 
-#define MCTP_CTRL_HDR_MSG_TYPE 0
-#define MCTP_CTRL_HDR_FLAG_REQUEST (1 << 7)
-#define MCTP_CTRL_HDR_FLAG_DGRAM (1 << 6)
+#define MCTP_CTRL_HDR_MSG_TYPE	       0
+#define MCTP_CTRL_HDR_FLAG_REQUEST     (1 << 7)
+#define MCTP_CTRL_HDR_FLAG_DGRAM       (1 << 6)
 #define MCTP_CTRL_HDR_INSTANCE_ID_MASK 0x1F
-#define MCTP_VENDOR_MSG_TYPE 0x7f
+#define MCTP_VENDOR_MSG_TYPE	       0x7f
 
 /* MCTP VDM Command codes */
-#define MCTP_VENDOR_CMD_SET_ENDPOINT_UUID 0x01
-#define MCTP_VENDOR_CMD_BOOTCOMPLETE 0x02
-#define MCTP_VENDOR_CMD_HEARTBEAT 0x03
-#define MCTP_VENDOR_CMD_ENABLE_HEARTBEAT 0x04
-#define MCTP_VENDOR_CMD_QUERYBOOTSTATUS 0x05
-#define MCTP_VENDOR_CMD_DOWNLOAD_LOG 0x06
-#define MCTP_VENDOR_CMD_IN_BAND 0x07
-#define MCTP_VENDOR_CMD_SELFTEST 0x08
-#define MCTP_VENDOR_CMD_BG_COPY 0x09
-#define MCTP_VENDOR_CMD_RESTART 0x0A
-#define MCTP_VENDOR_CMD_DBG_TOKEN_INST 0xB
-#define MCTP_VENDOR_CMD_DBG_TOKEN_ERASE 0xC
+#define MCTP_VENDOR_CMD_SET_ENDPOINT_UUID   0x01
+#define MCTP_VENDOR_CMD_BOOTCOMPLETE	    0x02
+#define MCTP_VENDOR_CMD_HEARTBEAT	    0x03
+#define MCTP_VENDOR_CMD_ENABLE_HEARTBEAT    0x04
+#define MCTP_VENDOR_CMD_QUERYBOOTSTATUS	    0x05
+#define MCTP_VENDOR_CMD_DOWNLOAD_LOG	    0x06
+#define MCTP_VENDOR_CMD_IN_BAND		    0x07
+#define MCTP_VENDOR_CMD_SELFTEST	    0x08
+#define MCTP_VENDOR_CMD_BG_COPY		    0x09
+#define MCTP_VENDOR_CMD_RESTART		    0x0A
+#define MCTP_VENDOR_CMD_DBG_TOKEN_INST	    0xB
+#define MCTP_VENDOR_CMD_DBG_TOKEN_ERASE	    0xC
 #define MCTP_VENDOR_CMD_CERTIFICATE_INSTALL 0xD
-#define MCTP_VENDOR_CMD_DBG_TOKEN_QUERY 0xF
+#define MCTP_VENDOR_CMD_DBG_TOKEN_QUERY	    0xF
 #define MCTP_VENDOR_CMD_SET_QUERY_BOOT_MODE 0x11
-#define MCTP_VENDOR_CMD_BOOT_AP 0x12
+#define MCTP_VENDOR_CMD_BOOT_AP		    0x12
+#define MCTP_VENDOR_CMD_CAK_INSTALL	    0x14
+#define MCTP_VENDOR_CMD_CAK_LOCK	    0x15
+#define MCTP_VENDOR_CMD_CAK_TEST	    0x16
+#define MCTP_VENDOR_CMD_DOT_DISABLE	    0x17
+#define MCTP_VENDOR_CMD_DOT_TOKEN_INST	    0x18
 
 /* Download log buffer length */
 #define MCTP_VDM_DOWNLOAD_LOG_BUFFER_SIZE 52
@@ -41,8 +46,16 @@ extern "C" {
  * */
 #define MCTP_CERTIFICATE_CHAIN_SIZE 3172
 
+/* ECDSA P 384 DOT key length */
+#define MCTP_ECDSA_P_384_DOT_ENABLE_KEY 96
+
+#define MCTP_CAK_COMMAND_PAYLOAD_LEN (MCTP_ECDSA_P_384_DOT_ENABLE_KEY + 99)
+
 /* Maximum debug token size */
 #define MCTP_DEBUG_TOKEN_SIZE 256
+
+/* Maximum DOT token size */
+#define MCTP_DOT_TOKEN_SIZE 256
 
 struct mctp_vendor_msg_hdr {
 	uint32_t iana;
@@ -138,6 +151,33 @@ struct mctp_vendor_cmd_set_query_boot_mode {
 	uint8_t code;
 } __attribute__((__packed__));
 
+struct mctp_vendor_cmd_cak_install {
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	unsigned char payload[MCTP_ECDSA_P_384_DOT_ENABLE_KEY];
+	uint8_t cak_disable;
+	uint8_t ap_fw_metadata_signature[95];
+	uint8_t ap_fw_metadata_rbp[2];
+} __attribute__((__packed__));
+
+struct mctp_vendor_cmd_cak_lock {
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	unsigned char payload[MCTP_ECDSA_P_384_DOT_ENABLE_KEY];
+} __attribute__((__packed__));
+
+struct mctp_vendor_cmd_cak_test {
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+} __attribute__((__packed__));
+
+struct mctp_vendor_cmd_dot_disable {
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	unsigned char payload[MCTP_ECDSA_P_384_DOT_ENABLE_KEY];
+} __attribute__((__packed__));
+
+struct mctp_vendor_cmd_dot_token_inst {
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	unsigned char payload[MCTP_DOT_TOKEN_SIZE];
+} __attribute__((__packed__));
+
 /* MCTP-VDM encoder API's */
 bool mctp_encode_vendor_cmd_selftest(struct mctp_vendor_cmd_selftest *cmd);
 bool mctp_encode_vendor_cmd_bootcmplt(struct mctp_vendor_cmd_bootcmplt *cmd);
@@ -155,7 +195,7 @@ bool mctp_encode_vendor_cmd_dbg_token_inst(
 	struct mctp_vendor_cmd_dbg_token_inst *cmd);
 bool mctp_encode_vendor_cmd_dbg_token_erase(
 	struct mctp_vendor_cmd_dbg_token_erase *cmd);
-bool mctp_encode_vendor_cmd_dgb_token_query(
+bool mctp_encode_vendor_cmd_dbg_token_query(
 	struct mctp_vendor_cmd_dbg_token_query *cmd);
 bool mctp_encode_vendor_cmd_certificate_install(
 	struct mctp_vendor_cmd_certificate_install *cmd);
@@ -163,6 +203,12 @@ bool mctp_encode_vendor_cmd_in_band(struct mctp_vendor_cmd_in_band *cmd);
 bool mctp_encode_vendor_cmd_boot_ap(struct mctp_vendor_cmd_boot_ap *cmd);
 bool mctp_encode_vendor_cmd_set_query_boot_mode(
 	struct mctp_vendor_cmd_set_query_boot_mode *cmd);
+bool mctp_encode_vendor_cmd_cak_install(struct mctp_vendor_cmd_cak_install *cmd);
+bool mctp_encode_vendor_cmd_cak_lock(struct mctp_vendor_cmd_cak_lock *cmd);
+bool mctp_encode_vendor_cmd_cak_test(struct mctp_vendor_cmd_cak_test *cmd);
+bool mctp_encode_vendor_cmd_dot_disable(struct mctp_vendor_cmd_dot_disable *cmd);
+bool mctp_encode_vendor_cmd_dot_token_inst(
+	struct mctp_vendor_cmd_dot_token_inst *cmd);
 
 #ifdef __cplusplus
 }

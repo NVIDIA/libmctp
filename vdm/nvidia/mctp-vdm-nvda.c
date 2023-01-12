@@ -95,7 +95,12 @@ static void usage(void)
 		boot_ap\n \
 		enable_boot_mode\n \
 		disable_boot_mode\n \
-		query_boot_mode\n");
+		query_boot_mode\n \
+		cak_install\n \
+		cak_test\n \
+		cak_lock\n \
+		dot_disable\n \
+		dot_token_install\n");
 }
 
 struct ctx {
@@ -322,12 +327,26 @@ int main(int argc, char *const *argv)
 			payload_required |=
 				(strcmp(item, "program_certificate_chain") ==
 				 0);
+			payload_required |= (strcmp(item, "cak_install") == 0);
+			payload_required |= (strcmp(item, "cak_lock") == 0);
+			payload_required |= (strcmp(item, "dot_disable") == 0);
+			payload_required |=
+				(strcmp(item, "dot_token_install") == 0);
+
 			if (strcmp(item, "selftest") == 0)
 				max_len = 8;
 			else if (strcmp(item, "debug_token_install") == 0)
 				max_len = MCTP_DEBUG_TOKEN_SIZE;
 			else if (strcmp(item, "program_certificate_chain") == 0)
 				max_len = MCTP_CERTIFICATE_CHAIN_SIZE;
+			else if (strcmp(item, "cak_install") == 0)
+				max_len = MCTP_CAK_COMMAND_PAYLOAD_LEN;
+			else if (strcmp(item, "cak_lock") == 0)
+				max_len = MCTP_ECDSA_P_384_DOT_ENABLE_KEY;
+			else if (strcmp(item, "dot_disable") == 0)
+				max_len = MCTP_ECDSA_P_384_DOT_ENABLE_KEY;
+			else if (strcmp(item, "dot_token_install") == 0)
+				max_len = MCTP_DOT_TOKEN_SIZE;
 			else
 				max_len = 0;
 			break;
@@ -531,6 +550,31 @@ int main(int argc, char *const *argv)
 					 VERBOSE_EN);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to set_query_boot_mode: %d\n", rc);
+	} else if (!strcmp(item, "in_band_query_status")) {
+		rc = in_band(fd, teid, MCTP_VDM_IN_BAND_QUERY_STATUS,
+			     VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to query in-band: %d\n", rc);
+	} else if (!strcmp(item, "cak_install")) {
+		rc = cak_install(fd, teid, payload, len, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to query cak_install: %d\n", rc);
+	} else if (!strcmp(item, "cak_lock")) {
+		rc = cak_lock(fd, teid, payload, len, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to cak lock: %d\n",
+				    rc);
+	} else if (!strcmp(item, "cak_test")) {
+		rc = cak_test(fd, teid, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to cak_test: %d\n",
+				    rc);
+	} else if (!strcmp(item, "dot_disable")) {
+		rc = dot_disable(fd, teid, payload, len, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to dot_disable: %d\n",
+				    rc);
+	} else if (!strcmp(item, "dot_token_install")) {
+		rc = dot_token_install(fd, teid, payload, len, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to dot_token_install: %d\n", rc);
 	} else {
 		fprintf(stderr, "Unknown test cmd\n");
 	}
