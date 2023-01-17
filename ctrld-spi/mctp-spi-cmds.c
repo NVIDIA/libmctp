@@ -91,12 +91,12 @@ int mctp_spi_set_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
 	return 0;
 }
 
-static int64_t mctp_timediff_ms(struct timeval *tv1, struct timeval *tv2)
+static int64_t mctp_timediff_ms(struct timespec *tv1, struct timespec *tv2)
 {
 	int64_t diff_ms = 0;
 
 	diff_ms = (tv2->tv_sec - tv1->tv_sec) * 1000;
-	diff_ms += (tv2->tv_usec - tv1->tv_usec) / 1000;
+	diff_ms += (tv2->tv_nsec - tv1->tv_nsec) / 1000000;
 
 	return diff_ms;
 }
@@ -105,26 +105,20 @@ static void mctp_ctrl_wait_and_discard(mctp_ctrl_t *ctrl, int signal_fd,
 				       int timeout)
 {
 	int rc = -1;
-	struct timeval target = { 0 };
-	struct timeval curr = { 0 };
+	struct timespec target = { 0 };
+	struct timespec curr = { 0 };
 	struct pollfd pollfd[2] = { 0 };
 	struct signalfd_siginfo si;
 	ssize_t len = 0;
 
-	rc = gettimeofday(&target, NULL);
+	rc = clock_gettime(CLOCK_MONOTONIC, &target);
 	if (rc != 0) {
-		warn("gettimeofday failed");
+		warn("clock_gettime failed");
 		return;
 	}
 
 	target.tv_sec += timeout / 1000;
-	target.tv_usec += (timeout % 1000) * 1000;
-
-	rc = gettimeofday(&curr, NULL);
-	if (rc != 0) {
-		warn("gettimeofday failed");
-		return;
-	}
+	target.tv_nsec += (timeout % 1000000) * 1000000;
 
 	pollfd[0].fd = ctrl->sock;
 	pollfd[0].events = POLLIN;
@@ -134,9 +128,9 @@ static void mctp_ctrl_wait_and_discard(mctp_ctrl_t *ctrl, int signal_fd,
 	pollfd[1].events = POLLIN;
 	pollfd[1].revents = 0;
 
-	rc = gettimeofday(&curr, NULL);
+	rc = clock_gettime(CLOCK_MONOTONIC, &curr);
 	if (rc != 0) {
-		warn("gettimeofday(2) failed");
+		warn("clock_gettime(2) failed");
 		return;
 	}
 
@@ -175,9 +169,9 @@ static void mctp_ctrl_wait_and_discard(mctp_ctrl_t *ctrl, int signal_fd,
 			}
 		}
 
-		rc = gettimeofday(&curr, NULL);
+		rc = clock_gettime(CLOCK_MONOTONIC, &curr);
 		if (rc != 0) {
-			warn("gettimeofday(2) failed");
+			warn("clock_gettime(2) failed");
 			return;
 		}
 

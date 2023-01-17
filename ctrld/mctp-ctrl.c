@@ -163,7 +163,7 @@ const char *const short_options = "v:e:m:t:d:s:i:b:r:i:j:p:q:x:y:h";
 static int64_t mctp_millis()
 {
 	struct timespec now;
-	timespec_get(&now, TIME_UTC);
+	clock_gettime(CLOCK_MONOTONIC, &now);
 	return ((int64_t)now.tv_sec) * 1000 + ((int64_t)now.tv_nsec) / 1000000;
 }
 
