@@ -19,6 +19,8 @@
 #include "mctp-ctrl-log.h"
 #include "dbus_log_event.h"
 
+extern const char *phy_transport_binding_to_string(uint8_t id);
+
 /* Structure for Getting MCTP response */
 struct mctp_ctrl_resp {
 	struct mctp_ctrl_cmd_msg_hdr hdr;
@@ -926,13 +928,15 @@ mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd,
 }
 
 /* Receive function for Get routing table */
-int mctp_get_routing_table_get_response(int sock_fd, mctp_eid_t eid,
+int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
 					uint8_t *mctp_resp_msg,
 					size_t resp_msg_len)
 {
 	bool req_ret;
 	struct mctp_ctrl_resp_get_routing_table *routing_table;
 	int ret;
+	int sock = ctrl->sock;
+	char arg[REDFISH_ARG_LEN] = { 0 };
 
 	MCTP_CTRL_TRACE("%s: Get EP reesponse\n", __func__);
 
@@ -979,25 +983,46 @@ int mctp_get_routing_table_get_response(int sock_fd, mctp_eid_t eid,
 				"%s: Found it's own eid: [%d] in the Routing table\n",
 				__func__, routing_table_entry.starting_eid);
 		} else {
-			/* Add the entry to a linked list */
-			ret = mctp_routing_entry_add(&routing_table_entry);
-			if (ret < 0) {
-				MCTP_CTRL_ERR(
-					"%s: Failed to update global routing table..\n",
-					__func__);
-				return MCTP_RET_REQUEST_FAILED;
+			/* Check transport binding id and filter out the unknown binding */
+			if (strncmp(phy_transport_binding_to_string(
+					    routing_table_entry
+						    .phys_transport_binding_id),
+				    "Unknown", 7) != 0) {
+				/* Add the entry to a linked list */
+				ret = mctp_routing_entry_add(
+					&routing_table_entry);
+				if (ret < 0) {
+					MCTP_CTRL_ERR(
+						"%s: Failed to update global routing table..\n",
+						__func__);
+					return MCTP_RET_REQUEST_FAILED;
+				}
+
+				/* Print the routing table entry */
+				mctp_print_routing_table_entry(
+					g_routing_table_entries->id,
+					&routing_table_entry);
+
+				/* Length of the Routing table */
+				MCTP_CTRL_DEBUG(
+					"%s: EID: 0x%x, Routing table length: %d\n",
+					__func__,
+					routing_table_entry.starting_eid,
+					g_eid_pool_size);
+			} else {
+				MCTP_CTRL_DEBUG(
+					"%s: EID: 0x%x: No vaild medium type\n",
+					__func__,
+					routing_table_entry.starting_eid);
+
+				snprintf(
+					arg, sizeof(arg),
+					"Endpoint Identifer %d with no valid transport medium type",
+					routing_table_entry.starting_eid);
+				doLog(ctrl->bus,
+				      "PCIe Device Enumeration Service", arg,
+				      EVT_CRITICAL, "Contact NVIDIA");
 			}
-
-			/* Print the routing table entry */
-			mctp_print_routing_table_entry(
-				g_routing_table_entries->id,
-				&routing_table_entry);
-
-			/* Length of the Routing table */
-			MCTP_CTRL_DEBUG(
-				"%s: EID: 0x%x, Routing table length: %d\n",
-				__func__, routing_table_entry.starting_eid,
-				g_eid_pool_size);
 		}
 
 		/* Check if the next routing table exist.. */
@@ -1594,7 +1619,7 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd,
 
 			/* Process the MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE */
 			mctp_ret = mctp_get_routing_table_get_response(
-				ctrl->sock, eid, mctp_resp_msg, resp_msg_len);
+				ctrl, eid, mctp_resp_msg, resp_msg_len);
 
 			/* Free Rx packet */
 			free(mctp_resp_msg);

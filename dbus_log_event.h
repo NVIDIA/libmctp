@@ -1,6 +1,8 @@
 #ifndef _MCTP_DBUS_LOG_EVENT_H
 #define _MCTP_DBUS_LOG_EVENT_H
 
+#define REDFISH_ARG_LEN 256
+
 #define EVT_INFO "xyz.openbmc_project.Logging.Entry.Level.Informational"
 #define EVT_WARNING "xyz.openbmc_project.Logging.Entry.Level.Warning"
 #define EVT_CRITICAL "xyz.openbmc_project.Logging.Entry.Level.Critical"

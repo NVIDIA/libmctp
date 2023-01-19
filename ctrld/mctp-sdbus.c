@@ -31,6 +31,8 @@
 #include "mctp-sdbus.h"
 #include "mctp-discovery.h"
 
+extern mctp_routing_table_t *g_routing_table_entries;
+
 extern mctp_uuid_table_t *g_uuid_entries;
 extern int g_uuid_table_len;
 
@@ -233,17 +235,62 @@ static int mctp_ctrl_sdbus_get_sock_name(sd_bus *bus, const char *path,
 	return sd_bus_message_close_container(reply);
 }
 
+const char *phy_transport_binding_to_string(uint8_t id)
+{
+	if (id == 0x0) {
+		/* It is defined unspecified in DSP0239 but we used for SPI type */
+		return "SPI";
+	} else if (id == 0x1) {
+		/* MCTP over SMbus */
+		return "SMBus";
+	} else if (id == 0x2) {
+		/*  MCTP over PCI */
+		return "PCIe";
+	} else if (id == 0x3) {
+		/* MCTP over USB */
+		return "USB";
+	} else if (id == 0x04) {
+		/* MCTP over KCS */
+		return "KCS";
+	} else if (id == 0x05) {
+		/* MCTP over Serial*/
+		return "Serial";
+	}
+	return "Unknown";
+}
+
 static int mctp_ctrl_sdbus_get_medium_type(sd_bus *bus, const char *path,
 					   const char *interface,
 					   const char *property,
 					   sd_bus_message *reply,
 					   void *userdata, sd_bus_error *error)
 {
+	uint8_t eid_req = 0xff;
+	uint8_t id = 0;
 	char str[MCTP_CTRL_SDBUS_NMAE_SIZE] = { 0 };
+	mctp_routing_table_t *entry = NULL;
+
+	eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
+	entry = g_routing_table_entries;
+
+	while (entry != NULL) {
+		if (entry->routing_table.starting_eid == eid_req) {
+			/* 
+			*SMbus 400K is running but the medium type in the spec. only
+			*indicates SMbus 100K. So the medium type is I2C 400K reported by
+			*FPGA from MCTP service. We used physical transport identifier to
+			*populate D-Bus property
+			*/
+			id = entry->routing_table.phys_transport_binding_id;
+			break;
+		}
+
+		entry = entry->next;
+	}
 
 	snprintf(str, sizeof(str),
 		 "xyz.openbmc_project.MCTP.Endpoint.MediaTypes.%s",
-		 mctp_medium_type);
+		 phy_transport_binding_to_string(id));
 
 	/* append the message */
 	return sd_bus_message_append(reply, "s", str);
