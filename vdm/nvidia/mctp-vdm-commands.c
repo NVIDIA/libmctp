@@ -112,8 +112,8 @@ static int vdm_resp_output(char *msg, int len, uint8_t result, uint8_t enable)
 	if (wlen != 1) {
 		/* Close the Output fptr */
 		fclose(fptr);
-		MCTP_ERR("[err: %d] Unable to write %s\n",
-				 errno, MCTP_VDM_RESP_OUTPUT_FILE);
+		MCTP_ERR("[err: %d] Unable to write %s\n", errno,
+			 MCTP_VDM_RESP_OUTPUT_FILE);
 		return (errno);
 	}
 
@@ -125,8 +125,8 @@ static int vdm_resp_output(char *msg, int len, uint8_t result, uint8_t enable)
 		if (wlen != (len - MCTP_VDM_NVDA_MSG_TYPE_OFFSET)) {
 			/* Close the Output fptr */
 			fclose(fptr);
-			MCTP_ERR("[err: %d] Unable to write %s\n",
-					 errno, MCTP_VDM_RESP_OUTPUT_FILE);
+			MCTP_ERR("[err: %d] Unable to write %s\n", errno,
+				 MCTP_VDM_RESP_OUTPUT_FILE);
 			return (errno);
 		}
 	}
@@ -616,26 +616,86 @@ int certificate_install(int fd, uint8_t tid, uint8_t *payload, size_t length,
  */
 int in_band(int fd, uint8_t tid, uint8_t code, uint8_t verbose)
 {
-    uint8_t                                 *resp = NULL;
-    size_t                                  resp_len = 0;
-    mctp_requester_rc_t                     rc = -1;
-    struct mctp_vendor_cmd_in_band cmd = {0};
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_in_band cmd = { 0 };
 
-    /* Encode the VDM headers for Enable IB Update */
-    mctp_encode_vendor_cmd_in_band(&cmd);
+	/* Encode the VDM headers for Enable IB Update */
+	mctp_encode_vendor_cmd_in_band(&cmd);
 
-    /* Update the code field */
-    cmd.code = code;
+	/* Update the code field */
+	cmd.code = code;
 
-    /* Send and Receive the MCTP-VDM command */
-    rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
 				       (uint8_t **)&resp, &resp_len, verbose);
 
-    /* free memory */
-    free(resp);
-	
+	/* free memory */
+	free(resp);
+
 	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
 			"%s: fail to recv [rc: %d] response\n", __func__, rc);
-	
-    return 0;
+
+	return 0;
+}
+
+/*
+ *This command will allow an AP held in reset because the manual boot mode is
+ *on.  The AP will be released from reset and allowed to boot as long as the
+ *secure boot authentication passes.  If the AP is not being held in reset,
+ *the command will essentially be a no-op.
+ */
+int boot_ap(int fd, uint8_t tid, uint8_t verbose)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_boot_ap cmd = { 0 };
+
+	/* Encode the VDM headers for Restart notification */
+	mctp_encode_vendor_cmd_boot_ap(&cmd);
+
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
+				       (uint8_t **)&resp, &resp_len, verbose);
+
+	/* free memory */
+	free(resp);
+
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+			"%s: fail to recv [rc: %d] response\n", __func__, rc);
+	return 0;
+}
+
+/*
+ * This command/query is for the manual boot mode, whereupon ERoT reset, if the 
+ * mode is on, the AP will be held in reset until the Boot AP command is 
+ * given.  This mode is applied only once per ERoT reset.  After the AP has
+ * been booted, any firmware upgrade and AP reset will result in the AP booting
+ * without intervention as long as the secure boot checks on the AP firmware
+ * passes.
+ */
+int set_query_boot_mode(int fd, uint8_t tid, uint8_t code, uint8_t verbose)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_set_query_boot_mode cmd = { 0 };
+
+	/* Encode the VDM headers for Restart notification */
+	mctp_encode_vendor_cmd_set_query_boot_mode(&cmd);
+
+	cmd.code = code;
+
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
+				       (uint8_t **)&resp, &resp_len, verbose);
+
+	/* free memory */
+	free(resp);
+
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+			"%s: fail to recv [rc: %d] response\n", __func__, rc);
+	return 0;
 }

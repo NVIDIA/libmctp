@@ -29,6 +29,8 @@ extern "C" {
 #define MCTP_VENDOR_CMD_DBG_TOKEN_ERASE 0xC
 #define MCTP_VENDOR_CMD_CERTIFICATE_INSTALL 0xD
 #define MCTP_VENDOR_CMD_DBG_TOKEN_QUERY 0xF
+#define MCTP_VENDOR_CMD_SET_QUERY_BOOT_MODE 0x11
+#define MCTP_VENDOR_CMD_BOOT_AP 0x12
 
 /* Download log buffer length */
 #define MCTP_VDM_DOWNLOAD_LOG_BUFFER_SIZE 52
@@ -37,7 +39,7 @@ extern "C" {
  * case
  * 2(version)+2(size)+3K(certificate chain)+96(signature) = 3172 bytes
  * */
-#define MCTP_CERTIFICATE_CHAIN_SIZE  3172
+#define MCTP_CERTIFICATE_CHAIN_SIZE 3172
 
 /* Maximum debug token size */
 #define MCTP_DEBUG_TOKEN_SIZE 256
@@ -101,8 +103,8 @@ struct mctp_vendor_cmd_downloadlog_resp {
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_in_band {
-        struct mctp_vendor_msg_hdr vdr_msg_hdr;
-        uint8_t code;
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	uint8_t code;
 } __attribute__((__packed__));
 
 struct mctp_vendor_cmd_restartnoti {
@@ -127,6 +129,15 @@ struct mctp_vendor_cmd_certificate_install {
 	unsigned char payload[MCTP_CERTIFICATE_CHAIN_SIZE];
 } __attribute__((__packed__));
 
+struct mctp_vendor_cmd_boot_ap {
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+} __attribute__((__packed__));
+
+struct mctp_vendor_cmd_set_query_boot_mode {
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	uint8_t code;
+} __attribute__((__packed__));
+
 /* MCTP-VDM encoder API's */
 bool mctp_encode_vendor_cmd_selftest(struct mctp_vendor_cmd_selftest *cmd);
 bool mctp_encode_vendor_cmd_bootcmplt(struct mctp_vendor_cmd_bootcmplt *cmd);
@@ -148,8 +159,10 @@ bool mctp_encode_vendor_cmd_dgb_token_query(
 	struct mctp_vendor_cmd_dbg_token_query *cmd);
 bool mctp_encode_vendor_cmd_certificate_install(
 	struct mctp_vendor_cmd_certificate_install *cmd);
-bool mctp_encode_vendor_cmd_in_band(
-        struct mctp_vendor_cmd_in_band *cmd);
+bool mctp_encode_vendor_cmd_in_band(struct mctp_vendor_cmd_in_band *cmd);
+bool mctp_encode_vendor_cmd_boot_ap(struct mctp_vendor_cmd_boot_ap *cmd);
+bool mctp_encode_vendor_cmd_set_query_boot_mode(
+	struct mctp_vendor_cmd_set_query_boot_mode *cmd);
 
 #ifdef __cplusplus
 }

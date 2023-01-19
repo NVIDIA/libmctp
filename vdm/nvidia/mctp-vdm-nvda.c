@@ -91,7 +91,11 @@ static void usage(void)
 		background_copy_query_status, background_copy_query_progress\n \
 		background_copy_query_pending\n \
 		in_band_disable, in_band_enable\n \
-		in_band_query_status\n");
+		in_band_query_status\n \
+		boot_ap\n \
+		enable_boot_mode\n \
+		disable_boot_mode\n \
+		query_boot_mode\n");
 }
 
 struct ctx {
@@ -509,6 +513,24 @@ int main(int argc, char *const *argv)
 			     VERBOSE_EN);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to query in-band: %d\n", rc);
+	} else if (!strcmp(item, "boot_ap")) {
+		rc = boot_ap(fd, teid, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to boot ap: %d\n", rc);
+	} else if (!strcmp(item, "enable_boot_mode")) {
+		rc = set_query_boot_mode(fd, teid, MCTP_VDM_BOOTMODE_ENABLE,
+					 VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to enable_boot_mode: %d\n", rc);
+	} else if (!strcmp(item, "disable_boot_mode")) {
+		rc = set_query_boot_mode(fd, teid, MCTP_VDM_BOOTMODE_DISABLE,
+					 VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to disable_boot_mode: %d\n", rc);
+	} else if (!strcmp(item, "query_boot_mode")) {
+		rc = set_query_boot_mode(fd, teid, MCTP_VDM_BOOTMODE_QUERY,
+					 VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to set_query_boot_mode: %d\n", rc);
 	} else {
 		fprintf(stderr, "Unknown test cmd\n");
 	}

@@ -32,9 +32,14 @@ extern "C" {
 #define MCTP_VDM_HEARTBEAT_DISABLE 0
 
 /* In-Band command enable/disable macros */
-#define MCTP_VDM_IN_BAND_DISABLE        0
-#define MCTP_VDM_IN_BAND_ENABLE         1
-#define MCTP_VDM_IN_BAND_QUERY_STATUS   2
+#define MCTP_VDM_IN_BAND_DISABLE 0
+#define MCTP_VDM_IN_BAND_ENABLE 1
+#define MCTP_VDM_IN_BAND_QUERY_STATUS 2
+
+/* BootMode command enable/disable/query macros */
+#define MCTP_VDM_BOOTMODE_DISABLE 0
+#define MCTP_VDM_BOOTMODE_ENABLE 1
+#define MCTP_VDM_BOOTMODE_QUERY 2
 
 /* Background copy operation macros */
 #define MCTP_VDM_BACKGROUND_COPY_DISABLE 0x00

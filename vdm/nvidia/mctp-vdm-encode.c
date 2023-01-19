@@ -148,11 +148,23 @@ bool mctp_encode_vendor_cmd_certificate_install(
 
 bool mctp_encode_vendor_cmd_in_band(struct mctp_vendor_cmd_in_band *cmd)
 {
-    if (!cmd) {
-        return false;
-    }
+	if (!cmd) {
+		return false;
+	}
 
-    encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(), MCTP_VENDOR_CMD_IN_BAND);
+	encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(),
+				 MCTP_VENDOR_CMD_IN_BAND);
 
-    return true;
+	return true;
+}
+
+bool mctp_encode_vendor_cmd_boot_ap(struct mctp_vendor_cmd_boot_ap *cmd)
+{
+	ENCODE_VMD_CMD_FUNC(BOOT_AP);
+}
+
+bool mctp_encode_vendor_cmd_set_query_boot_mode(
+	struct mctp_vendor_cmd_set_query_boot_mode *cmd)
+{
+	ENCODE_VMD_CMD_FUNC(SET_QUERY_BOOT_MODE);
 }
