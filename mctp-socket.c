@@ -19,6 +19,8 @@
 #include "ctrld/mctp-ctrl-cmds.h"
 #include "ctrld/mctp-ctrl.h"
 
+#include "mctp-socket.h"
+
 #include "vdm/nvidia/libmctp-vdm-cmds.h"
 
 /* Set MCTP message Type */
@@ -193,7 +195,10 @@ static mctp_requester_rc_t mctp_client_recv_from_eid(mctp_eid_t eid,
 	char resp_eid[1] = { 0 };
 	mctp_requester_rc_t rc;
 	struct mctp_vendor_msg_hdr *resp;
+	struct timespec now = { 0 };
+	struct timespec prev = { 0 };
 
+	clock_gettime(CLOCK_MONOTONIC, &prev);
 	do {
 		rc = mctp_recv(eid, mctp_fd, mctp_resp_msg, resp_msg_len,
 			       resp_eid);
@@ -215,6 +220,15 @@ static mctp_requester_rc_t mctp_client_recv_from_eid(mctp_eid_t eid,
 		/* free the msg and will read it again */
 		free(*mctp_resp_msg);
 		*mctp_resp_msg = NULL;
+
+		/* set up the timer in case the response is missing and we will hit
+		 * ifinite loop
+		 */
+		clock_gettime(CLOCK_MONOTONIC , &now);
+		if ((now.tv_sec - prev.tv_sec) > MCTP_CTRL_TXRX_TIMEOUT_16SECS) {
+			fprintf(stderr, "recv timeout due to missing response.\n");
+			return MCTP_REQUESTER_TIMEOUT;
+		}
 
 		MCTP_CTRL_DEBUG("%s: I'm not the requester - %d, EID: %d\n",
 				__func__, eid, resp_eid[0]);

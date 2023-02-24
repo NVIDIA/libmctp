@@ -231,7 +231,10 @@ rx_message(uint8_t eid, bool tag_owner __unused, uint8_t msg_tag __unused,
 			fprintf(stderr, "  forwarding to client %d\n", i);
 
 		rc = sendmsg(client->sock, &msghdr, 0);
-		if (rc != (ssize_t)(len + 1)) {
+		/* EAGAIN shouldn't close socket. Otherwise,spi-ctrl daemon will fail 
+		 * to communicate with demux due to socket close.
+		 */
+		if ( errno != EAGAIN && rc != (ssize_t)(len + 1)) {
 			client->active = false;
 			ctx->clients_changed = true;
 		}

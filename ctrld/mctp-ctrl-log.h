@@ -14,6 +14,7 @@ static inline void mctp_ctrl_prlog(int level, const char *fmt, ...)
 	va_start(ap, fmt);
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);
+	fflush(stderr);
 }
 
 extern uint8_t g_verbose_level;

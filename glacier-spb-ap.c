@@ -461,6 +461,31 @@ SpbApStatus spb_ap_set_cfg(SpbAp *ap, bool quad, uint8_t waitCycles)
 	return (SPB_AP_ERROR_UNKNOWN);
 }
 
+SpbApStatus spb_ap_check_ack(SpbAp *ap)
+{
+	uint32_t sts = 0;
+	uint32_t mb = 1;
+	SpbApStatus ret = SPB_AP_OK;
+
+	// check mailbox and reset interrupt
+	sts = sreg_read_32(ap, SPI_EC2SPIM_MBX, &mb);
+
+	mctp_prdebug("[EC2SPIMMB] %s %04x\n", mailbox_str(mb), sts);
+
+	/* 
+	 * expect ACK but only MSG_AVAILABLE is set. The workaround was made to
+	 * mark ACK is set.
+	 */
+
+	if (mb & EC_MSG_AVAILABLE) {
+		mb |= EC_ACK;
+		ap->msgs_available++;
+	}
+
+	ap->ec2spimb = mb & ~EC_MSG_AVAILABLE;
+	return (ret);
+}
+
 SpbApStatus spb_ap_wait_for_intr(SpbAp *ap, int timeout_ms, bool polling)
 {
 	int status;
@@ -469,7 +494,7 @@ SpbApStatus spb_ap_wait_for_intr(SpbAp *ap, int timeout_ms, bool polling)
 	if (status == 0)
 		return (SPB_AP_ERROR_TIMEOUT);
 
-	return (spb_ap_on_interrupt(ap));
+	return (spb_ap_check_ack(ap));
 }
 
 SpbApStatus spb_ap_on_interrupt(SpbAp *ap)

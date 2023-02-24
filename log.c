@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later */
 
 #include <stdarg.h>
+#include <time.h>
 
 #include "libmctp.h"
 #include "libmctp-log.h"
@@ -35,6 +36,7 @@ static bool trace_enable;
 void mctp_prlog(int level, const char *fmt, ...)
 {
 	va_list ap;
+	struct timespec ts = { 0 };
 
 	va_start(ap, fmt);
 
@@ -44,8 +46,12 @@ void mctp_prlog(int level, const char *fmt, ...)
 	case MCTP_LOG_STDIO:
 #ifdef MCTP_HAVE_STDIO
 		if (level <= log_stdio_level) {
+			clock_gettime(CLOCK_REALTIME, &ts);
+			fprintf (stderr, "%ld-%ld ", ts.tv_sec ,ts.tv_nsec / 1000000ULL);
+
 			vfprintf(stderr, fmt, ap);
 			fputs("\n", stderr);
+			fflush(stderr);
 		}
 #endif
 		break;

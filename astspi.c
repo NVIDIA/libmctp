@@ -42,7 +42,7 @@
 #define pr_fmt(x) "spi: " x
 #endif
 
-#define AST_GPIO_POLL_LOW  0
+#define AST_GPIO_POLL_LOW 0
 #define AST_GPIO_POLL_HIGH 1
 
 #ifndef container_of
@@ -58,7 +58,7 @@
 #define MCTP_SPI_LOAD_CMD_SIZE 128
 
 /* MCTP message interrupt macros */
-#define MCTP_RX_MSG_INTR     1
+#define MCTP_RX_MSG_INTR 1
 #define MCTP_RX_MSG_INTR_RST 0
 
 /* MCTP SPI Control daemon delay default */
@@ -74,6 +74,9 @@
 	"insmod /lib/modules/*/kernel/drivers/spi/fmc_spi.ko"
 
 #define MCTP_SPI_LOAD_UNLOAD_DELAY_SECS 2
+
+#define ERR_SPI_RX -1
+#define ERR_SPI_RX_NO_DATA -2
 
 struct mctp_binding_spi {
 	struct mctp_binding binding;
@@ -192,7 +195,8 @@ int mctp_unload_flash_driver(void)
 	ret = write(fd, data, sizeof(data));
 	close(fd);
 
-	MCTP_ASSERT_RET(ret == sizeof(data), ret, "Could not write to %s.", path);
+	MCTP_ASSERT_RET(ret == sizeof(data), ret, "Could not write to %s.",
+			path);
 
 	return (0);
 }
@@ -289,6 +293,7 @@ static int mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	size_t tx_buf_len = sizeof(*spi_hdr_tx);
 	int ret;
 	uint8_t spi_message_len;
+	SpbApStatus status;
 
 	mctp_spi_verify_magics(spi);
 	/*
@@ -310,10 +315,17 @@ static int mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	mctp_spi_verify_magics(spi);
 
 	if (spb_ap_msgs_available(&spi->nvda_spb_ap) > 0) {
-		spb_ap_on_interrupt(&spi->nvda_spb_ap);
-
-		while (spb_ap_msgs_available(&spi->nvda_spb_ap) > 0)
-			mctp_spi_rx(spi);
+		/* We can't rely on msg_avaiable counts to issues read transactions
+		 * becasue we only have one mailbox status which can't tell how many
+		 * response pending in glaicer sides. The solution is to read from 
+		 * glacier and read all pending responses once.
+		 */
+		while (1) {
+			status = mctp_spi_rx(spi);
+			if (status == ERR_SPI_RX_NO_DATA)
+				break;
+		}
+		spi->nvda_spb_ap.msgs_available = 0;
 	}
 
 
@@ -341,8 +353,7 @@ static void mctp_spi_hexdump(const char *prefix, int len, void *buf)
 	printf("\n");
 }
 
-int mctp_spi_init_pollfd(struct mctp_binding_spi *spi,
-			 struct pollfd *pollfd)
+int mctp_spi_init_pollfd(struct mctp_binding_spi *spi, struct pollfd *pollfd)
 {
 	pollfd->fd = spi->nvda_spb_ap.gpio_fd;
 	pollfd->events = POLLPRI;
@@ -405,16 +416,16 @@ static int mctp_spi_rx(struct mctp_binding_spi *spi)
 	memset(&pvt_data, 0, sizeof(pvt_data));
 
 	status = spb_ap_recv(&spi->nvda_spb_ap, sizeof(spi->rxbuf), spi->rxbuf);
-	MCTP_ASSERT_RET(status == SPB_AP_OK, -1, "spb_ap_recv failed: %s",
-			spb_ap_strstatus(status));
+	MCTP_ASSERT_RET(status == SPB_AP_OK, ERR_SPI_RX_NO_DATA,
+			"spb_ap_recv failed: 	%s", spb_ap_strstatus(status));
 
 	mctp_spi_verify_magics(spi);
 
 	payload_len = spi_hdr_rx->byte_count;
 	len = payload_len + hdr_size;
 
-	MCTP_ASSERT_RET(len >= hdr_size, -1, "Invalid packet size: %zi", len);
-	MCTP_ASSERT_RET(payload_len > 0, -1, "Invalid payload size: %zi",
+	MCTP_ASSERT_RET(len >= hdr_size, ERR_SPI_RX, "Invalid packet size: %zi", len);
+	MCTP_ASSERT_RET(payload_len > 0, ERR_SPI_RX, "Invalid payload size: %zi",
 			payload_len);
 
 	/* command_code != 0x02 => Not a payload intended for us */
@@ -427,7 +438,7 @@ static int mctp_spi_rx(struct mctp_binding_spi *spi)
 	MCTP_ASSERT(spi->rx_pkt != NULL, "spi->rx_pkt is NULL");
 
 	ret = mctp_pktbuf_push(spi->rx_pkt, spi->rxbuf + hdr_size, payload_len);
-	MCTP_ASSERT_RET(ret == 0, -1, "Can't push to pktbuf: %d", ret);
+	MCTP_ASSERT_RET(ret == 0, ERR_SPI_RX, "Can't push to pktbuf: %d", ret);
 
 	mctp_spi_verify_magics(spi);
 	memcpy(spi->rx_pkt->msg_binding_private, &pvt_data, sizeof(pvt_data));
@@ -443,7 +454,7 @@ int mctp_spi_set_spi_fd(struct mctp_binding_spi *spi, int fd)
 {
 	spi->spi_fd = fd;
 
-    return 0;
+	return 0;
 }
 
 int mctp_spi_register_bus(struct mctp_binding_spi *spi, struct mctp *mctp,
@@ -464,7 +475,7 @@ static int mctp_binding_spi_start(struct mctp_binding *b)
 {
 	mctp_binding_set_tx_enabled(b, true);
 
-    return 0;
+	return 0;
 }
 
 struct mctp_binding_spi *
@@ -935,7 +946,6 @@ ssize_t ast_spi_gpio_intr_read(int gpio_fd)
 	ret = read(gpio_fd, buf, sizeof(buf));
 	MCTP_ASSERT_RET(ret > 0, ret, "read(2) failed: %d (%s)", errno,
 			strerror(errno));
-	
 
 	return (ret);
 }
