@@ -185,11 +185,16 @@ int mctp_unload_flash_driver(void)
 	int fd = 0;
 
 	const char *path = "/sys/bus/platform/drivers/aspeed-smc/unbind";
+	const char *path2 = "/sys/bus/platform/drivers/spi-aspeed-smc/unbind";
 	const char data[] = "1e620000.spi\n";
 
 	mctp_prinfo("%s: Unloading Flash driver.\n", __func__);
 
 	fd = open(path, O_WRONLY);
+	if (fd < 0) {
+		mctp_prinfo("%s: Could not open %s \n trying: %s\n", __func__, path, path2);
+		fd = open(path2, O_WRONLY);
+	}
 	MCTP_ASSERT_RET(fd >= 0, fd, "Could not open %s.", path);
 
 	ret = write(fd, data, sizeof(data));
