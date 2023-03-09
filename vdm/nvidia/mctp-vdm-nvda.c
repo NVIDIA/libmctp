@@ -100,7 +100,10 @@ static void usage(void)
 		cak_test\n \
 		cak_lock\n \
 		dot_disable\n \
-		dot_token_install\n");
+		dot_token_install\n \
+		query_force_grant_revoked_status\n \
+		enable_force_grant_revoked, disable_force_grant_revoked\n \
+		");
 }
 
 struct ctx {
@@ -575,6 +578,21 @@ int main(int argc, char *const *argv)
 		rc = dot_token_install(fd, teid, payload, len, VERBOSE_EN);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to dot_token_install: %d\n", rc);
+	} else if (!strcmp(item, "query_force_grant_revoked_status")) {
+		rc = force_grant_revoke(fd, teid, MCTP_VDM_QUERY_FORCE_GRANT_REVOKED_STATUS , VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to query grant revoked status %d\n", rc);
+	} else if (!strcmp(item, "enable_force_grant_revoked")) {
+		rc = force_grant_revoke(fd, teid,  MCTP_VDM_ENABLE_FORCE_GRANT_REVOKED, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to force enable grant revoked %d\n", rc);
+	} else if (!strcmp(item, "disable_force_grant_revoked")) {
+		rc = force_grant_revoke(fd, teid,
+					MCTP_VDM_DISABLE_FORCE_GRANT_REVOKED,
+					VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to force disable grant revoked %d\n",
+				    rc);
 	} else {
 		fprintf(stderr, "Unknown test cmd\n");
 	}

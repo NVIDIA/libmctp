@@ -51,6 +51,11 @@ extern "C" {
 #define MCTP_VDM_BACKGROUND_COPY_PROGRESS 0x06
 #define MCTP_VDM_BACKGROUND_COPY_PENDING 0x07
 
+/* Force granted revoked command query/enable/disable macros */
+#define MCTP_VDM_QUERY_FORCE_GRANT_REVOKED_STATUS 0
+#define MCTP_VDM_ENABLE_FORCE_GRANT_REVOKED 1
+#define MCTP_VDM_DISABLE_FORCE_GRANT_REVOKED 2
+
 /* Download log session ID for first request */
 #define MCTP_VDM_DOWNLOAD_LOG_SESSION_ID_START 0xff
 

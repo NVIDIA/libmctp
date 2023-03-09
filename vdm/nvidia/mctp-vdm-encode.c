@@ -194,3 +194,9 @@ bool mctp_encode_vendor_cmd_set_query_boot_mode(
 {
 	ENCODE_VMD_CMD_FUNC(SET_QUERY_BOOT_MODE);
 }
+
+bool mctp_encode_vendor_cmd_force_grant_revoked(
+	struct mctp_vendor_cmd_force_grant_revoked *cmd)
+{
+	ENCODE_VMD_CMD_FUNC(FORCE_GRANT_REVOKED);
+}
