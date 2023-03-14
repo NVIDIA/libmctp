@@ -445,7 +445,7 @@ static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
 				char *arg = strstr(params[ii], "=") + 1;
 
 				val = binding_astspi_parse_num(arg);
-				*(int *)options[ii].target = val;
+				*(int *)options[jj].target = val;
 				parsed = true;
 			}
 		}
