@@ -29,7 +29,7 @@ struct mctp_ctrl_resp {
 	struct mctp_ctrl_cmd_msg_hdr hdr;
 	uint8_t completion_code;
 	uint8_t data[MCTP_BTU];
-} resp __attribute__((__packed__));
+} __attribute__((__packed__)) resp;
 
 /* Global EID pool size and start position */
 uint8_t g_eid_pool_size = 0;
@@ -314,7 +314,7 @@ int mctp_routing_entry_add(struct get_routing_table_entry *routing_table_entry)
 }
 
 /* To delete all the entris in global routing table */
-int mctp_routing_entry_delete_all(void)
+void mctp_routing_entry_delete_all(void)
 {
 	mctp_routing_table_t *del_entry;
 
@@ -329,8 +329,6 @@ int mctp_routing_entry_delete_all(void)
 		// free memory
 		free(del_entry);
 	}
-
-	return 0;
 }
 
 void mctp_msg_types_display(void)
@@ -384,7 +382,7 @@ int mctp_msg_type_entry_add(mctp_msg_type_table_t *msg_type_tbl)
 }
 
 /* To delete all the Messgae types information */
-int mctp_msg_types_delete_all(void)
+void mctp_msg_types_delete_all(void)
 {
 	mctp_msg_type_table_t *del_entry;
 
@@ -399,8 +397,6 @@ int mctp_msg_types_delete_all(void)
 		// free memory
 		free(del_entry);
 	}
-
-	return 0;
 }
 
 void mctp_uuid_display(void)
@@ -453,7 +449,7 @@ int mctp_uuid_entry_add(mctp_uuid_table_t *uuid_tbl)
 }
 
 /* To delete all the UUID information */
-int mctp_uuid_delete_all(void)
+void mctp_uuid_delete_all(void)
 {
 	mctp_uuid_table_t *del_entry;
 
@@ -467,8 +463,6 @@ int mctp_uuid_delete_all(void)
 		// free memory
 		free(del_entry);
 	}
-
-	return 0;
 }
 
 /* Send function for Prepare for Endpoint discovery */
@@ -1296,7 +1290,7 @@ static mctp_ret_codes_t mctp_discover_response(mctp_ctrl_t *ctrl,
 }
 
 /* Routine to Discover the endpoint devices */
-mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd,
+mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 					 mctp_ctrl_t *ctrl)
 {
 	static int discovery_mode = MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST;
@@ -1315,9 +1309,9 @@ mctp_ret_codes_t mctp_discover_endpoints(mctp_cmdline_args_t *cmd,
 	g_target_bdf = mctp_ctrl_get_target(cmd);
 
 	/* Update the EID lists */
-	g_pci_own_eid = cmd->pci_own_eid;
-	g_pci_bridge_eid = cmd->pci_bridge_eid;
-	g_pci_bridge_pool_start = cmd->pci_bridge_pool_start;
+	g_pci_own_eid = cmd->pcie.own_eid;
+	g_pci_bridge_eid = cmd->pcie.bridge_eid;
+	g_pci_bridge_pool_start = cmd->pcie.bridge_pool_start;
 
 	MCTP_CTRL_INFO(
 		"%s: pci_own_eid: %d, pci_bridge_eid: %d, pci_bridge_pool_start: %d\n",

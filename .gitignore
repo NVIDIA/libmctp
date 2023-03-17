@@ -31,3 +31,15 @@ stamp-h1
 test-driver
 *.trs
 .libs
+config.h
+.gitignore
+libmctp.pc
+ctrld/mctp-ctrl
+tests/libtest-utils.a
+udev/rules.d/mctp0-raw-kcs3.rules
+udev/rules.d/mctp0-raw-kcs4.rules
+utils/mctp-demux-daemon
+utils/mctp-in
+utils/mctp-pipe
+vdm/nvidia/mctp-vdm-util
+ctrld/mctp-ctrl

@@ -4,14 +4,6 @@
 
 #include "config.h"
 
-#define SD_LISTEN_FDS_START 3
-
-#include "compiler.h"
-#include "libmctp.h"
-#include "libmctp-serial.h"
-#include "libmctp-astlpc.h"
-#include "utils/mctp-capture.h"
-
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
@@ -31,12 +23,14 @@
 
 #define SD_LISTEN_FDS_START 3
 
+#include "compiler.h"
 #include "libmctp.h"
 #include "libmctp-serial.h"
 #include "libmctp-astlpc.h"
 #include "libmctp-astpcie.h"
 #include "libmctp-astspi.h"
 #include "libmctp-log.h"
+#include "utils/mctp-capture.h"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
@@ -865,8 +859,17 @@ static const struct option options[] = {
 	{ "socket-linktype", required_argument, 0, 'S' },
 	{ "verbose", no_argument, 0, 'v' },
 	{ "eid", required_argument, 0, 'e' },
+	{ "help", no_argument, 0, 'h' },
 	{ 0 },
 };
+
+/* MCTP-DEMUX-DAEMON usage function */
+static void exact_usage(void)
+{
+	fprintf(stderr, "Various command line options mentioned below\n");
+	fprintf(stderr, "\t-v\tVerbose level\n");
+	fprintf(stderr, "\t-e\tTarget Endpoint Id\n\n");
+}
 
 static void usage(const char *progname)
 {
@@ -897,7 +900,7 @@ int main(int argc, char *const *argv)
 	mctp_prinfo("MCTP demux started.");
 
 	for (;;) {
-		rc = getopt_long(argc, argv, "b:e:s::v", options, NULL);
+		rc = getopt_long(argc, argv, "b:e:s::vh", options, NULL);
 		if (rc == -1)
 			break;
 		switch (rc) {
@@ -919,6 +922,9 @@ int main(int argc, char *const *argv)
 		case 'e':
 			ctx->local_eid = atoi(optarg);
 			break;
+		case 'h':
+			exact_usage();
+			return EXIT_SUCCESS;
 		default:
 			fprintf(stderr, "Invalid argument\n");
 			return EXIT_FAILURE;

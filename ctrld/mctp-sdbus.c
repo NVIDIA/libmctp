@@ -46,8 +46,7 @@ int mctp_ctrl_running = 1;
 
 /* String map for supported bus type */
 char g_mctp_ctrl_supported_buses[MCTP_CTRL_MAX_BUS_TYPES][10] = { "PCIe Bus ",
-								  "SPI Bus ",
-								  "I2C Bus " };
+								  "SPI Bus " };
 
 static int mctp_ctrl_supported_bus_types(sd_bus *bus, const char *path,
 					 const char *interface,

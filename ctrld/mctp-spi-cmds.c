@@ -24,7 +24,6 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/time.h>
-#include <poll.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <ctype.h>
@@ -35,51 +34,52 @@
 #include <sys/un.h>
 #include <sys/signalfd.h>
 
+#include "libmctp-astspi.h"
 #include "libmctp.h"
 #include "libmctp-cmds.h"
 #include "libmctp-astspi.h"
 #include "libmctp-log.h"
 
 #include "ctrld/mctp-ctrl.h"
-#include "ctrld/mctp-sdbus.h"
-#include "ctrld/mctp-ctrl-log.h"
 
 #include "mctp-socket.h"
-#include "mctp-spi-ctrl.h"
-#include "mctp-spi-ctrl-cmdline.h"
-#include "mctp-spi-ctrl-cmds.h"
+#include "mctp-ctrl-log.h"
+#include "mctp-sdbus.h"
 #include "dbus_log_event.h"
 
 #include "vdm/nvidia/libmctp-vdm-cmds.h"
 #include "vdm/nvidia/mctp-vdm-commands.h"
 
 #define MCTP_NULL_ENDPOINT 0
+#define MCTP_SPI_CMD_DELAY_USECS 10000
+#define MCTP_SPI_HEARTBEAT_DELAY_SECS 30
 
 #define MAX_HEARTBEAT_RETRY 10
 
 extern int mctp_ctrl_running;
 
-int mctp_spi_set_endpoint_id(mctp_spi_cmdline_args_t *cmd)
+static int mctp_spi_set_endpoint_id(const mctp_cmdline_args_t *cmd)
 {
 	return 0;
 }
 
-int mctp_spi_get_endpoint_id(mctp_spi_cmdline_args_t *cmd)
+static int mctp_spi_get_endpoint_id(const mctp_cmdline_args_t *cmd)
 {
 	return 0;
 }
 
-int mctp_spi_get_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
+static int mctp_spi_get_endpoint_uuid(const mctp_cmdline_args_t *cmd)
 {
 	return 0;
 }
 
-int mctp_spi_get_version_support(mctp_spi_cmdline_args_t *cmd)
+static int mctp_spi_get_version_support(const mctp_cmdline_args_t *cmd)
 {
 	return 0;
 }
 
-int mctp_spi_get_message_type(int sock, mctp_spi_cmdline_args_t *cmd)
+static int mctp_spi_get_message_type(int sock,
+				     const mctp_spi_cmdline_args_t *cmd)
 {
 	uint8_t *resp = NULL;
 	size_t resp_len = 0;
@@ -102,7 +102,7 @@ int mctp_spi_get_message_type(int sock, mctp_spi_cmdline_args_t *cmd)
 }
 
 /* Nvidia IANA specific functions */
-int mctp_spi_set_endpoint_uuid(mctp_spi_cmdline_args_t *cmd)
+static int mctp_spi_set_endpoint_uuid(const mctp_cmdline_args_t *cmd)
 {
 	/* will implement it */
 	return 0;
@@ -155,7 +155,7 @@ static void mctp_ctrl_wait_and_discard(mctp_ctrl_t *ctrl, int signal_fd,
 	timeout = timeout > 0 ? timeout : 0;
 
 	while (timeout > 0) {
-		rc = poll(&pollfd, 2, timeout);
+		rc = poll(pollfd, 2, timeout);
 		if (rc < 0) {
 			warn("poll(2) failed");
 			/* handle signal to exit blocking poll and exit loop immediately */
@@ -222,6 +222,8 @@ void *mctp_spi_keepalive_event(void *arg)
 
 	pthread_mutex_lock(&ctrl->worker_mtx);
 
+	MCTP_CTRL_INFO("%s: Send 'Boot complete v2' message\n", __func__);
+
 	rc = boot_complete_v2(ctrl->sock, MCTP_NULL_ENDPOINT, 0, 0,
 			      VERBOSE_DISABLE);
 	if (rc != 0) {
@@ -245,6 +247,7 @@ void *mctp_spi_keepalive_event(void *arg)
 	/* Give some delay before sending next command */
 	usleep(MCTP_SPI_CMD_DELAY_USECS);
 
+	MCTP_CTRL_INFO("%s: Send 'Enable Heartbeat' message\n", __func__);
 	rc = set_heartbeat_enable(ctrl->sock, MCTP_NULL_ENDPOINT,
 				  MCTP_SPI_HB_ENABLE_CMD, VERBOSE_DISABLE);
 	if (rc != 0) {
@@ -283,17 +286,17 @@ void *mctp_spi_keepalive_event(void *arg)
 	return NULL;
 }
 
-void mctp_spi_test_cmd(mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmd)
+void mctp_spi_test_cmd(mctp_ctrl_t *ctrl, const mctp_cmdline_args_t *cmd)
 {
 	int rc = 0;
-	mctp_spi_iana_vdm_ops_t ops = cmd->vdm_ops;
+	mctp_spi_iana_vdm_ops_t ops = cmd->spi.vdm_ops;
 
 	/* Check for Raw Read/write access */
-	if (cmd->cmd_mode) {
+	if (cmd->spi.cmd_mode) {
 		MCTP_CTRL_INFO("%s: MCTP base command code: %d\n", __func__,
-			       cmd->cmd_mode);
+			       cmd->spi.cmd_mode);
 
-		switch (cmd->cmd_mode) {
+		switch (cmd->spi.cmd_mode) {
 		case MCTP_SPI_SET_ENDPOINT_ID:
 			MCTP_CTRL_DEBUG("%s: MCTP_SPI_SET_ENDPOINT_ID\n",
 					__func__);

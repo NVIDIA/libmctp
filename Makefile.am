@@ -38,7 +38,7 @@ systemdsystemunit_DATA = \
 	systemd/system/mctp-spi-ctrl.service
 endif
 
-bin_PROGRAMS = utils/mctp-demux-daemon ctrld/mctp-pcie-ctrl ctrld-spi/mctp-spi-ctrl vdm/nvidia/mctp-vdm-util
+bin_PROGRAMS = utils/mctp-demux-daemon ctrld/mctp-ctrl vdm/nvidia/mctp-vdm-util
 noinst_PROGRAMS = utils/mctp-in utils/mctp-pipe
 utils_mctp_demux_daemon_SOURCES = utils/mctp-demux-daemon.c
 if HAVE_PCAP
@@ -47,26 +47,19 @@ endif
 utils_mctp_demux_daemon_LDADD = libmctp.la $(pcap_LIBS)
 utils_mctp_demux_daemon_CFLAGS = $(pcap_CFLAGS)
 
-ctrld_mctp_pcie_ctrl_LDFLAGS = "-lsystemd"
+ctrld_mctp_ctrl_LDFLAGS = "-lsystemd -lpthread"
 
-ctrld_mctp_pcie_ctrl_SOURCES = ctrld/mctp-ctrl.c \
+ctrld_mctp_ctrl_SOURCES = ctrld/mctp-ctrl.c \
                     ctrld/mctp-discovery.c \
                     mctp-socket.c \
                     dbus_log_event.c \
                     ctrld/mctp-encode.c \
-                    ctrld/mctp-sdbus.c
-
-ctrld_spi_mctp_spi_ctrl_LDFLAGS = "-lsystemd -lpthread"
-
-ctrld_spi_mctp_spi_ctrl_SOURCES = ctrld-spi/mctp-spi-ctrl.c \
-                    ctrld-spi/mctp-spi-cmds.c \
+                    ctrld/mctp-sdbus.c \
+                    ctrld/mctp-spi-cmds.c \
+                    ctrld/mctp-ctrl-spi.c \
                     vdm/nvidia/mctp-vdm-commands.c \
-                    vdm/nvidia/mctp-vdm-encode.c \
-                    mctp-socket.c \
-                    dbus_log_event.c \
-                    ctrld/mctp-discovery.c \
-                    ctrld/mctp-encode.c \
-                    ctrld/mctp-sdbus.c
+                    vdm/nvidia/mctp-vdm-encode.c
+
 
 vdm_nvidia_mctp_vdm_util_LDFLAGS = "-lsystemd"
 

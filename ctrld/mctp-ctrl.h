@@ -90,9 +90,10 @@ mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
 mctp_requester_rc_t
 mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_fd,
 			      const uint8_t *mctp_req_msg, size_t req_msg_len,
+			      const mctp_binding_ids_t *bind_id,
 			      void *mctp_binding_info, size_t mctp_binding_len);
 
-uint16_t mctp_ctrl_get_target(mctp_cmdline_args_t *cmd);
+uint16_t mctp_ctrl_get_target_bdf(const mctp_cmdline_args_t *cmd);
 
 mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 				     uint8_t **mctp_resp_msg,
