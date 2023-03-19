@@ -877,3 +877,29 @@ int force_grant_revoke(int fd, uint8_t tid, uint8_t code, uint8_t verbose)
 
 	return 0;
 }
+
+int revoke_ap_otp(int fd, uint8_t tid, uint8_t code, uint8_t verbose)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_revoke_ap_otp cmd = { 0 };
+
+	/* Encode the VDM headers for revoke AP otp command */
+	mctp_encode_vendor_cmd_revoke_ap_otp(&cmd);
+
+	/* Update the code field */
+	cmd.code = code;
+
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
+				       (uint8_t **)&resp, &resp_len, verbose);
+
+	/* free memory */
+	free(resp);
+
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+			"%s: fail to recv [rc: %d] response\n", __func__, rc);
+
+	return 0;
+}

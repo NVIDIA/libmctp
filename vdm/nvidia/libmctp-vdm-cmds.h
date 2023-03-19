@@ -37,6 +37,7 @@ extern "C" {
 #define MCTP_VENDOR_CMD_DOT_DISABLE	    0x17
 #define MCTP_VENDOR_CMD_DOT_TOKEN_INST	    0x18
 #define MCTP_VENDOR_CMD_FORCE_GRANT_REVOKED 0x19
+#define MCTP_VENDOR_CMD_REVOKE_AP_OTP	    0x1B
 
 /* Download log buffer length */
 #define MCTP_VDM_DOWNLOAD_LOG_BUFFER_SIZE 52
@@ -184,6 +185,11 @@ struct mctp_vendor_cmd_force_grant_revoked {
 	uint8_t code;
 } __attribute__((__packed__));
 
+struct mctp_vendor_cmd_revoke_ap_otp {
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	uint8_t code;
+} __attribute__((__packed__));
+
 /* MCTP-VDM encoder API's */
 bool mctp_encode_vendor_cmd_selftest(struct mctp_vendor_cmd_selftest *cmd);
 bool mctp_encode_vendor_cmd_bootcmplt(struct mctp_vendor_cmd_bootcmplt *cmd);
@@ -217,6 +223,8 @@ bool mctp_encode_vendor_cmd_dot_token_inst(
 	struct mctp_vendor_cmd_dot_token_inst *cmd);
 bool mctp_encode_vendor_cmd_force_grant_revoked(
 	struct mctp_vendor_cmd_force_grant_revoked *cmd);
+bool mctp_encode_vendor_cmd_revoke_ap_otp(
+	struct mctp_vendor_cmd_revoke_ap_otp *cmd);
 #ifdef __cplusplus
 }
 #endif

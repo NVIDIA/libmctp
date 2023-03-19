@@ -200,3 +200,9 @@ bool mctp_encode_vendor_cmd_force_grant_revoked(
 {
 	ENCODE_VMD_CMD_FUNC(FORCE_GRANT_REVOKED);
 }
+
+bool mctp_encode_vendor_cmd_revoke_ap_otp(
+	struct mctp_vendor_cmd_revoke_ap_otp *cmd)
+{
+	ENCODE_VMD_CMD_FUNC(REVOKE_AP_OTP);
+}

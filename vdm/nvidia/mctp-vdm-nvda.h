@@ -56,6 +56,10 @@ extern "C" {
 #define MCTP_VDM_ENABLE_FORCE_GRANT_REVOKED 1
 #define MCTP_VDM_DISABLE_FORCE_GRANT_REVOKED 2
 
+/* Revoke command revoke/status macros */
+#define MCTP_VDM_REVOKE_AP_OTP 0x0
+#define MCTP_VDM_REVOKE_QUERY_STATUS 0x1
+
 /* Download log session ID for first request */
 #define MCTP_VDM_DOWNLOAD_LOG_SESSION_ID_START 0xff
 

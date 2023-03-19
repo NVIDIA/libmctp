@@ -103,6 +103,8 @@ static void usage(void)
 		dot_token_install\n \
 		query_force_grant_revoked_status\n \
 		enable_force_grant_revoked, disable_force_grant_revoked\n \
+		query_revoke_ap_otp_status\n \
+		revoke_ap_otp\n \
 		");
 }
 
@@ -579,19 +581,36 @@ int main(int argc, char *const *argv)
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to dot_token_install: %d\n", rc);
 	} else if (!strcmp(item, "query_force_grant_revoked_status")) {
-		rc = force_grant_revoke(fd, teid, MCTP_VDM_QUERY_FORCE_GRANT_REVOKED_STATUS , VERBOSE_EN);
+		rc = force_grant_revoke(
+			fd, teid, MCTP_VDM_QUERY_FORCE_GRANT_REVOKED_STATUS,
+			VERBOSE_EN);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
-				    "fail to query grant revoked status %d\n", rc);
+				    "fail to query grant revoked status %d\n",
+				    rc);
 	} else if (!strcmp(item, "enable_force_grant_revoked")) {
-		rc = force_grant_revoke(fd, teid,  MCTP_VDM_ENABLE_FORCE_GRANT_REVOKED, VERBOSE_EN);
+		rc = force_grant_revoke(fd, teid,
+					MCTP_VDM_ENABLE_FORCE_GRANT_REVOKED,
+					VERBOSE_EN);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
-				    "fail to force enable grant revoked %d\n", rc);
+				    "fail to force enable grant revoked %d\n",
+				    rc);
 	} else if (!strcmp(item, "disable_force_grant_revoked")) {
 		rc = force_grant_revoke(fd, teid,
 					MCTP_VDM_DISABLE_FORCE_GRANT_REVOKED,
 					VERBOSE_EN);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to force disable grant revoked %d\n",
+				    rc);
+	} else if (!strcmp(item, "revoke_ap_otp")) {
+		rc = revoke_ap_otp(fd, teid, MCTP_VDM_REVOKE_AP_OTP,
+				   VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to revoke AP otp %d\n",
+				    rc);
+	} else if (!strcmp(item, "query_revoke_ap_otp_status")) {
+		rc = revoke_ap_otp(fd, teid, MCTP_VDM_REVOKE_QUERY_STATUS,
+				   VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to query revoke AP otp status %d\n",
 				    rc);
 	} else {
 		fprintf(stderr, "Unknown test cmd\n");

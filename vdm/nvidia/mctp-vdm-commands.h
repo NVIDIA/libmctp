@@ -39,6 +39,8 @@ int dot_disable(int fd, uint8_t tid, uint8_t *payload, size_t length,
 int dot_token_install(int fd, uint8_t tid, uint8_t *payload, size_t length,
 		      uint8_t verbose);
 int force_grant_revoke(int fd, uint8_t tid, uint8_t code, uint8_t verbose);
+
+int revoke_ap_otp(int fd, uint8_t tid, uint8_t code, uint8_t verbose);
 #ifdef __cplusplus
 }
 #endif
