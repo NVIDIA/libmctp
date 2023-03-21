@@ -326,7 +326,6 @@ void mctp_routing_entry_delete_all(void)
 		MCTP_CTRL_DEBUG("%s: Deleting Routing table: %d\n", __func__,
 				del_entry->id);
 
-		// free memory
 		free(del_entry);
 	}
 }
@@ -394,7 +393,6 @@ void mctp_msg_types_delete_all(void)
 		MCTP_CTRL_DEBUG("%s: Deleting msg type entry: EID[%d]\n",
 				__func__, del_entry->eid);
 
-		// free memory
 		free(del_entry);
 	}
 }
@@ -460,7 +458,7 @@ void mctp_uuid_delete_all(void)
 
 		MCTP_CTRL_DEBUG("%s: Deleting UUID Entry: EID[%d]\n", __func__,
 				del_entry->eid);
-		// free memory
+
 		free(del_entry);
 	}
 }
@@ -542,6 +540,7 @@ mctp_ret_codes_t mctp_prepare_ep_discovery_get_response(uint8_t *mctp_resp_msg,
 
 		return MCTP_RET_ENCODE_FAILED;
 	}
+
 	return MCTP_RET_REQUEST_SUCCESS;
 }
 
@@ -616,6 +615,7 @@ int mctp_ep_discovery_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len)
 		MCTP_CTRL_ERR("%s: Packet parsing failed\n", __func__);
 		return MCTP_RET_ENCODE_FAILED;
 	}
+
 	return MCTP_RET_REQUEST_SUCCESS;
 }
 
@@ -817,7 +817,6 @@ int mctp_alloc_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len)
 				    sizeof(struct mctp_ctrl_cmd_msg_hdr));
 
 	/* Copy the Rx packet header */
-	// memcpy(&alloc_eid_resp, mctp_resp_msg, sizeof(struct mctp_ctrl_resp_alloc_eid));
 	alloc_eid_resp = (struct mctp_ctrl_resp_alloc_eid *)mctp_resp_msg;
 
 	/* Parse the endpoint discovery message */
@@ -912,7 +911,6 @@ int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
 	bool req_ret;
 	struct mctp_ctrl_resp_get_routing_table *routing_table;
 	int ret;
-	int sock = ctrl->sock;
 	char arg[REDFISH_ARG_LEN] = { 0 };
 
 	MCTP_CTRL_TRACE("%s: Get EP reesponse\n", __func__);

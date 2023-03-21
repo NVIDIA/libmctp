@@ -33,6 +33,7 @@
 #include "utils/mctp-capture.h"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
+#define __unused      __attribute__((unused))
 
 #define MCTP_BIND_INFO_OFFSET (sizeof(uint8_t))
 #define MCTP_PCIE_EID_OFFSET                                                   \
@@ -123,15 +124,14 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		/* Copy the binding information */
 		memcpy(&pvt_binding.pcie, (msg + MCTP_BIND_INFO_OFFSET),
 		       sizeof(struct mctp_astpcie_pkt_private));
+
 		/* Get target EID */
-
 		eid = *((uint8_t *)msg + MCTP_PCIE_EID_OFFSET);
-		/* Set MCTP payload size */
 
+		/* Set MCTP payload size */
 		len = len - (MCTP_PCIE_MSG_OFFSET)-1;
 		mctp_print_hex((uint8_t *)msg + MCTP_PCIE_MSG_OFFSET, len);
-		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid,
-					      MCTP_MESSAGE_TO_SRC, 0,
+		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, MCTP_MESSAGE_TO_SRC, 0,
 					      msg + MCTP_PCIE_MSG_OFFSET, len,
 					      (void *)&pvt_binding.pcie);
 
@@ -202,7 +202,6 @@ static void rx_message(uint8_t eid, bool tag_owner __unused,
 	struct ctx *ctx = data;
 	struct iovec iov[2];
 	struct msghdr msghdr;
-	bool removed = false;
 	uint8_t type;
 	int i, rc;
 

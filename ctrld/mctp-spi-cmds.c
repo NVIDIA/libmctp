@@ -181,7 +181,7 @@ static void mctp_ctrl_wait_and_discard(mctp_ctrl_t *ctrl, int signal_fd,
 
 			if (si.ssi_signo == SIGUSR2) {
 				MCTP_CTRL_INFO(
-					"The termination signal is captured by the keepalive thread");
+					"The termination signal is captured by the keepalive thread\n");
 				return;
 			}
 		}

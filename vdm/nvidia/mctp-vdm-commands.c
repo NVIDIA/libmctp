@@ -229,7 +229,6 @@ mctp_vdm_client_send_recv(mctp_eid_t eid, int fd, const uint8_t *req_msg,
 			  uint8_t verbose)
 {
 	mctp_requester_rc_t rc;
-	uint8_t *resp;
 
 	print_hex("TX", req_msg, req_len, verbose);
 

@@ -40,9 +40,6 @@
 #include "mctp-discovery.h"
 #include "mctp-socket.h"
 
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
-#define __unused __attribute__((unused))
-
 /* Default socket path */
 #define MCTP_SOCK_PATH "\0mctp-pcie-mux"
 #define MCTP_SOCK_PATH_SPI "\0mctp-spi-mux"
@@ -482,6 +479,9 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	mctp_ret_codes_t mctp_err_ret;
 	pthread_t keepalive_thread;
 
+	size_t stacksize = 524288;
+	pthread_attr_t attr;
+
 	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		MCTP_CTRL_INFO("%s: Binding type: PCIe\n", __func__);
 		mctp_medium_type = "PCIe";
@@ -568,8 +568,16 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		}
 	}
 	else if (cmdline->binding_type == MCTP_BINDING_SPI) {
+		/* Create static endpoint 0 for spi ctrl daemon */
+		mctp_spi_static_endpoint();
+
+		/* Initialized with default attributes */
+		pthread_attr_init(&attr);
+		/* Setting the size of the stack */
+		pthread_attr_setstacksize(&attr, stacksize);
+
 		/* Create pthread for sening keepalive messages */
-		pthread_create(&keepalive_thread, NULL, &mctp_spi_keepalive_event,
+		pthread_create(&keepalive_thread, &attr, &mctp_spi_keepalive_event,
 				(void *)mctp_ctrl);
 
 		g_keepalive_thread = keepalive_thread;
@@ -774,7 +782,7 @@ int main(int argc, char *const *argv)
 
 		if (rc >= 0) {
 			/* Start MCTP control daemon */
-			MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....",
+			MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....\n",
 				       __func__);
 			mctp_start_daemon(mctp_ctrl);
 		}
@@ -785,5 +793,6 @@ int main(int argc, char *const *argv)
 		cleanup_daemon_spi();
 
 	mctp_ctrl_clean_up();
+
 	return EXIT_SUCCESS;
 }

@@ -270,7 +270,6 @@ mctp_requester_rc_t mctp_client_send_recv(mctp_eid_t eid, int fd,
 					  size_t *resp_len)
 {
 	mctp_requester_rc_t rc = -1;
-	int timeout = -1;
 	int retry_count = 0;
 	uint8_t cmd_code;
 	struct mctp_vendor_msg_hdr *req = NULL;
