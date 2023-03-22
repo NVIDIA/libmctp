@@ -154,9 +154,9 @@ static const struct option g_options[] = {
 	{ "bindinfo", required_argument, 0, 'b' },
 
 	/* EID options */
-	{ "own_eid", required_argument, 0, 'j' },
-	{ "bridge_eid", required_argument, 0, 'q' },
-	{ "bridge_pool_start", required_argument, 0, 'y' },
+	{ "pci_own_eid", required_argument, 0, 'i' },
+	{ "pci_bridge_eid", required_argument, 0, 'p' },
+	{ "pci_bridge_pool_start", required_argument, 0, 'x' },
 
 	/* SPI specific options */
 	{ "cmd_mode", required_argument, 0, 'x' },
@@ -166,7 +166,7 @@ static const struct option g_options[] = {
 	{ 0 },
 };
 
-static const char *const short_options = "i:x:v:e:m:t:d:s:b:r:i:j:q:y:h";
+static const char *const short_options = "v:e:m:t:d:s:r:b:i:j:p:q:x:y:h";
 
 static int64_t mctp_millis()
 {
@@ -479,9 +479,6 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	mctp_ret_codes_t mctp_err_ret;
 	pthread_t keepalive_thread;
 
-	size_t stacksize = 524288;
-	pthread_attr_t attr;
-
 	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		MCTP_CTRL_INFO("%s: Binding type: PCIe\n", __func__);
 		mctp_medium_type = "PCIe";
@@ -531,18 +528,28 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 
 	if (cmdline->binding_type == MCTP_BINDING_SPI) {
 		ret = pthread_cond_init(&mctp_ctrl->worker_cv, NULL);
-		MCTP_ASSERT_RET(ret == 0, EXIT_FAILURE, "pthread_cond_init(3) failed.");
+		if (ret != 0) {
+			MCTP_CTRL_ERR("pthread_cond_init(3) failed.\n");
+			close(g_socket_fd);
+			close(g_signal_fd);
+			return EXIT_FAILURE;
+		}
 
 		ret = pthread_mutex_init(&mctp_ctrl->worker_mtx, NULL);
-		MCTP_ASSERT_RET(ret == 0, EXIT_FAILURE,
-		"pthread_mutex_init(3) failed.");
+		if (ret != 0) {
+			MCTP_CTRL_ERR("pthread_mutex_init(3) failed.\n");
+			close(g_socket_fd);
+			close(g_signal_fd);
+			return EXIT_FAILURE;
+		}
 	}
 
 	/* Create D-Bus for loging event and handling D-Bus request*/
 	rc = sd_bus_default_system(&mctp_ctrl->bus);
 	if (rc < 0) {
 		MCTP_CTRL_ERR("D-Bus failed to create\n");
-		close(mctp_ctrl->sock);
+		close(g_socket_fd);
+		close(g_signal_fd);
 		return EXIT_FAILURE;
 	}
 	g_sdbus = mctp_ctrl->bus;
@@ -571,13 +578,8 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		/* Create static endpoint 0 for spi ctrl daemon */
 		mctp_spi_static_endpoint();
 
-		/* Initialized with default attributes */
-		pthread_attr_init(&attr);
-		/* Setting the size of the stack */
-		pthread_attr_setstacksize(&attr, stacksize);
-
 		/* Create pthread for sening keepalive messages */
-		pthread_create(&keepalive_thread, &attr, &mctp_spi_keepalive_event,
+		pthread_create(&keepalive_thread, NULL, &mctp_spi_keepalive_event,
 				(void *)mctp_ctrl);
 
 		g_keepalive_thread = keepalive_thread;
@@ -603,6 +605,19 @@ static void parse_command_line(int argc, char *const *argv,
 	uint8_t own_eid, bridge_eid, bridge_pool;
 	int vdm_ops = 0, command_mode = 0;
 
+	/* Get the binding type parameter first,
+	then assign the parameters accordingly for chosen PCIe or SPI */
+	for (;;) {
+		int rc =
+			getopt_long(argc, argv, short_options, g_options, NULL);
+		if (rc == -1)
+			break;
+		if (rc == 't') {
+			cmdline->binding_type = (uint8_t)atoi(optarg);
+		}
+	}
+	optind = 1; // Reset to 1 to restart scanning
+
 	for (;;) {
 		int rc =
 			getopt_long(argc, argv, short_options, g_options, NULL);
@@ -626,9 +641,6 @@ static void parse_command_line(int argc, char *const *argv,
 					cmdline->mode ? "Daemon mode" :
 							"Command line mode");
 			break;
-		case 't':
-			cmdline->binding_type = (uint8_t)atoi(optarg);
-			break;
 		case 'd':
 			cmdline->delay = (int)atoi(optarg);
 			break;
@@ -641,20 +653,24 @@ static void parse_command_line(int argc, char *const *argv,
 			cmdline->tx_len = mctp_cmdline_copy_tx_buff(
 				optarg, cmdline->tx_data, strlen(optarg));
 			break;
-		case 'j':
-			own_eid = (uint8_t)atoi(optarg);
-			break;
-		case 'q':
+		case 'p':
 			bridge_eid = (uint8_t)atoi(optarg);
 			break;
-		case 'y':
-			bridge_pool = (uint8_t)atoi(optarg);
-			break;
 		case 'i':
-			vdm_ops = atoi(optarg);
+			if (cmdline->binding_type == MCTP_BINDING_PCIE) {
+				own_eid = (uint8_t)atoi(optarg);
+			}
+			else if (cmdline->binding_type == MCTP_BINDING_SPI) {
+				vdm_ops = atoi(optarg);
+			}
 			break;
 		case 'x':
-			command_mode = atoi(optarg);
+			if (cmdline->binding_type == MCTP_BINDING_PCIE) {
+				bridge_pool = (uint8_t)atoi(optarg);
+			}
+			else if (cmdline->binding_type == MCTP_BINDING_SPI) {
+				command_mode = atoi(optarg);
+			}
 			break;
 		case 'h':
 			MCTP_CTRL_INFO(
@@ -666,22 +682,24 @@ static void parse_command_line(int argc, char *const *argv,
 				"\t-b\tBinding data (pvt)\n"
 				"\t-d\tDelay in seconds (for MCTP enumeration)\n"
 				"\t-s\tTx data (MCTP packet payload: [Req-dgram]-[cmd-code]--)\n"
-				"\t-j\t PCIe eid\n"
-				"\t-q\t PCIe bridge eid\n"
-				"\t-y\t PCIe bridge pool start eid\n"
 				"\t-h\tPrints this message\n"
-				"\t-x mctp base command:\n"
-				"\t\t1 - Set Endpoint ID,\n"
-				"\t\t2 - Get Endpoint ID,\n"
-				"\t\t3 - Get Endpoint UUID,\n"
-				"\t\t4 - Get MCTP Version Support\n"
-				"\t\t5 - Get MCTP Message Type Support\n"
+				"for PCIe\n"
+				"\t-i\t own eid\n"
+				"\t-p\t bridge eid\n"
+				"\t-x\t bridge pool start eid\n"
+				"for SPI\n"
 				"\t-i\tNVIDIA IANA VDM commands:\n"
 				"\t\t1 - Set EP UUID,\n"
 				"\t\t2 - Boot complete,\n"
 				"\t\t3 - Heartbeat,\n"
 				"\t\t4 - Enable Heartbeat,\n"
 				"\t\t5 - Query boot status\n"
+				"\t-x mctp base command:\n"
+				"\t\t1 - Set Endpoint ID,\n"
+				"\t\t2 - Get Endpoint ID,\n"
+				"\t\t3 - Get Endpoint UUID,\n"
+				"\t\t4 - Get MCTP Version Support\n"
+				"\t\t5 - Get MCTP Message Type Support\n"
 				"Eg: To send MCTP message of PCIe type:\n"
 				"\tmctp-ctrl -s \"80 0b\" -t 2 -b \"03 00 00 00 01 12\" -e 255 -m 0\n"
 				"\t->To send Boot complete command:\n"
