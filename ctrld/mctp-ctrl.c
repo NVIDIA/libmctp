@@ -162,11 +162,71 @@ static const struct option g_options[] = {
 	{ "cmd_mode", required_argument, 0, 'x' },
 	{ "mctp-iana-vdm", required_argument, 0, 'i' },
 
-	{ "help", no_argument, 0, 'h' },
+	{ "help", optional_argument, 0, 'h' },
 	{ 0 },
 };
 
-static const char *const short_options = "v:e:m:t:d:s:r:b:i:j:p:q:x:y:h";
+static const char *const short_options = "ve:m:t:d:s:r:b:i:j:p:q:x:y:h::";
+
+static void usage(void)
+{
+	MCTP_CTRL_INFO(
+		"Usage: mctp-ctrl -h<binding>\n"
+		"(or if use script: mctp-<binding>-ctrl -h<binding>)\n"
+		"Available bindings:\n"
+		"  pcie\n"
+		"  spi\n");
+}
+
+static void usage_common(void)
+{
+	MCTP_CTRL_INFO(
+		"Various command line options mentioned below\n"
+		"\t-v\tVerbose level\n"
+		"\t-e\tTarget Endpoint Id\n"
+		"\t-m\tMode: (0 - Commandline mode, 1 - daemon mode, 2 - SPI test mode)\n"
+		"\t-t\tBinding Type (0 - Resvd, 2 - PCIe, 6 -SPI)\n"
+		"\t-b\tBinding data (pvt)\n"
+		"\t-d\tDelay in seconds (for MCTP enumeration)\n"
+		"\t-s\tTx data (MCTP packet payload: [Req-dgram]-[cmd-code]--)\n");
+}
+
+static void usage_pcie(void)
+{
+	MCTP_CTRL_INFO(
+		"\t-i\t pci own eid\n"
+		"\t-p\t pci bridge eid\n"
+		"\t-x\t pci bridge pool start eid\n"
+		"To send MCTP message for PCIe binding type\n"
+		"Eg: Prepare for Endpoint Discovery\n"
+		"\t mctp-ctrl -s \"80 0b\" -t 2 -b \"03 00 00 00 01 12\" -e 255 -m 0\n"
+		"\t(mctp-pcie-ctrl [params ----^])\n");
+}
+
+static void usage_spi(void)
+{
+	MCTP_CTRL_INFO(
+		"\t-i\tNVIDIA IANA VDM commands:\n"
+		"\t\t1 - Set EP UUID,\n"
+		"\t\t2 - Boot complete,\n"
+		"\t\t3 - Heartbeat,\n"
+		"\t\t4 - Enable Heartbeat,\n"
+		"\t\t5 - Query boot status\n"
+		"\t-x mctp base command:\n"
+		"\t\t1 - Set Endpoint ID,\n"
+		"\t\t2 - Get Endpoint ID,\n"
+		"\t\t3 - Get Endpoint UUID,\n"
+		"\t\t4 - Get MCTP Version Support\n"
+		"\t\t5 - Get MCTP Message Type Support\n"
+		"To send MCTP message for SPI binding type\n"
+		"\t-> To send Boot complete command:\n"
+		"\t\t mctp-ctrl -i 2 -t 6 -m 2 -v 2\n"
+		"\t-> To send Enable Heartbeat command:\n"
+		"\t\t mctp-ctrl -i 4 -t 6 -m 2 -v 2\n"
+		"\t-> To send Heartbeat (ping) command:\n"
+		"\t\t mctp-ctrl -i 3 -t 6 -m 2 -v 2\n"
+		"\t\t(mctp-spi-ctrl [params ----^])\n");
+}
 
 static int64_t mctp_millis()
 {
@@ -673,41 +733,20 @@ static void parse_command_line(int argc, char *const *argv,
 			}
 			break;
 		case 'h':
-			MCTP_CTRL_INFO(
-				"Various command line options mentioned below\n"
-				"\t-v\tVerbose level\n"
-				"\t-e\tTarget Endpoint Id\n"
-				"\t-m\tMode: (0 - Commandline mode, 1 - daemon mode, 2 - SPI test mode)\n"
-				"\t-t\tBinding Type (0 - Resvd, 1 - SMBUS, 2 - PCIe, 6 -SPI)\n"
-				"\t-b\tBinding data (pvt)\n"
-				"\t-d\tDelay in seconds (for MCTP enumeration)\n"
-				"\t-s\tTx data (MCTP packet payload: [Req-dgram]-[cmd-code]--)\n"
-				"\t-h\tPrints this message\n"
-				"for PCIe\n"
-				"\t-i\t own eid\n"
-				"\t-p\t bridge eid\n"
-				"\t-x\t bridge pool start eid\n"
-				"for SPI\n"
-				"\t-i\tNVIDIA IANA VDM commands:\n"
-				"\t\t1 - Set EP UUID,\n"
-				"\t\t2 - Boot complete,\n"
-				"\t\t3 - Heartbeat,\n"
-				"\t\t4 - Enable Heartbeat,\n"
-				"\t\t5 - Query boot status\n"
-				"\t-x mctp base command:\n"
-				"\t\t1 - Set Endpoint ID,\n"
-				"\t\t2 - Get Endpoint ID,\n"
-				"\t\t3 - Get Endpoint UUID,\n"
-				"\t\t4 - Get MCTP Version Support\n"
-				"\t\t5 - Get MCTP Message Type Support\n"
-				"Eg: To send MCTP message of PCIe type:\n"
-				"\tmctp-ctrl -s \"80 0b\" -t 2 -b \"03 00 00 00 01 12\" -e 255 -m 0\n"
-				"\t->To send Boot complete command:\n"
-				"\t\tmctp-ctrl -i 2 -t 6 -m 2 -v 2\n"
-				"\t\t-> To send Enable Heartbeat command:\n"
-				"\t\tmctp-ctrl -i 4 -t 6 -m 2 -v 2\n"
-				"\t-> To send Heartbeat (ping) command:\n"
-				"\t\tmctp-spi-ctrl -i 3 -t 6 -m 2 -v 2\n");
+			if (optarg == NULL)
+				usage();
+			else {
+				if (!strcmp(optarg, "pcie")) {
+					usage_common();
+					usage_pcie();
+				}
+				else if (!strcmp(optarg, "spi")) {
+					usage_common();
+					usage_spi();
+				}
+				else
+					printf("Wrong binding\n");
+			}
 			exit(EXIT_SUCCESS);
 		default:
 			MCTP_CTRL_ERR("Invalid argument\n");
