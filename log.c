@@ -47,7 +47,7 @@ void mctp_prlog(int level, const char *fmt, ...)
 #ifdef MCTP_HAVE_STDIO
 		if (level <= log_stdio_level) {
 			clock_gettime(CLOCK_REALTIME, &ts);
-			fprintf (stderr, "%ld-%ld ", ts.tv_sec ,ts.tv_nsec / 1000000ULL);
+			fprintf (stderr, "%ld-%llu ", ts.tv_sec ,ts.tv_nsec / 1000000ULL);
 
 			vfprintf(stderr, fmt, ap);
 			fputs("\n", stderr);

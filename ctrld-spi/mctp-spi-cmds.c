@@ -95,7 +95,7 @@ static int64_t mctp_timediff_ms(struct timespec *tv1, struct timespec *tv2)
 {
 	int64_t diff_ms = 0;
 
-	diff_ms = (tv2->tv_sec - tv1->tv_sec) * 1000;
+	diff_ms = ((int64_t)tv2->tv_sec - tv1->tv_sec) * 1000;
 	diff_ms += (tv2->tv_nsec - tv1->tv_nsec) / 1000000;
 
 	return diff_ms;
