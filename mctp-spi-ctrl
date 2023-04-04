@@ -4,4 +4,4 @@ The script allows to run the unified "mctp-ctrl" binary with the binding type fo
 The script maintains backward compatibility
 '
 
-/usr/bin/mctp-ctrl $@
+/usr/bin/mctp-ctrl "$@"

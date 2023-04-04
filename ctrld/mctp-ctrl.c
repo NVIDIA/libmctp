@@ -155,8 +155,11 @@ static const struct option g_options[] = {
 
 	/* EID options */
 	{ "pci_own_eid", required_argument, 0, 'i' },
+	{ "i2c_own_eid", required_argument, 0, 'j' },
 	{ "pci_bridge_eid", required_argument, 0, 'p' },
+	{ "i2c_bridge_eid", required_argument, 0, 'q' },
 	{ "pci_bridge_pool_start", required_argument, 0, 'x' },
+	{ "i2c_bridge_pool_start", required_argument, 0, 'y' },
 
 	/* SPI specific options */
 	{ "cmd_mode", required_argument, 0, 'x' },
@@ -701,6 +704,8 @@ static void parse_command_line(int argc, char *const *argv,
 					cmdline->mode ? "Daemon mode" :
 							"Command line mode");
 			break;
+		case 't':
+			break;
 		case 'd':
 			cmdline->delay = (int)atoi(optarg);
 			break;
@@ -715,6 +720,12 @@ static void parse_command_line(int argc, char *const *argv,
 			break;
 		case 'p':
 			bridge_eid = (uint8_t)atoi(optarg);
+			break;
+		case 'j':
+			break;
+		case 'q':
+			break;
+		case 'y':
 			break;
 		case 'i':
 			if (cmdline->binding_type == MCTP_BINDING_PCIE) {
