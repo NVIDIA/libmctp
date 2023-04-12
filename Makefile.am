@@ -28,12 +28,19 @@ include_HEADERS += libmctp-astspi.h
 include_HEADERS += glacier-spb-ap.h
 endif
 
+if LIBMCTP_BINDING_smbus
+libmctp_la_SOURCES += smbus.c
+include_HEADERS += libmctp-smbus.h
+endif
+
 if HAVE_SYSTEMD
 systemdsystemunit_DATA = \
 	systemd/system/mctp-pcie-demux.service \
 	systemd/system/mctp-pcie-demux.socket \
 	systemd/system/mctp-spi-demux.service \
 	systemd/system/mctp-spi-demux.socket \
+	systemd/system/mctp-i2c-demux.service \
+	systemd/system/mctp-i2c-demux.socket \
 	systemd/system/mctp-pcie-ctrl.service \
 	systemd/system/mctp-spi-ctrl.service
 endif

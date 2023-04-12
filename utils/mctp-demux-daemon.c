@@ -30,6 +30,7 @@
 #include "libmctp-astpcie.h"
 #include "libmctp-astspi.h"
 #include "libmctp-log.h"
+#include "libmctp-smbus.h"
 #include "utils/mctp-capture.h"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
@@ -41,7 +42,19 @@
 #define MCTP_PCIE_MSG_OFFSET MCTP_PCIE_EID_OFFSET + (sizeof(uint8_t))
 #define MCTP_SPI_EID_OFFSET                                                    \
 	(MCTP_BIND_INFO_OFFSET + sizeof(struct mctp_astspi_pkt_private))
-#define MCTP_SPI_MSG_OFFSET (MCTP_SPI_EID_OFFSET + sizeof(uint8_t))
+#define MCTP_SPI_MSG_OFFSET                                                    \
+	MCTP_BIND_INFO_OFFSET + sizeof(struct mctp_astspi_pkt_private)
+#define MCTP_SMBUS_EID_OFFSET                                                  \
+	MCTP_BIND_INFO_OFFSET + sizeof(struct mctp_smbus_pkt_private)
+#define MCTP_SMBUS_MSG_OFFSET MCTP_SMBUS_EID_OFFSET + (sizeof(uint8_t))
+
+#define MCTP_SMBUS_BUS_NUM                                                     \
+	2 //I2C Bus: 			11(BMC), 2(HMC) [7-bit]
+#define MCTP_SMBUS_DEST_SLAVE_ADDR                                             \
+	0x30 //Dest_Slave_Addr:	0x52(BMC), 0x30(HMC) [7-bit]
+#define MCTP_SMBUS_SRC_SLAVE_ADDR                                              \
+	0x18 //Src_Slave_Addr:	0x51(BMC), 0x18(HMC) [7-bit]
+>>>>>>> 58b12b1 (Add SMBus functionality to mctp-demux-daemon.)
 
 #if HAVE_SYSTEMD_SD_DAEMON_H
 #include <systemd/sd-daemon.h>
@@ -51,6 +64,10 @@ static inline int sd_listen_fds(int i __unused)
 	return -1;
 }
 #endif
+
+uint8_t i2c_bus_num = MCTP_SMBUS_BUS_NUM;
+uint8_t i2c_dest_slave_addr = MCTP_SMBUS_DEST_SLAVE_ADDR;
+uint8_t i2c_src_slave_addr = MCTP_SMBUS_SRC_SLAVE_ADDR;
 
 static const mctp_eid_t local_eid_default = 8;
 
@@ -112,6 +129,7 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 	union {
 		struct mctp_astpcie_pkt_private pcie;
 		struct mctp_astspi_pkt_private spi;
+		struct mctp_smbus_pkt_private i2c;
 	} pvt_binding = { 0 };
 	mctp_eid_t eid = 0;
 
@@ -160,6 +178,40 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 					      NULL);
 
 		break;
+	case MCTP_BINDING_SMBUS:
+		/* Copy the binding information */
+		memcpy(&pvt_binding.i2c, (msg + MCTP_BIND_INFO_OFFSET),
+		       sizeof(struct mctp_smbus_pkt_private));
+
+		pvt_binding.i2c.i2c_bus = i2c_bus_num;
+		pvt_binding.i2c.dest_slave_addr = i2c_dest_slave_addr;
+		pvt_binding.i2c.src_slave_addr = i2c_src_slave_addr;
+
+		/* Get target EID */
+		eid = *((uint8_t *)msg + MCTP_SMBUS_EID_OFFSET);
+
+		/* Set MCTP payload size */
+		len = len - (MCTP_SMBUS_MSG_OFFSET)-1;
+
+		printf("Print msg: ");
+		mctp_print_hex((uint8_t *)msg + MCTP_SMBUS_MSG_OFFSET, len);
+		printf("\n");
+
+		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, MCTP_MESSAGE_TO_SRC, 0,
+					      msg + MCTP_SMBUS_MSG_OFFSET, len,
+					      (void *)&pvt_binding.i2c);
+
+		if (ctx->verbose) {
+			printf("%s: SMBUS EID: %d, Bus: %d, src-slave-addr: 0x%x, dest-slave-addr: 0x%x, len: %d\n",
+			       __func__, eid, pvt_binding.i2c.i2c_bus,
+			       pvt_binding.i2c.src_slave_addr,
+			       pvt_binding.i2c.dest_slave_addr, len);
+		}
+		if (rc) {
+			warnx("Failed to send message: %d", rc);
+		}
+		break;
+
 	default:
 		warnx("Invalid/Unsupported binding ID %d", bind_id);
 		break;
@@ -491,6 +543,113 @@ static int binding_astspi_process(struct binding *binding)
 	return (mctp_spi_process(astspi));
 }
 
+static void binding_smbus_usage(void)
+{
+	fprintf(stderr,
+		"Usage: smbus (use dec or hex value)\n"
+		"\ti2c_bus=<bus num>              - i2c bus to use\n"
+		"\ti2c_dest_addr=<7-bit addr num> - i2c destination slave address to use\n"
+		"\ti2c_src_addr=<7-bit addr num>  - i2c source slave address to use\n");
+
+	fprintf(stderr, "Example: smbus i2c_bus=2 i2c_dest_addr=0x30 i2c_src_addr=0x18\n"
+					"     or: smbus i2c_bus=2 i2c_dest_addr=48 i2c_src_addr=24\n");
+}
+
+static int parse_num(const char *param)
+{
+	intmax_t num;
+	char *endptr = NULL;
+
+	num = strtoimax(param, &endptr, 10);
+
+	if (*endptr != '\0' && *endptr != ' ') {
+		fprintf(stderr, "Invalid number: %s\n", param);
+		exit(1);
+	}
+
+	return (int)num;
+}
+
+static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
+			      mctp_eid_t eid, int n_params,
+			      char *const *params __attribute__((unused)))
+{
+	struct mctp_binding_smbus *smbus;
+	struct {
+		char *prefix;
+		void *target;
+	} options[] = {
+		{ "i2c_bus=", &i2c_bus_num },
+		{ "i2c_dest_addr=", &i2c_dest_slave_addr },
+		{ "i2c_src_addr=", &i2c_src_slave_addr},
+		{ NULL, NULL },
+	};
+
+	if(n_params != 0) {
+		for (int ii = 0; ii < n_params; ii++) {
+			bool parsed = false;
+
+			for (int jj = 0; options[jj].prefix != NULL; jj++) {
+				const char *prefix = options[jj].prefix;
+				const size_t len = strlen(prefix);
+
+				if (strncmp(params[ii], prefix, len) == 0) {
+					int val = 0;
+					char *arg = strstr(params[ii], "=") + 1;	// Get string after "="
+
+					int decOrHexVal = strncmp(arg, "0x", 2);	// Check if a value is given in 'hex' or 'dec'
+
+					if (decOrHexVal == 0) {
+						val = strtoul(arg, NULL, 16);
+					}
+					else {
+						val = parse_num(arg);
+					}
+
+					*(uint8_t *)options[ii].target = val;
+					parsed = true;
+				}
+			}
+
+			if (!parsed) {
+				binding_smbus_usage();
+				exit(1);
+			}
+		}
+	}
+	else {
+		mctp_prinfo("Used default paramiters (dec. val.):");
+		mctp_prinfo("i2c bus num = %d, i2c dest addr = %d, i2c src addr = %d",
+					i2c_bus_num, i2c_dest_slave_addr, i2c_src_slave_addr);
+	}
+
+	smbus = mctp_smbus_init(i2c_bus_num, i2c_dest_slave_addr, i2c_src_slave_addr);
+	MCTP_ASSERT_RET(smbus != NULL, -1,
+			"could not initialise smbus binding");
+
+	mctp_register_bus(mctp, mctp_binding_smbus_core(smbus), eid);
+
+	binding->data = smbus;
+	return 0;
+}
+
+static int binding_smbus_init_pollfd(struct binding *binding,
+				  struct pollfd *pollfd)
+{
+	return mctp_smbus_init_pollfd(binding->data, pollfd);
+}
+
+static int binding_smbus_process(struct binding *binding)
+{
+	int rc;
+
+	rc = mctp_smbus_poll(binding->data, MCTP_SMBUS_POLL_TIMEOUT);
+	if (rc & POLLIN) {
+		rc = mctp_smbus_read(binding->data);
+		MCTP_ASSERT(rc == 0, "mctp_smbus_read failed: %d", rc);
+	}
+}
+
 struct binding bindings[] = { {
 				      .name = "null",
 				      .init = binding_null_init,
@@ -532,6 +691,15 @@ struct binding bindings[] = { {
 				      .process = binding_astspi_process,
 				      .sockname = "\0mctp-spi-mux",
 				      .events = POLLPRI,
+			      },
+			      {
+				      .name = "smbus",
+				      .init = binding_smbus_init,
+				      .destroy = NULL,
+				      .init_pollfd = binding_smbus_init_pollfd,
+				      .process = binding_smbus_process,
+				      .sockname = "\0mctp-i2c-mux",
+				      .events = POLLIN,
 			      } };
 
 struct binding *binding_lookup(const char *name)
@@ -868,6 +1036,16 @@ static void exact_usage(void)
 	fprintf(stderr, "Various command line options mentioned below\n");
 	fprintf(stderr, "\t-v\tVerbose level\n");
 	fprintf(stderr, "\t-e\tTarget Endpoint Id\n\n");
+
+	fprintf(stderr, "SMBus commands\n");
+	fprintf(stderr, "\ti2c_bus\tI2C Bus\n");
+	fprintf(stderr, "\ti2c_dest_addr\tDestination Slave Address (7-bit)\n");
+	fprintf(stderr, "\ti2c_src_addr\tSource Slave Address (7-bit)\n");
+	fprintf(stderr, "Example of use:\n");
+	fprintf(stderr, "With default parameters (i2c_bus = 2, i2c_dest_addr = 0x30, i2c_src_addr = 0x18):\n");
+	fprintf(stderr, "\tmctp-demux-daemon smbus (--v)\n");
+	fprintf(stderr, "With custom parameters");
+	fprintf(stderr, "\tmctp-demux-daemon smbus i2c_bus=2 i2c_dest_addr=0x30 i2c_src_addr=0x18 (--v)\n");
 }
 
 static void usage(const char *progname)

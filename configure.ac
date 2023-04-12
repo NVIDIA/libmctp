@@ -161,6 +161,7 @@ AM_CONDITIONAL([LIBMCTP_BINDING_serial], [true])
 AM_CONDITIONAL([LIBMCTP_BINDING_astlpc], [true])
 AM_CONDITIONAL([LIBMCTP_BINDING_astpcie], [true])
 AM_CONDITIONAL([LIBMCTP_BINDING_astspi], [true])
+AM_CONDITIONAL([LIBMCTP_BINDING_smbus], [true])
 
 # Check for valgrind
 AS_IF([test "x$enable_tests" = "xno"], [enable_valgrind=no])
