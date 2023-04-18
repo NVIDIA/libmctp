@@ -41,6 +41,14 @@ struct mctp_cmdline_spi {
 	mctp_spi_cmd_mode_t cmd_mode;
 };
 
+/* I2C specific configuration */
+struct mctp_cmdline_i2c {
+	uint8_t slave_addr;
+	uint8_t own_eid;
+	uint8_t bridge_eid;
+	uint8_t bridge_pool_start;
+};
+
 /* Command line structure */
 typedef struct mctp_cmdline_args_ {
 	char name[10];
@@ -64,6 +72,7 @@ typedef struct mctp_cmdline_args_ {
 	union {
 		struct mctp_cmdline_pcie pcie;
 		struct mctp_cmdline_spi spi;
+		struct mctp_cmdline_i2c i2c;
 	};
 } mctp_cmdline_args_t;
 

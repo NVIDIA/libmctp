@@ -17,28 +17,7 @@
 extern "C" {
 #endif
 
-#define MCTP_MSG_TYPE_DATA_LEN_OFFSET 0
-#define MCTP_MSG_TYPE_DATA_OFFSET 1
-
-/* Discovery message table for logging */
-typedef struct {
-	mctp_discovery_mode mode;
-	const char *message;
-} mctp_discovery_message_table_t;
-
 /* Function prototypes */
-void mctp_routing_entry_display(void);
-int mctp_routing_entry_add(struct get_routing_table_entry *routing_table_entry);
-void mctp_routing_entry_delete_all(void);
-
-void mctp_uuid_delete_all(void);
-int mctp_uuid_entry_add(mctp_uuid_table_t *uuid_tbl);
-void mctp_uuid_display(void);
-
-void mctp_msg_types_display(void);
-int mctp_msg_type_entry_add(mctp_msg_type_table_t *msg_type_tbl);
-void mctp_msg_types_delete_all(void);
-
 mctp_ret_codes_t mctp_prepare_ep_discovery_send_request(int sock_fd);
 mctp_ret_codes_t mctp_prepare_ep_discovery_get_response(uint8_t *mctp_resp_msg,
 							size_t resp_msg_len);

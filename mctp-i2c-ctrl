@@ -1,0 +1,7 @@
+#!/bin/sh
+: '
+The script allows to run the unified "mctp-ctrl" binary with the binding type for the I2C interface (-t 1).
+The script maintains backward compatibility
+'
+
+/usr/bin/mctp-ctrl "$@"

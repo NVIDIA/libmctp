@@ -10,7 +10,9 @@ extern "C" {
 #include "libmctp.h"
 
 #define MCTP_SMBUS_POLL_TIMEOUT     1000
-#define MCTP_I2C_SLAVE_ADDR_DEFAULT 0x30
+#define MCTP_I2C_BUS_NUM_DEFAULT 2
+#define MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT 0x30
+#define MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT 0x18
 
 struct mctp_binding_smbus;
 

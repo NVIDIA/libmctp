@@ -27,6 +27,7 @@
 #include "libmctp-astlpc.h"
 #include "libmctp-log.h"
 #include "libmctp-astpcie.h"
+#include "libmctp-smbus.h"
 
 #include "libmctp-cmds.h"
 
@@ -38,11 +39,13 @@
 #include "mctp-encode.h"
 #include "mctp-sdbus.h"
 #include "mctp-discovery.h"
+#include "mctp-discovery-i2c.h"
 #include "mctp-socket.h"
 
 /* Default socket path */
 #define MCTP_SOCK_PATH "\0mctp-pcie-mux"
 #define MCTP_SOCK_PATH_SPI "\0mctp-spi-mux"
+#define MCTP_SOCK_PATH_I2C "\0mctp-i2c-mux"
 
 /* MCTP Tx/Rx waittime in milli-seconds */
 #define MCTP_CTRL_WAIT_SECONDS (1 * 1000)
@@ -64,6 +67,7 @@ extern const uint8_t MCTP_CTRL_MSG_TYPE;
 
 const char *mctp_sock_path = MCTP_SOCK_PATH;
 const char *mctp_sock_path_spi = MCTP_SOCK_PATH_SPI;
+const char *mctp_sock_path_i2c = MCTP_SOCK_PATH_I2C;
 const char *mctp_medium_type;
 
 /* Static variables for clean up*/
@@ -75,6 +79,8 @@ extern void mctp_routing_entry_delete_all(void);
 extern void mctp_uuid_delete_all(void);
 extern void mctp_msg_types_delete_all(void);
 extern mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
+						mctp_ctrl_t *ctrl);
+extern mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd,
 						mctp_ctrl_t *ctrl);
 extern void *mctp_spi_keepalive_event(void *arg);
 extern mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl);
@@ -202,7 +208,7 @@ static void usage_pcie(void)
 		"\t-x\t pci bridge pool start eid\n"
 		"To send MCTP message for PCIe binding type\n"
 		"Eg: Prepare for Endpoint Discovery\n"
-		"\t mctp-ctrl -s \"80 0b\" -t 2 -b \"03 00 00 00 01 12\" -e 255 -m 0\n"
+		"\t mctp-ctrl -s \"00 80 0b\" -b \"03 00 00 00 00 00\" -e 255 -i 9 -p 12 -x 13 -m 0 -t 2 -v\n"
 		"\t(mctp-pcie-ctrl [params ----^])\n");
 }
 
@@ -223,12 +229,24 @@ static void usage_spi(void)
 		"\t\t5 - Get MCTP Message Type Support\n"
 		"To send MCTP message for SPI binding type\n"
 		"\t-> To send Boot complete command:\n"
-		"\t\t mctp-ctrl -i 2 -t 6 -m 2 -v 2\n"
+		"\t\t mctp-ctrl -i 2 -t 6 -m 2 -v\n"
 		"\t-> To send Enable Heartbeat command:\n"
-		"\t\t mctp-ctrl -i 4 -t 6 -m 2 -v 2\n"
+		"\t\t mctp-ctrl -i 4 -t 6 -m 2 -v\n"
 		"\t-> To send Heartbeat (ping) command:\n"
-		"\t\t mctp-ctrl -i 3 -t 6 -m 2 -v 2\n"
+		"\t\t mctp-ctrl -i 3 -t 6 -m 2 -v\n"
 		"\t\t(mctp-spi-ctrl [params ----^])\n");
+}
+
+static void usage_i2c(void)
+{
+	MCTP_CTRL_INFO(
+		"\t-j\t i2c own eid\n"
+		"\t-q\t i2c bridge eid\n"
+		"\t-y\t i2c bridge pool start eid\n"
+		"To send MCTP message for I2C binding type\n"
+		"Eg: Set Endpoint ID\n"
+		"\t mctp-ctrl -s \"00 80 01 00 1e\" -t 1 -b \"30\" -e 0 -m 0 -v\n"
+		"\t(mctp-i2c-ctrl [params ----^])\n");
 }
 
 static int64_t mctp_millis()
@@ -244,6 +262,7 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 	size_t resp_msg_len;
 	uint8_t *mctp_resp_msg;
 	struct mctp_astpcie_pkt_private pvt_binding;
+	struct mctp_smbus_pkt_private pvt_binding_smbus;
 	int64_t t_start, t_end;
 	int retry = 0;
 
@@ -303,6 +322,23 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 				MCTP_CTRL_ERR("%s: Failed to send message..\n",
 					      __func__);
 			}
+		} else if (cmd->binding_type == MCTP_BINDING_SMBUS) {
+			memcpy(&pvt_binding_smbus, &cmd->bind_info,
+			       sizeof(struct mctp_smbus_pkt_private));
+
+			/* Send the request message over socket */
+			MCTP_CTRL_DEBUG(
+				"%s: SMBUS pvt bind data: Dest slave Addr: 0x%x\n",
+				__func__, pvt_binding_smbus.dest_slave_addr);
+
+			mctp_ret = mctp_client_with_binding_send(
+				cmd->dest_eid, sock_fd, (const uint8_t *)cmd->tx_data,
+				cmd->tx_len, &cmd->binding_type, (void *)&pvt_binding_smbus,
+				sizeof(pvt_binding_smbus));
+
+			if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
+				MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
+			}
 		} else {
 			MCTP_CTRL_ERR("%s: Invalid binding type: %d\n",
 				      __func__, cmd->binding_type);
@@ -314,6 +350,7 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 	case MCTP_CMDLINE_OP_LIST_SUPPORTED_DEV:
 		MCTP_CTRL_INFO("%s: Supported bindigs: PCIe\n", __func__);
 		MCTP_CTRL_INFO("%s: Supported bindigs: SPI\n", __func__);
+		MCTP_CTRL_INFO("%s: Supported bindigs: I2C\n", __func__);
 		break;
 
 	default:
@@ -496,6 +533,48 @@ static int mctp_pcie_eids_sanity_check(uint8_t pci_own_eid,
 	return 0;
 }
 
+/* Sanity check for SMBus Endpoint IDs */
+static int mctp_i2c_eids_sanity_check(uint8_t i2c_own_eid,
+				      uint8_t i2c_bridge_eid,
+				      uint8_t i2c_bridge_pool_start)
+{
+	int rc = -1;
+
+	/* Check for SMBus own EID */
+	if ((i2c_own_eid == MCTP_INVALID_EID_0) ||
+		(i2c_own_eid == MCTP_INVALID_EID_FF)) {
+		MCTP_CTRL_ERR("%s: Invalid i2c_own_eid: 0x%x\n", __func__,
+				i2c_own_eid);
+		return rc;
+	}
+
+	/* Check for SMBus bridge EID */
+	if ((i2c_bridge_eid == MCTP_INVALID_EID_0) ||
+		(i2c_bridge_eid == MCTP_INVALID_EID_FF)) {
+		MCTP_CTRL_ERR("%s: Invalid i2c_bridge_eid: 0x%x\n", __func__,
+				i2c_bridge_eid);
+		return rc;
+	}
+
+	/* Check for SMBus bridge pool start EID */
+	if ((i2c_bridge_pool_start == MCTP_INVALID_EID_0) ||
+		(i2c_bridge_pool_start == MCTP_INVALID_EID_FF)) {
+		MCTP_CTRL_ERR("%s: Invalid i2c_bridge_pool_start: 0x%x\n",
+				__func__, i2c_bridge_pool_start);
+		return rc;
+	}
+
+	/* Also check for duplicate EID's if any */
+	if ((i2c_own_eid == i2c_bridge_eid) ||
+		(i2c_own_eid == i2c_bridge_pool_start) ||
+		(i2c_bridge_eid == i2c_bridge_pool_start)) {
+		MCTP_CTRL_ERR("%s: Duplicate EID's found\n", __func__);
+		return rc;
+	}
+
+	return 0;
+}
+
 // Exec command line mode
 static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 				  mctp_ctrl_t *mctp_ctrl)
@@ -510,8 +589,8 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 		MCTP_CTRL_DEBUG("%s: Setting up PCIe socket\n", __func__);
 		sock_path = mctp_sock_path;
 	} else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
-		MCTP_CTRL_INFO("%s: I2C not supported yet.\n", __func__);
-		return EXIT_SUCCESS;
+		MCTP_CTRL_DEBUG("%s: Setting up I2C socket\n", __func__);
+		sock_path = mctp_sock_path_i2c;
 	}
 
 	/* Open the user socket file-descriptor */
@@ -574,6 +653,14 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		/* Open the user socket file-descriptor */
 		rc = mctp_usr_socket_init(&fd, mctp_sock_path_spi, MCTP_MESSAGE_TYPE_VDIANA,
 					  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
+	}
+	else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
+		MCTP_CTRL_INFO("%s: Binding type: SMBus\n", __func__);
+		mctp_medium_type = "I2C";
+
+		/* Open the user socket file-descriptor */
+		rc = mctp_usr_socket_init(&fd, mctp_sock_path_i2c, MCTP_CTRL_MSG_TYPE,
+					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
 	}
 
 	if (rc != MCTP_REQUESTER_SUCCESS) {
@@ -650,6 +737,26 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		/* Wait until we can populate Dbus objects. */
 		pthread_cond_wait(&mctp_ctrl->worker_cv, &mctp_ctrl->worker_mtx);
 	}
+	else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
+		/* Make sure all SMBus EID options are available from commandline */
+		rc = mctp_i2c_eids_sanity_check(cmdline->i2c.own_eid,
+						cmdline->i2c.bridge_eid,
+						cmdline->i2c.bridge_pool_start);
+		if (rc < 0) {
+			close(g_socket_fd);
+			close(g_signal_fd);
+			sd_bus_unref(mctp_ctrl->bus);
+			MCTP_CTRL_ERR("MCTP-Ctrl sanity check unsuccessful\n");
+			return EXIT_FAILURE;
+		}
+
+		/* Discover endpoints via SMBus*/
+		MCTP_CTRL_INFO("%s: Start MCTP-over-SMBus Discovery\n", __func__);
+		mctp_err_ret = mctp_i2c_discover_endpoints(cmdline, mctp_ctrl);
+		if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
+			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
+		}
+	}
 
 	return EXIT_SUCCESS;
 }
@@ -669,7 +776,7 @@ static void parse_command_line(int argc, char *const *argv,
 	int vdm_ops = 0, command_mode = 0;
 
 	/* Get the binding type parameter first,
-	then assign the parameters accordingly for chosen PCIe or SPI */
+	then assign the parameters accordingly for chosen PCIe, SPI or SMBus */
 	for (;;) {
 		int rc =
 			getopt_long(argc, argv, short_options, g_options, NULL);
@@ -719,13 +826,24 @@ static void parse_command_line(int argc, char *const *argv,
 				optarg, cmdline->tx_data, strlen(optarg));
 			break;
 		case 'p':
-			bridge_eid = (uint8_t)atoi(optarg);
+			if (cmdline->binding_type == MCTP_BINDING_PCIE) {
+				bridge_eid = (uint8_t)atoi(optarg);
+			}
 			break;
 		case 'j':
+			if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
+				own_eid = (uint8_t)atoi(optarg);
+			}
 			break;
 		case 'q':
+			if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
+				bridge_eid = (uint8_t)atoi(optarg);
+			}
 			break;
 		case 'y':
+			if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
+				bridge_pool = (uint8_t)atoi(optarg);
+			}
 			break;
 		case 'i':
 			if (cmdline->binding_type == MCTP_BINDING_PCIE) {
@@ -755,6 +873,10 @@ static void parse_command_line(int argc, char *const *argv,
 					usage_common();
 					usage_spi();
 				}
+				else if (!strcmp(optarg, "smbus")) {
+					usage_common();
+					usage_i2c();
+				}
 				else
 					printf("Wrong binding\n");
 			}
@@ -773,6 +895,11 @@ static void parse_command_line(int argc, char *const *argv,
 	case MCTP_BINDING_SPI:
 		cmdline->spi.vdm_ops = vdm_ops;
 		cmdline->spi.cmd_mode = command_mode;
+		break;
+	case MCTP_BINDING_SMBUS:
+		cmdline->i2c.bridge_eid = bridge_eid;
+		cmdline->i2c.bridge_pool_start = bridge_pool;
+		cmdline->i2c.own_eid = own_eid;
 		break;
 	default:
 		break;

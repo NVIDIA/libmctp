@@ -42,7 +42,8 @@ systemdsystemunit_DATA = \
 	systemd/system/mctp-i2c-demux.service \
 	systemd/system/mctp-i2c-demux.socket \
 	systemd/system/mctp-pcie-ctrl.service \
-	systemd/system/mctp-spi-ctrl.service
+	systemd/system/mctp-spi-ctrl.service \
+	systemd/system/mctp-i2c-ctrl.service
 endif
 
 bin_PROGRAMS = utils/mctp-demux-daemon ctrld/mctp-ctrl vdm/nvidia/mctp-vdm-util
@@ -57,6 +58,7 @@ utils_mctp_demux_daemon_CFLAGS = $(pcap_CFLAGS)
 ctrld_mctp_ctrl_LDFLAGS = "-lsystemd -lpthread"
 
 ctrld_mctp_ctrl_SOURCES = ctrld/mctp-ctrl.c \
+                    ctrld/mctp-discovery-common.c \
                     ctrld/mctp-discovery.c \
                     mctp-socket.c \
                     dbus_log_event.c \
@@ -64,9 +66,9 @@ ctrld_mctp_ctrl_SOURCES = ctrld/mctp-ctrl.c \
                     ctrld/mctp-sdbus.c \
                     ctrld/mctp-spi-cmds.c \
                     ctrld/mctp-ctrl-spi.c \
+                    ctrld/mctp-discovery-i2c.c \
                     vdm/nvidia/mctp-vdm-commands.c \
                     vdm/nvidia/mctp-vdm-encode.c
-
 
 vdm_nvidia_mctp_vdm_util_LDFLAGS = "-lsystemd"
 
@@ -82,7 +84,7 @@ udevrules_DATA = udev/rules.d/mctp0-raw-kcs3.rules \
 		 udev/rules.d/mctp0-raw-kcs4.rules
 endif
 
-dist_bin_SCRIPTS = mctp-pcie-ctrl mctp-spi-ctrl
+dist_bin_SCRIPTS = mctp-pcie-ctrl mctp-spi-ctrl mctp-i2c-ctrl
 
 if AUTOCONF_CODE_COVERAGE_2019_01_06
 include $(top_srcdir)/aminclude_static.am

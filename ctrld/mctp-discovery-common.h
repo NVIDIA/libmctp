@@ -1,14 +1,18 @@
 #pragma once
 
 #include <stdint.h>
+#include "libmctp.h"
 #include "mctp-ctrl-cmds.h"
 
 #define MCTP_DEVICE_READY_DELAY		2
 #define MCTP_DEVICE_GET_ROUTING_DELAY	4
 #define MCTP_DEVICE_SET_EID_TIMEOUT	300
 #define MCTP_DEVICE_GET_ROUTING_TIMEOUT 60
+#define MCTP_I2C_MSG_TYPE_MAX_SIZE 0xff
 #define MCTP_ROUTING_TABLE_MAX_SIZE	0x200
 #define MCTP_MSG_TYPE_MAX_SIZE		0xff
+#define MCTP_MSG_TYPE_DATA_LEN_OFFSET 0
+#define MCTP_MSG_TYPE_DATA_OFFSET 1
 
 /* Various discovery modes */
 typedef enum {
@@ -63,3 +67,37 @@ struct mctp_ctrl_req {
 	struct mctp_ctrl_cmd_msg_hdr hdr;
 	uint8_t data[MCTP_BTU];
 };
+
+/* Structure for Getting MCTP response */
+struct mctp_ctrl_resp {
+	struct mctp_ctrl_cmd_msg_hdr hdr;
+	uint8_t completion_code;
+	uint8_t data[MCTP_BTU];
+} __attribute__((__packed__));
+
+/* Discovery message table for logging */
+typedef struct {
+	mctp_discovery_mode mode;
+	const char *message;
+} mctp_discovery_message_table_t;
+
+/* Function prototypes */
+void mctp_routing_entry_display(void);
+int mctp_routing_entry_add(struct get_routing_table_entry *routing_table_entry);
+void mctp_routing_entry_delete_all(void);
+
+void mctp_uuid_delete_all(void);
+int mctp_uuid_entry_add(mctp_uuid_table_t *uuid_tbl);
+void mctp_uuid_display(void);
+
+void mctp_msg_types_display(void);
+int mctp_msg_type_entry_add(mctp_msg_type_table_t *msg_type_tbl);
+void mctp_msg_types_delete_all(void);
+
+void mctp_print_resp_msg(struct mctp_ctrl_resp *ep_discovery_resp,
+				const char *msg, int msg_len);
+void mctp_print_req_msg(struct mctp_ctrl_req *ep_discovery_req,
+			       const char *msg, size_t msg_len);
+
+void mctp_print_routing_table_entry(int routing_id,
+			       struct get_routing_table_entry *routing_table);
