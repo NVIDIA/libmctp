@@ -26,7 +26,7 @@
 
 static pthread_t g_keepalive_thread;
 
-static const char *mctp_sock_path_spi = "\0mctp-spi-mux";
+extern const char *mctp_sock_path;
 
 extern int g_socket_fd;
 extern int g_signal_fd;
@@ -37,8 +37,11 @@ int exec_spi_test(const mctp_cmdline_args_t *cmdline, mctp_ctrl_t *mctp_ctrl)
 {
 	int rc, fd;
 
+	MCTP_CTRL_DEBUG("%s: Setting up SPI socket\n", __func__);
+	mctp_sock_path = MCTP_SOCK_PATH_SPI;
+
 	/* Open the user socket file-descriptor */
-	rc = mctp_usr_socket_init(&fd, mctp_sock_path_spi, MCTP_MESSAGE_TYPE_VDIANA,
+	rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_MESSAGE_TYPE_VDIANA,
 				  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
 	if (rc != MCTP_REQUESTER_SUCCESS) {
 		MCTP_CTRL_ERR("Failed to open mctp sock\n");

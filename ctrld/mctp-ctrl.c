@@ -42,11 +42,6 @@
 #include "mctp-discovery-i2c.h"
 #include "mctp-socket.h"
 
-/* Default socket path */
-#define MCTP_SOCK_PATH "\0mctp-pcie-mux"
-#define MCTP_SOCK_PATH_SPI "\0mctp-spi-mux"
-#define MCTP_SOCK_PATH_I2C "\0mctp-i2c-mux"
-
 /* MCTP Tx/Rx waittime in milli-seconds */
 #define MCTP_CTRL_WAIT_SECONDS (1 * 1000)
 #define MCTP_CTRL_WAIT_TIME (2 * MCTP_CTRL_WAIT_SECONDS)
@@ -65,9 +60,7 @@ static pthread_t g_keepalive_thread;
 extern const uint8_t MCTP_MSG_TYPE_HDR;
 extern const uint8_t MCTP_CTRL_MSG_TYPE;
 
-const char *mctp_sock_path = MCTP_SOCK_PATH;
-const char *mctp_sock_path_spi = MCTP_SOCK_PATH_SPI;
-const char *mctp_sock_path_i2c = MCTP_SOCK_PATH_I2C;
+const char *mctp_sock_path;
 const char *mctp_medium_type;
 
 /* Static variables for clean up*/
@@ -579,7 +572,6 @@ static int mctp_i2c_eids_sanity_check(uint8_t i2c_own_eid,
 static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 				  mctp_ctrl_t *mctp_ctrl)
 {
-	const char *sock_path;
 	int rc, fd;
 
 	MCTP_CTRL_INFO("%s: Run mode: Commandline mode\n", __func__);
@@ -587,14 +579,14 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 	// Chosse binding type (PCIe or I2C)
 	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		MCTP_CTRL_DEBUG("%s: Setting up PCIe socket\n", __func__);
-		sock_path = mctp_sock_path;
+		mctp_sock_path = MCTP_SOCK_PATH_PCIE;
 	} else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
 		MCTP_CTRL_DEBUG("%s: Setting up I2C socket\n", __func__);
-		sock_path = mctp_sock_path_i2c;
+		mctp_sock_path = MCTP_SOCK_PATH_I2C;
 	}
 
 	/* Open the user socket file-descriptor */
-	rc = mctp_usr_socket_init(&fd, sock_path, MCTP_CTRL_MSG_TYPE,
+	rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_CTRL_MSG_TYPE,
 				  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
 	if (rc != MCTP_REQUESTER_SUCCESS) {
 		MCTP_CTRL_ERR("Failed to open mctp socket\n");
@@ -623,6 +615,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 
 	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		MCTP_CTRL_INFO("%s: Binding type: PCIe\n", __func__);
+		mctp_sock_path = MCTP_SOCK_PATH_PCIE;
 		mctp_medium_type = "PCIe";
 
 		/* Open the user socket file-descriptor */
@@ -631,6 +624,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	}
 	else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 		MCTP_CTRL_INFO("%s: Binding type: SPI\n", __func__);
+		mctp_sock_path = MCTP_SOCK_PATH_SPI;
 		mctp_medium_type = "SPI";
 
 		/* Open the user socket file-descriptor for CTRL MSG type */
@@ -651,15 +645,16 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		close(fd);
 
 		/* Open the user socket file-descriptor */
-		rc = mctp_usr_socket_init(&fd, mctp_sock_path_spi, MCTP_MESSAGE_TYPE_VDIANA,
+		rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_MESSAGE_TYPE_VDIANA,
 					  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
 	}
 	else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
 		MCTP_CTRL_INFO("%s: Binding type: SMBus\n", __func__);
+		mctp_sock_path = MCTP_SOCK_PATH_I2C;
 		mctp_medium_type = "I2C";
 
 		/* Open the user socket file-descriptor */
-		rc = mctp_usr_socket_init(&fd, mctp_sock_path_i2c, MCTP_CTRL_MSG_TYPE,
+		rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_CTRL_MSG_TYPE,
 					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
 	}
 

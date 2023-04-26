@@ -17,6 +17,11 @@ extern "C" {
 
 #include "mctp-ctrl-cmdline.h"
 
+/* Default socket path */
+#define MCTP_SOCK_PATH_PCIE "\0mctp-pcie-mux"
+#define MCTP_SOCK_PATH_SPI "\0mctp-spi-mux"
+#define MCTP_SOCK_PATH_I2C "\0mctp-i2c-mux"
+
 /* Define Max buffer size */
 #define MCTP_RX_BUFFER_MAX_SIZE 64
 
