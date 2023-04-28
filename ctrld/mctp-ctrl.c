@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <pthread.h>
+#include <json-c/json.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -67,6 +68,10 @@ const char *mctp_medium_type;
 int g_socket_fd = -1;
 int g_signal_fd = -1;
 static sd_bus *g_sdbus = NULL;
+
+static const char *config_json_file_path = NULL;
+bool use_config_json_file_mc = false;
+extern json_object *parsed_json;
 
 extern void mctp_routing_entry_delete_all(void);
 extern void mctp_uuid_delete_all(void);
@@ -151,6 +156,8 @@ static const struct option g_options[] = {
 	{ "tx", required_argument, 0, 's' },
 	{ "rx", required_argument, 0, 'r' },
 	{ "bindinfo", required_argument, 0, 'b' },
+	{ "cfg_file_path", required_argument, 0, 'f'},
+	{ "bus_num", required_argument, 0, 'n'},
 
 	/* EID options */
 	{ "pci_own_eid", required_argument, 0, 'i' },
@@ -168,7 +175,7 @@ static const struct option g_options[] = {
 	{ 0 },
 };
 
-static const char *const short_options = "ve:m:t:d:s:r:b:i:j:p:q:x:y:h::";
+static const char *const short_options = "ve:m:t:d:s:r:b:f:n:i:j:p:q:x:y:h::";
 
 static void usage(void)
 {
@@ -190,7 +197,9 @@ static void usage_common(void)
 		"\t-t\tBinding Type (0 - Resvd, 2 - PCIe, 6 -SPI)\n"
 		"\t-b\tBinding data (pvt)\n"
 		"\t-d\tDelay in seconds (for MCTP enumeration)\n"
-		"\t-s\tTx data (MCTP packet payload: [Req-dgram]-[cmd-code]--)\n");
+		"\t-s\tTx data (MCTP packet payload: [Req-dgram]-[cmd-code]--)\n"
+		"\t-f\tAbsolute path to configuration json file\n"
+		"\t-n\tBus number for the selected interface, eg. PCIe 1, PCIe 2, I2C 3, ...");
 }
 
 static void usage_pcie(void)
@@ -579,10 +588,12 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 	// Chosse binding type (PCIe or I2C)
 	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		MCTP_CTRL_DEBUG("%s: Setting up PCIe socket\n", __func__);
-		mctp_sock_path = MCTP_SOCK_PATH_PCIE;
+		if(use_config_json_file_mc == false)
+			mctp_sock_path = MCTP_SOCK_PATH_PCIE;
 	} else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
 		MCTP_CTRL_DEBUG("%s: Setting up I2C socket\n", __func__);
-		mctp_sock_path = MCTP_SOCK_PATH_I2C;
+		if(use_config_json_file_mc == false)
+			mctp_sock_path = MCTP_SOCK_PATH_I2C;
 	}
 
 	/* Open the user socket file-descriptor */
@@ -615,7 +626,8 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 
 	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		MCTP_CTRL_INFO("%s: Binding type: PCIe\n", __func__);
-		mctp_sock_path = MCTP_SOCK_PATH_PCIE;
+		if(use_config_json_file_mc == false)
+			mctp_sock_path = MCTP_SOCK_PATH_PCIE;
 		mctp_medium_type = "PCIe";
 
 		/* Open the user socket file-descriptor */
@@ -624,7 +636,8 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	}
 	else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 		MCTP_CTRL_INFO("%s: Binding type: SPI\n", __func__);
-		mctp_sock_path = MCTP_SOCK_PATH_SPI;
+		if(use_config_json_file_mc == false)
+			mctp_sock_path = MCTP_SOCK_PATH_SPI;
 		mctp_medium_type = "SPI";
 
 		/* Open the user socket file-descriptor for CTRL MSG type */
@@ -650,7 +663,8 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	}
 	else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
 		MCTP_CTRL_INFO("%s: Binding type: SMBus\n", __func__);
-		mctp_sock_path = MCTP_SOCK_PATH_I2C;
+		if(use_config_json_file_mc == false)
+			mctp_sock_path = MCTP_SOCK_PATH_I2C;
 		mctp_medium_type = "I2C";
 
 		/* Open the user socket file-descriptor */
@@ -769,6 +783,7 @@ static void parse_command_line(int argc, char *const *argv,
 	memset(&cmdline->rx_data, 0, MCTP_READ_DATA_BUFF_SIZE);
 	uint8_t own_eid, bridge_eid, bridge_pool;
 	int vdm_ops = 0, command_mode = 0;
+	uint8_t bus_num_interface = 0;
 
 	/* Get the binding type parameter first,
 	then assign the parameters accordingly for chosen PCIe, SPI or SMBus */
@@ -820,10 +835,18 @@ static void parse_command_line(int argc, char *const *argv,
 			cmdline->tx_len = mctp_cmdline_copy_tx_buff(
 				optarg, cmdline->tx_data, strlen(optarg));
 			break;
+		case 'f':
+			config_json_file_path = malloc(strlen(optarg));
+			memcpy(config_json_file_path, optarg, strlen(optarg)+1);
+			use_config_json_file_mc = true;
+			break;
 		case 'p':
 			if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 				bridge_eid = (uint8_t)atoi(optarg);
 			}
+			break;
+		case 'n':
+			bus_num_interface = (uint8_t)atoi(optarg);
 			break;
 		case 'j':
 			if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
@@ -892,9 +915,44 @@ static void parse_command_line(int argc, char *const *argv,
 		cmdline->spi.cmd_mode = command_mode;
 		break;
 	case MCTP_BINDING_SMBUS:
-		cmdline->i2c.bridge_eid = bridge_eid;
-		cmdline->i2c.bridge_pool_start = bridge_pool;
-		cmdline->i2c.own_eid = own_eid;
+		if (use_config_json_file_mc == true) {
+			int rc;
+
+			rc = mctp_json_get_tokener_parse(config_json_file_path);
+
+			if (rc == EXIT_FAILURE) {
+				MCTP_CTRL_ERR("Json tokener parse fail\n");
+				exit(EXIT_FAILURE);
+			}
+			else {
+				mctp_sock_path = malloc((size_t)20);
+				rc = mctp_json_i2c_get_params_mctp_ctrl(parsed_json,
+				&bus_num_interface, mctp_sock_path, &cmdline->i2c.own_eid);
+
+				if (rc == EXIT_FAILURE) {
+					MCTP_CTRL_ERR("Unable to get params\n");
+					exit(EXIT_FAILURE);
+				}
+			}
+
+			cmdline->i2c.bridge_eid = bridge_eid;
+			cmdline->i2c.bridge_pool_start = bridge_pool;
+
+			// Debug info on tests
+			printf("\n\nconfig_json_file_path\n%s\n", config_json_file_path);
+			printf("bus_num_interface = %d, socket name = %s\n",
+				bus_num_interface, mctp_sock_path);
+			printf("src_eid = %d, bridge_eid = %d, bridge_pool_start = %d\n\n",
+				cmdline->i2c.own_eid, cmdline->i2c.bridge_eid,
+				cmdline->i2c.bridge_pool_start);
+			// end
+			free(config_json_file_path);
+		}
+		else {
+			cmdline->i2c.bridge_eid = bridge_eid;
+			cmdline->i2c.bridge_pool_start = bridge_pool;
+			cmdline->i2c.own_eid = own_eid;
+		}
 		break;
 	default:
 		break;

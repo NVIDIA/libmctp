@@ -58,12 +58,13 @@ endif
 utils_mctp_demux_daemon_LDADD = libmctp.la $(pcap_LIBS)
 utils_mctp_demux_daemon_CFLAGS = $(pcap_CFLAGS)
 
-ctrld_mctp_ctrl_LDFLAGS = "-lsystemd -lpthread"
+ctrld_mctp_ctrl_LDFLAGS = "-lsystemd -lpthread -ljson-c"
 
 ctrld_mctp_ctrl_SOURCES = ctrld/mctp-ctrl.c \
                     ctrld/mctp-discovery-common.c \
                     ctrld/mctp-discovery.c \
                     mctp-socket.c \
+                    mctp-json.c \
                     dbus_log_event.c \
                     ctrld/mctp-encode.c \
                     ctrld/mctp-sdbus.c \
