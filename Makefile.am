@@ -48,7 +48,10 @@ endif
 
 bin_PROGRAMS = utils/mctp-demux-daemon ctrld/mctp-ctrl vdm/nvidia/mctp-vdm-util
 noinst_PROGRAMS = utils/mctp-in utils/mctp-pipe
-utils_mctp_demux_daemon_SOURCES = utils/mctp-demux-daemon.c
+
+utils_mctp_demux_daemon_LDFLAGS = "-ljson-c"
+utils_mctp_demux_daemon_SOURCES = utils/mctp-demux-daemon.c \
+                    mctp-json.c
 if HAVE_PCAP
 utils_mctp_demux_daemon_SOURCES += utils/mctp-capture.c
 endif

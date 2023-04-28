@@ -21,6 +21,8 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+#include <json-c/json.h>
+
 #define SD_LISTEN_FDS_START 3
 
 #include "compiler.h"
@@ -32,6 +34,7 @@
 #include "libmctp-log.h"
 #include "libmctp-smbus.h"
 #include "utils/mctp-capture.h"
+#include "mctp-json.h"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #define __unused      __attribute__((unused))
@@ -68,6 +71,8 @@ static inline int sd_listen_fds(int i __unused)
 uint8_t i2c_bus_num = MCTP_SMBUS_BUS_NUM;
 uint8_t i2c_dest_slave_addr = MCTP_SMBUS_DEST_SLAVE_ADDR;
 uint8_t i2c_src_slave_addr = MCTP_SMBUS_SRC_SLAVE_ADDR;
+static const char *config_json_file_path = NULL;
+extern json_object *parsed_json;
 
 static const mctp_eid_t local_eid_default = 8;
 
@@ -555,21 +560,6 @@ static void binding_smbus_usage(void)
 					"     or: smbus i2c_bus=2 i2c_dest_addr=48 i2c_src_addr=24\n");
 }
 
-static int parse_num(const char *param)
-{
-	intmax_t num;
-	char *endptr = NULL;
-
-	num = strtoimax(param, &endptr, 10);
-
-	if (*endptr != '\0' && *endptr != ' ') {
-		fprintf(stderr, "Invalid number: %s\n", param);
-		exit(1);
-	}
-
-	return (int)num;
-}
-
 static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 			      mctp_eid_t eid, int n_params,
 			      char *const *params __attribute__((unused)))
@@ -580,10 +570,13 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 		void *target;
 	} options[] = {
 		{ "i2c_bus=", &i2c_bus_num },
+		{ "i2c_config_file=", config_json_file_path},
 		{ "i2c_dest_addr=", &i2c_dest_slave_addr },
 		{ "i2c_src_addr=", &i2c_src_slave_addr},
 		{ NULL, NULL },
 	};
+
+	bool use_config_json_file = false;
 
 	if(n_params != 0) {
 		for (int ii = 0; ii < n_params; ii++) {
@@ -597,16 +590,21 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 					int val = 0;
 					char *arg = strstr(params[ii], "=") + 1;	// Get string after "="
 
-					int decOrHexVal = strncmp(arg, "0x", 2);	// Check if a value is given in 'hex' or 'dec'
-
-					if (decOrHexVal == 0) {
-						val = strtoul(arg, NULL, 16);
+					/* Check if path or values are given */
+					if (strncmp(params[ii], options[1].prefix, strlen(options[1].prefix)) == 0) {
+						config_json_file_path = malloc(strlen(arg));
+						memcpy(config_json_file_path, arg, strlen(arg)+1);
+						use_config_json_file = true;
 					}
 					else {
-						val = parse_num(arg);
-					}
+						/* Check if a value is given in 'hex' or 'dec' */
+						if (strncmp(arg, "0x", 2) == 0)
+							val = strtoul(arg, NULL, 16);
+						else
+							val = parse_num(arg);
 
-					*(uint8_t *)options[ii].target = val;
+						*(uint8_t *)options[ii].target = val;
+					}
 					parsed = true;
 				}
 			}
@@ -618,10 +616,42 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 		}
 	}
 	else {
-		mctp_prinfo("Used default paramiters (dec. val.):");
+		mctp_prinfo("Used default configuration. Discovery endpoint via FPGA (dec. val.):");
 		mctp_prinfo("i2c bus num = %d, i2c dest addr = %d, i2c src addr = %d",
 					i2c_bus_num, i2c_dest_slave_addr, i2c_src_slave_addr);
 	}
+
+	/* Check if is config file */
+	if (use_config_json_file == true) {
+		int rc;
+
+		rc = mctp_json_get_tokener_parse(config_json_file_path);
+
+		if (rc == EXIT_FAILURE) {
+			i2c_bus_num = MCTP_I2C_BUS_NUM_DEFAULT;
+			i2c_dest_slave_addr = MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT;
+			i2c_src_slave_addr = MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT;
+		}
+		else {
+			binding->sockname = malloc((size_t)20);
+			rc = mctp_json_i2c_get_params_mctp_demux(parsed_json, &i2c_bus_num, binding->sockname,
+			&i2c_dest_slave_addr, &i2c_src_slave_addr, &eid);
+
+			if (rc == EXIT_FAILURE) {
+				i2c_bus_num = MCTP_I2C_BUS_NUM_DEFAULT;
+				i2c_dest_slave_addr = MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT;
+				i2c_src_slave_addr = MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT;
+			}
+		}
+		free(config_json_file_path);
+	}
+
+// Debug info on tests
+	printf("\n\ni2c bus num = %d, i2c dest addr = %d, i2c src addr = %d\n",
+			i2c_bus_num, i2c_dest_slave_addr, i2c_src_slave_addr);
+	printf("socket name = %s, src_eid = %d\n\n",
+			binding->sockname, eid);
+// end
 
 	smbus = mctp_smbus_init(i2c_bus_num, i2c_dest_slave_addr, i2c_src_slave_addr);
 	MCTP_ASSERT_RET(smbus != NULL, -1,
