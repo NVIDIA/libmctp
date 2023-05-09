@@ -1,0 +1,43 @@
+{
+  "i2c":
+  {
+    "i2c_src_address": 24,
+    "src_eid": 11,
+    "buses": [
+      {
+        "bus_number": "i2c2",
+        "socket_name": "mctp-i2c-mux",
+        "endpoints": [
+        {
+          "eid_type": "bridge",
+          "eid": 30,
+          "eid_pool_start": 32,
+          "i2c_slave_address": 48,
+          "description": "Sample configuration for FPGA bridge endpoints."
+        }
+        ]
+      },
+      {
+        "bus_number": "i2c1",
+        "socket_name": "mctp-i2c1-mux",
+        "endpoints": [
+        {
+          "eid_type": "static",
+          "eid": 13,
+          "i2c_slave_address": 55,
+          "uuid": null,
+          "description": "Sample configuration of static EID assignment."
+        },
+        {
+          "eid_type": "pool",
+          "eid": [ 45, 46, 47, 48, 49],
+          "description": "Definition of a pool of eids assigned for automatic discovery on i2c bus 1"
+        }
+        ]
+      },
+      {
+        "bus_number": "i2c3"
+      }
+    ]
+  }
+}

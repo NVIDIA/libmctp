@@ -927,16 +927,14 @@ static void parse_command_line(int argc, char *const *argv,
 			else {
 				mctp_sock_path = malloc((size_t)20);
 				rc = mctp_json_i2c_get_params_mctp_ctrl(parsed_json,
-				&bus_num_interface, mctp_sock_path, &cmdline->i2c.own_eid);
+				&bus_num_interface, mctp_sock_path, &cmdline->i2c.own_eid,
+				&cmdline->i2c.bridge_eid, &cmdline->i2c.bridge_pool_start);
 
 				if (rc == EXIT_FAILURE) {
 					MCTP_CTRL_ERR("Unable to get params\n");
 					exit(EXIT_FAILURE);
 				}
 			}
-
-			cmdline->i2c.bridge_eid = bridge_eid;
-			cmdline->i2c.bridge_pool_start = bridge_pool;
 
 			// Debug info on tests
 			printf("\n\nconfig_json_file_path\n%s\n", config_json_file_path);

@@ -454,21 +454,6 @@ static void binding_astspi_usage(void)
 	fprintf(stderr, "Example: astpspi gpio=11 disablecs=1\n");
 }
 
-static int binding_astspi_parse_num(const char *param)
-{
-	intmax_t num;
-	char *endptr = NULL;
-
-	num = strtoimax(param, &endptr, 10);
-
-	if (*endptr != '\0' && *endptr != ' ') {
-		fprintf(stderr, "Invalid number: %s\n", param);
-		exit(1);
-	}
-
-	return (int)num;
-}
-
 static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
 			       mctp_eid_t eid, int n_params,
 			       char *const *params)
@@ -506,7 +491,7 @@ static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
 				int val = 0;
 				char *arg = strstr(params[ii], "=") + 1;
 
-				val = binding_astspi_parse_num(arg);
+				val = parse_num(arg);
 				*(int *)options[jj].target = val;
 				parsed = true;
 			}

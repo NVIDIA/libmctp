@@ -25,6 +25,13 @@ int parse_num(const char *param)
 	return (int)num;
 }
 
+/**
+ * @brief Open JSON file and parse string to json_object
+ *
+ * @param[in] path - path to configuration JSON file,
+ *
+ * @return int return success or failure.
+ */
 int mctp_json_get_tokener_parse(const char *path)
 {
 	FILE *fp;
@@ -53,6 +60,19 @@ int mctp_json_get_tokener_parse(const char *path)
 	return EXIT_SUCCESS;
 }
 
+/**
+ * @brief Get paramiters from json_object for mctp-demux-daemon
+ *        using I2C.
+ *
+ * @param[in]  jo - json_object got after parse string from JSON file
+ * @param[in]  bus_num - I2C bus number
+ * @param[out] sockname - Socket name
+ * @param[out] dest_slave_addr - Destination slave address (e.g. FPGA)
+ * @param[out] src_slave_addr - Source slave address (e.g. HMC)
+ * @param[out] src_eid - EID of top-Most bus owner
+ *
+ * @returns int return success or failure.
+ */
 int mctp_json_i2c_get_params_mctp_demux(json_object *jo, uint8_t *bus_num, char *sockname,
 				uint8_t *dest_slave_addr, uint8_t *src_slave_addr,
 				uint8_t *src_eid)
@@ -66,10 +86,11 @@ int mctp_json_i2c_get_params_mctp_demux(json_object *jo, uint8_t *bus_num, char 
 	size_t i, j;
 
 	jo_i2c_struct = json_object_object_get(jo, "i2c");
+	/* Get source slave address */
 	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "i2c_src_address");
 	string_val = json_object_get_string(jo_i2c_obj_main);
 	*src_slave_addr = parse_num(string_val);
-
+	/* Get own EID */
 	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "src_eid");
 	string_val = json_object_get_string(jo_i2c_obj_main);
 	*src_eid = (uint8_t)parse_num(string_val);
@@ -101,6 +122,7 @@ int mctp_json_i2c_get_params_mctp_demux(json_object *jo, uint8_t *bus_num, char 
 
 				if (strcmp(string_val, "bridge") == 0) {
 					printf("bridge\n");
+					/* Get destination slave address */
 					jo_i2c_obj_j = json_object_object_get(jo_i2c_struct, "i2c_slave_address");
 					string_val = json_object_get_string(jo_i2c_obj_j);
 					*dest_slave_addr = (uint8_t)parse_num(string_val);
@@ -118,12 +140,21 @@ int mctp_json_i2c_get_params_mctp_demux(json_object *jo, uint8_t *bus_num, char 
 	return EXIT_SUCCESS;
 }
 
-/* Are we need params in file for bridge?:
-	bridge_eid - EID30 for FPGA, [uint8_t *dest_eid]
-	bridge_pool_start - EID32(this is start endpoint to discovery) [uint8_t *pool_start_eid]
-*/
+/**
+ * @brief Get paramiters from json_object for mctp-ctrl
+ *        using I2C.
+ *
+ * @param[in] jo - json_object got after parse string from JSON file
+ * @param[in] bus_num - I2C bus number
+ * @param[out] sockname - Socket name
+ * @param[out] src_eid - EID of top-Most bus owner
+ * @param[out] dest_eid - EID of endpoint
+ * @param[out] pool_start - Bridge pool start
+ *
+ * @returns int return success or failure.
+ */
 int mctp_json_i2c_get_params_mctp_ctrl(json_object *jo, uint8_t *bus_num,
-				char *sockname, uint8_t *src_eid)
+				char *sockname, uint8_t *src_eid, uint8_t *dest_eid, uint8_t *pool_start)
 {
 	json_object *jo_i2c_struct;
 	json_object *jo_i2c_obj_main;
@@ -134,6 +165,7 @@ int mctp_json_i2c_get_params_mctp_ctrl(json_object *jo, uint8_t *bus_num,
 	size_t i, j;
 
 	jo_i2c_struct = json_object_object_get(jo, "i2c");
+	/* Get own EID */
 	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "src_eid");
 	string_val = json_object_get_string(jo_i2c_obj_main);
 	*src_eid = parse_num(string_val);
@@ -158,14 +190,21 @@ int mctp_json_i2c_get_params_mctp_ctrl(json_object *jo, uint8_t *bus_num,
 			jo_i2c_obj_i = json_object_object_get(jo_i2c_struct, "endpoints");
 			size_t val_endpoints = json_object_array_length(jo_i2c_obj_i);
 
-			for(j = 0; j < val_endpoints; j++) {	//iteracja po tab endpoints, potem po elem tab.
+			for(j = 0; j < val_endpoints; j++) {
 				jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_i, j);
 				jo_i2c_obj_j = json_object_object_get(jo_i2c_struct, "eid_type");
 				string_val = json_object_get_string(jo_i2c_obj_j);
 
 				if (strcmp(string_val, "bridge") == 0) {
 					printf("bridge");
-					//If will be needed read: dest_eid - bridge_eid
+					/* Get bridge EID */
+					jo_i2c_obj_j = json_object_object_get(jo_i2c_struct, "eid");
+					string_val = json_object_get_string(jo_i2c_obj_j);
+					*dest_eid = (uint8_t)parse_num(string_val);
+					/* Get bridge pool start */
+					jo_i2c_obj_j = json_object_object_get(jo_i2c_struct, "eid_pool_start");
+					string_val = json_object_get_string(jo_i2c_obj_j);
+					*pool_start = (uint8_t)parse_num(string_val);
 				}
 				else if (strcmp(string_val, "static") == 0) {
 					printf("static");
