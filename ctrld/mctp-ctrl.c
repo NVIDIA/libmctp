@@ -42,6 +42,7 @@
 #include "mctp-discovery.h"
 #include "mctp-discovery-i2c.h"
 #include "mctp-socket.h"
+#include "mctp-json.h"
 
 /* MCTP Tx/Rx waittime in milli-seconds */
 #define MCTP_CTRL_WAIT_SECONDS (1 * 1000)
@@ -72,6 +73,7 @@ static sd_bus *g_sdbus = NULL;
 static const char *config_json_file_path = NULL;
 bool use_config_json_file_mc = false;
 extern json_object *parsed_json;
+static uint8_t chosen_eid_type = 0;
 
 extern void mctp_routing_entry_delete_all(void);
 extern void mctp_uuid_delete_all(void);
@@ -747,24 +749,48 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		pthread_cond_wait(&mctp_ctrl->worker_cv, &mctp_ctrl->worker_mtx);
 	}
 	else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
-		/* Make sure all SMBus EID options are available from commandline */
-		rc = mctp_i2c_eids_sanity_check(cmdline->i2c.own_eid,
-						cmdline->i2c.bridge_eid,
-						cmdline->i2c.bridge_pool_start);
-		if (rc < 0) {
-			close(g_socket_fd);
-			close(g_signal_fd);
-			sd_bus_unref(mctp_ctrl->bus);
-			MCTP_CTRL_ERR("MCTP-Ctrl sanity check unsuccessful\n");
-			return EXIT_FAILURE;
+		switch (chosen_eid_type)
+		{
+		case EID_TYPE_BRIDGE:
+			/* Make sure all SMBus EID options are available from commandline */
+			rc = mctp_i2c_eids_sanity_check(cmdline->i2c.own_eid,
+							cmdline->i2c.bridge_eid,
+							cmdline->i2c.bridge_pool_start);
+			if (rc < 0) {
+				close(g_socket_fd);
+				close(g_signal_fd);
+				sd_bus_unref(mctp_ctrl->bus);
+				MCTP_CTRL_ERR("MCTP-Ctrl sanity check unsuccessful\n");
+				return EXIT_FAILURE;
+			}
+
+			/* Discover endpoints connected to FPGA via SMBus*/
+			MCTP_CTRL_INFO("%s: Start MCTP-over-SMBus Discovery via Bridge\n", __func__);
+			mctp_err_ret = mctp_i2c_discover_endpoints(cmdline, mctp_ctrl);
+			if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
+				MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
+			}
+
+			break;
+		case EID_TYPE_STATIC:
+			/* Discover static endpoint via SMBus*/
+			// MCTP_CTRL_INFO("%s: Start MCTP-over-SMBus Discovery as static endpoint\n", __func__);
+			// mctp_err_ret = mctp_i2c_discover_static_endpoint(cmdline, mctp_ctrl);
+			// if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
+			// 	MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
+			// }
+
+			break;
+		case EID_TYPE_POOL:
+			mctp_prinfo("Use pool endpoints");
+
+			break;
+
+		default:
+			break;
 		}
 
-		/* Discover endpoints via SMBus*/
-		MCTP_CTRL_INFO("%s: Start MCTP-over-SMBus Discovery\n", __func__);
-		mctp_err_ret = mctp_i2c_discover_endpoints(cmdline, mctp_ctrl);
-		if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
-			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
-		}
+
 	}
 
 	return EXIT_SUCCESS;
@@ -783,7 +809,6 @@ static void parse_command_line(int argc, char *const *argv,
 	memset(&cmdline->rx_data, 0, MCTP_READ_DATA_BUFF_SIZE);
 	uint8_t own_eid, bridge_eid, bridge_pool;
 	int vdm_ops = 0, command_mode = 0;
-	uint8_t bus_num_interface = 0;
 
 	/* Get the binding type parameter first,
 	then assign the parameters accordingly for chosen PCIe, SPI or SMBus */
@@ -846,7 +871,7 @@ static void parse_command_line(int argc, char *const *argv,
 			}
 			break;
 		case 'n':
-			bus_num_interface = (uint8_t)atoi(optarg);
+			cmdline->i2c.bus_num = (uint8_t)atoi(optarg);
 			break;
 		case 'j':
 			if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
@@ -925,21 +950,42 @@ static void parse_command_line(int argc, char *const *argv,
 				exit(EXIT_FAILURE);
 			}
 			else {
-				mctp_sock_path = malloc((size_t)20);
-				rc = mctp_json_i2c_get_params_mctp_ctrl(parsed_json,
-				&bus_num_interface, mctp_sock_path, &cmdline->i2c.own_eid,
-				&cmdline->i2c.bridge_eid, &cmdline->i2c.bridge_pool_start);
+				// Get common parameters
+				mctp_json_i2c_get_common_params_mctp_ctrl(parsed_json,
+					&cmdline->i2c.bus_num, mctp_sock_path, &cmdline->i2c.own_eid,
+					&cmdline->i2c.dest_slave_addr, &cmdline->i2c.src_slave_addr);
 
-				if (rc == EXIT_FAILURE) {
-					MCTP_CTRL_ERR("Unable to get params\n");
-					exit(EXIT_FAILURE);
+				// Get info about eid_type
+				chosen_eid_type = mctp_json_get_eid_type(parsed_json, "smbus", &cmdline->i2c.bus_num);
+
+				switch (chosen_eid_type)
+				{
+				case EID_TYPE_BRIDGE:
+					mctp_prinfo("Use bridge endpoint");
+					mctp_json_i2c_get_params_for_bridge_mctp_ctrl(parsed_json,
+					&cmdline->i2c.bus_num, &cmdline->i2c.bridge_eid, &cmdline->i2c.bridge_pool_start);
+
+					break;
+				case EID_TYPE_STATIC:
+					mctp_prinfo("Use static endpoint");
+					mctp_json_i2c_get_params_for_static_mctp_ctrl(parsed_json,
+					&cmdline->i2c.bus_num, &cmdline->dest_eid, &cmdline->uuid);
+
+					break;
+				case EID_TYPE_POOL:
+					mctp_prinfo("Use pool endpoints");
+
+					break;
+
+				default:
+					break;
 				}
 			}
 
 			// Debug info on tests
 			printf("\n\nconfig_json_file_path\n%s\n", config_json_file_path);
-			printf("bus_num_interface = %d, socket name = %s\n",
-				bus_num_interface, mctp_sock_path);
+			printf("bus_num = %d, socket name = %s\n",
+				cmdline->i2c.bus_num, (mctp_sock_path + 1));
 			printf("src_eid = %d, bridge_eid = %d, bridge_pool_start = %d\n\n",
 				cmdline->i2c.own_eid, cmdline->i2c.bridge_eid,
 				cmdline->i2c.bridge_pool_start);

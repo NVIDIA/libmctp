@@ -43,10 +43,12 @@ struct mctp_cmdline_spi {
 
 /* I2C specific configuration */
 struct mctp_cmdline_i2c {
-	uint8_t slave_addr;
 	uint8_t own_eid;
 	uint8_t bridge_eid;
 	uint8_t bridge_pool_start;
+	uint8_t bus_num;
+	uint8_t dest_slave_addr;
+	uint8_t src_slave_addr;
 };
 
 /* Command line structure */
@@ -69,6 +71,7 @@ typedef struct mctp_cmdline_args_ {
 	int list_device_op;
 	mctp_cmdline_ops_t ops;
 	mctp_eid_t dest_eid;
+	uint8_t uuid;
 	union {
 		struct mctp_cmdline_pcie pcie;
 		struct mctp_cmdline_spi spi;
