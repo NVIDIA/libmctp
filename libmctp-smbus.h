@@ -23,7 +23,7 @@ struct mctp_smbus_pkt_private {
 	uint8_t _reserved[32];
 } __attribute__((packed));
 
-struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t dest_addr, uint8_t src_addr);
+struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t dest_addr, uint8_t src_addr, uint8_t eid_type);
 
 int mctp_smbus_open_in_bus(struct mctp_binding_smbus *smbus, int in_bus, int src_slv_addr);
 int mctp_smbus_open_out_bus(struct mctp_binding_smbus *smbus, int out_bus);

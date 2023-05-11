@@ -545,6 +545,17 @@ static void binding_smbus_usage(void)
 					"     or: smbus i2c_bus=2 i2c_dest_addr=48 i2c_src_addr=24\n");
 }
 
+static void binding_smbus_use_default_config(void)
+{
+	i2c_bus_num = MCTP_I2C_BUS_NUM_DEFAULT;
+	i2c_dest_slave_addr = MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT;
+	i2c_src_slave_addr = MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT;
+
+	mctp_prinfo("Used default configuration. Discovery endpoint via FPGA (dec. val.):");
+	mctp_prinfo("i2c bus num = %d, i2c dest addr = %d, i2c src addr = %d",
+	        i2c_bus_num, i2c_dest_slave_addr, i2c_src_slave_addr);
+}
+
 static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 			      mctp_eid_t eid, int n_params,
 			      char *const *params __attribute__((unused)))
@@ -562,6 +573,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 	};
 
 	bool use_config_json_file = false;
+	uint8_t chosen_eid_type;
 
 	if(n_params != 0) {
 		for (int ii = 0; ii < n_params; ii++) {
@@ -601,9 +613,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 		}
 	}
 	else {
-		mctp_prinfo("Used default configuration. Discovery endpoint via FPGA (dec. val.):");
-		mctp_prinfo("i2c bus num = %d, i2c dest addr = %d, i2c src addr = %d",
-					i2c_bus_num, i2c_dest_slave_addr, i2c_src_slave_addr);
+		binding_smbus_use_default_config();
 	}
 
 	/* Check if is config file */
@@ -613,32 +623,55 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 		rc = mctp_json_get_tokener_parse(config_json_file_path);
 
 		if (rc == EXIT_FAILURE) {
-			i2c_bus_num = MCTP_I2C_BUS_NUM_DEFAULT;
-			i2c_dest_slave_addr = MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT;
-			i2c_src_slave_addr = MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT;
+			binding_smbus_use_default_config();
 		}
 		else {
-			binding->sockname = malloc((size_t)20);
-			rc = mctp_json_i2c_get_params_mctp_demux(parsed_json, &i2c_bus_num, binding->sockname,
-			&i2c_dest_slave_addr, &i2c_src_slave_addr, &eid);
+			// Get info about eid_type
+			chosen_eid_type = mctp_json_get_eid_type(parsed_json, binding->name, &i2c_bus_num);
 
-			if (rc == EXIT_FAILURE) {
-				i2c_bus_num = MCTP_I2C_BUS_NUM_DEFAULT;
-				i2c_dest_slave_addr = MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT;
-				i2c_src_slave_addr = MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT;
+			switch (chosen_eid_type)
+			{
+			case EID_TYPE_BRIDGE:
+				mctp_prinfo("Use bridge endpoint");
+				rc = mctp_json_i2c_get_params_for_bridge_static_mctp_demux(parsed_json,
+					&i2c_bus_num, &binding->sockname,
+					&i2c_dest_slave_addr, &i2c_src_slave_addr, &eid);
+
+				if (rc == EXIT_FAILURE)
+					binding_smbus_use_default_config();
+
+				break;
+			case EID_TYPE_STATIC:
+				mctp_prinfo("Use static endpoint");
+				rc = mctp_json_i2c_get_params_for_bridge_static_mctp_demux(parsed_json,
+					&i2c_bus_num, &binding->sockname,
+					&i2c_dest_slave_addr, &i2c_src_slave_addr, &eid);
+
+				if (rc == EXIT_FAILURE)
+					binding_smbus_use_default_config();
+
+				break;
+			case EID_TYPE_POOL:
+				mctp_prinfo("Use pool endpoints");
+
+				break;
+
+			default:
+				break;
 			}
+
 		}
 		free(config_json_file_path);
 	}
 
 // Debug info on tests
-	printf("\n\ni2c bus num = %d, i2c dest addr = %d, i2c src addr = %d\n",
+	printf("\n\ni2c bus num = %d, i2c dest addr = 0x%x, i2c src addr = 0x%x\n",
 			i2c_bus_num, i2c_dest_slave_addr, i2c_src_slave_addr);
 	printf("socket name = %s, src_eid = %d\n\n",
-			binding->sockname, eid);
+			(binding->sockname + 1), eid);
 // end
 
-	smbus = mctp_smbus_init(i2c_bus_num, i2c_dest_slave_addr, i2c_src_slave_addr);
+	smbus = mctp_smbus_init(i2c_bus_num, i2c_dest_slave_addr, i2c_src_slave_addr, chosen_eid_type);
 	MCTP_ASSERT_RET(smbus != NULL, -1,
 			"could not initialise smbus binding");
 
@@ -738,7 +771,7 @@ static int socket_init(struct ctx *ctx)
 	int namelen, rc;
 
 	memset(&addr, 0, sizeof(addr));
-
+printf("\nsockname = %s\n\n", ctx->binding->sockname);
 	if (ctx->binding->sockname[0] == '\0') {
 		namelen = 1 + strlen(ctx->binding->sockname + 1);
 	} else {

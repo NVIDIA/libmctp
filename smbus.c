@@ -19,6 +19,7 @@
 #include "libmctp-log.h"
 #include "libmctp-smbus.h"
 #include "libmctp.h"
+#include "mctp-json.h"
 
 struct mctp_binding_smbus {
 	struct mctp_binding binding;
@@ -64,6 +65,7 @@ struct mctp_binding_smbus {
 uint8_t g_mctp_smbus_bus_num = MCTP_SMBUS_BUS_NUM;
 uint8_t g_mctp_smbus_dest_slave_address = MCTP_SMBUS_DESTINATION_SLAVE_ADDRESS;
 uint8_t g_mctp_smbus_src_slave_address = MCTP_SMBUS_SOURCE_SLAVE_ADDRESS;
+uint8_t g_mctp_smbus_eid_type = EID_TYPE_BRIDGE;
 
 struct mctp_smbus_header_tx {
 	uint8_t command_code;
@@ -292,10 +294,9 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 	struct mctp_smbus_header_rx *hdr;
 	int ret = 0;
 
-	ret = lseek(smbus->in_fd, 0, SEEK_SET);
-	if (ret < 0) {
-		mctp_prerr("Failed to seek");
-		return -1;
+	if (ioctl(smbus->in_fd, I2C_SLAVE, 0) < 0) {
+		mctp_prerr("Invalid ioctl ret val: %d (%s)\n", errno, strerror(errno));
+		return 0;
 	}
 
 	len = read(smbus->in_fd, smbus->rxbuf, sizeof(smbus->rxbuf));
@@ -419,12 +420,19 @@ static int mctp_smbus_start(struct mctp_binding *b)
 	/* Set out fd */
 	mctp_smbus_set_out_fd(smbus, outfd);
 
-	/* Open I2C in node */
-	mctp_prdebug("%s: Setting up I2C input fd: %d %d", __func__,
-		     smbus->bus_num, smbus->dest_slave_addr);
-	infd = mctp_smbus_open_in_bus(smbus, smbus->bus_num,
-				      smbus->src_slave_addr);
-	MCTP_ASSERT_RET(infd >= 0, -1, "Failed to open I2C Rx node: %d", infd);
+	if (g_mctp_smbus_eid_type == EID_TYPE_BRIDGE) {
+		/* Open I2C in node */
+		mctp_prdebug("%s: Setting up I2C input fd: %d %d", __func__,
+				smbus->bus_num, smbus->dest_slave_addr);
+		infd = mctp_smbus_open_in_bus(smbus, smbus->bus_num,
+						smbus->src_slave_addr);
+		MCTP_ASSERT_RET(infd >= 0, -1, "Failed to open I2C Rx node: %d", infd);
+	}
+	else if (g_mctp_smbus_eid_type == EID_TYPE_STATIC) {
+		/* Open I2C in node */
+		mctp_prdebug("%s: Setting up I2C input fd", __func__);
+		infd = dup(outfd);
+	}
 
 	/* Set in fd */
 	mctp_smbus_set_in_fd(smbus, infd);
@@ -435,7 +443,7 @@ static int mctp_smbus_start(struct mctp_binding *b)
 	return 0;
 }
 
-struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t dest_addr, uint8_t src_addr)
+struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t dest_addr, uint8_t src_addr, uint8_t eid_type)
 {
 	struct mctp_binding_smbus *smbus;
 
@@ -443,6 +451,7 @@ struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t dest_addr, uint8
 	g_mctp_smbus_bus_num = bus;
 	g_mctp_smbus_dest_slave_address = dest_addr;
 	g_mctp_smbus_src_slave_address = src_addr;
+	g_mctp_smbus_eid_type = eid_type;
 
 	smbus = __mctp_alloc(sizeof(*smbus));
 	memset(&(smbus->binding), 0, sizeof(smbus->binding));
