@@ -8,13 +8,13 @@
         "bus_number": "i2c2",
         "socket_name": "mctp-i2c-mux",
         "endpoints": [
-        {
-          "eid_type": "bridge",
-          "eid": 30,
-          "eid_pool_start": 32,
-          "i2c_slave_address": 48,
-          "description": "Sample configuration for FPGA bridge endpoints."
-        }
+          {
+            "eid_type": "bridge",
+            "eid": 30,
+            "eid_pool_start": 32,
+            "i2c_slave_address": 48,
+            "description": "Sample configuration for FPGA bridge endpoints."
+          }
         ]
       },
       {
@@ -36,7 +36,17 @@
         ]
       },
       {
-        "bus_number": "i2c3"
+        "bus_number": "i2c16",
+        "socket_name": "mctp-i2c2-mux",
+        "endpoints": [
+          {
+            "eid_type": "static",
+            "eid": 100,
+            "i2c_slave_address": 50,
+            "uuid": null,
+            "description": "Static configurtion for CX7."
+          }
+        ]
       }
     ]
   }
