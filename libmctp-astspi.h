@@ -24,25 +24,15 @@ extern "C" {
 #define MCTP_READ_DATA_BUFF_SIZE  1024
 #define MCTP_PVT_BIND_BUFF_SIZE	  64
 
+#define MCTP_NULL_ENDPOINT 0
+
 /* SPI device and channel details */
 #define AST_MCTP_SPI_DEV_NUM	 0
 #define AST_MCTP_SPI_CHANNEL_NUM 2
 
 #define ASTP_SPI_RAW_RW_BUFF_LEN 64
 
-/* This is default GPIO pin GPIOV2 on HMC */
-#define SPB_GPIO_INTR_NUM 986 
-
-/* Command line options for various operations */
-typedef enum mctp_cmdline_ops {
-	MCTP_CMDLINE_OP_READ_DATA,
-	MCTP_CMDLINE_OP_WRITE_DATA,
-	MCTP_CMDLINE_OP_BIND_READ_DATA,
-	MCTP_CMDLINE_OP_BIND_WRITE_DATA,
-	MCTP_CMDLINE_OP_LIST_SUPPORTED_DEV,
-	MCTP_CMDLINE_OP_NONE,
-} mctp_cmdline_ops_t;
-
+#define SPB_GPIO_INTR_NUM 986
 typedef enum {
 	CMD_SREG_W8 = 0x9,
 	CMD_SREG_W16,
@@ -98,65 +88,11 @@ typedef enum {
 	EC_MSG_AVAILABLE = 0x10000000,
 } spb_spi_mailbox_cmds_t;
 
-/* Various SPI read/write operations (NVIDIA IANA VDM commands) */
-typedef enum mctp_spi_iana_vdm_ops {
-	MCTP_SPI_SET_ENDPOINT_UUID = 1,
-	MCTP_SPI_BOOT_COMPLETE,
-	MCTP_SPI_HEARTBEAT_SEND,
-	MCTP_SPI_HEARTBEAT_ENABLE,
-	MCTP_SPI_QUERY_BOOT_STATUS,
-} mctp_spi_iana_vdm_ops_t;
-
-/* Various SPI read/write operations (NVIDIA VDM commands) */
-typedef enum mctp_spi_vdm_ops {
-	MCTP_SPI_SET_ENDPOINT_ID = 1,
-	MCTP_SPI_GET_ENDPOINT_ID,
-	MCTP_SPI_GET_ENDPOINT_UUID,
-	MCTP_SPI_GET_VERSION,
-	MCTP_SPI_GET_MESSAGE_TYPE,
-} mctp_spi_vdm_ops_t;
-
-/**/
-typedef enum mctp_spi_hrtb_ops {
-	MCTP_SPI_HB_DISABLE_CMD = 0,
-	MCTP_SPI_HB_ENABLE_CMD,
-} mctp_spi_hrtb_ops_t;
-
-/* Various commandline modes */
-typedef enum mctp_spi_mode_ops {
-	MCTP_SPI_MODE_CMDLINE,
-	MCTP_SPI_MODE_DAEMON,
-	MCTP_SPI_MODE_TEST,
-} mctp_spi_mode_ops_t;
-
 /* SPI test command return types */
 typedef enum mctp_spi_ret_type {
 	MCTP_SPI_FAILURE,
 	MCTP_SPI_SUCCESS,
 } mctp_spi_ret_type_t;
-
-/* SPI operations */
-typedef enum mctp_spi_cmd_mode {
-	MCTP_SPI_NONE = 0,
-	MCTP_SPI_RAW_READ,
-	MCTP_SPI_RAW_WRITE,
-	MCTP_SPI_MAILBOX_WRITE,
-	MCTP_SPI_MAILBOX_READ_READY,
-	MCTP_SPI_MAILBOX_READ_DONE,
-	MCTP_SPI_MAILBOX_SPB_RESET,
-	MCTP_SPI_MAILBOX_WRITE_LEN,
-	MCTP_SPI_POST_READ,
-	MCTP_SPI_POST_WRITE,
-	MCTP_SPI_GPIO_READ,
-} mctp_spi_cmd_mode_t;
-
-/* SPI-xfer params */
-typedef struct {
-	int send_len;
-	int recv_len;
-	uint8_t sbuf[ASTP_SPI_RAW_RW_BUFF_LEN];
-	uint8_t rbuf[ASTP_SPI_RAW_RW_BUFF_LEN];
-} mctp_spi_raw_rw_t;
 
 #define SPI_HEADER_SIZE 4
 

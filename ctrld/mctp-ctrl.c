@@ -96,18 +96,18 @@ static void mctp_ctrl_clean_up(void)
 mctp_requester_rc_t
 mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_fd,
 			      const uint8_t *mctp_req_msg, size_t req_msg_len,
-			      mctp_binding_ids_t *bind_id,
 			      void *mctp_binding_info, size_t mctp_binding_len)
 {
 	uint8_t hdr[2] = { dest_eid, MCTP_MSG_TYPE_HDR };
 	struct iovec iov[4];
+	mctp_binding_ids_t bind_id = MCTP_BINDING_PCIE;
 
 	MCTP_ASSERT_RET(mctp_req_msg[0] == MCTP_MSG_TYPE_HDR,
 			MCTP_REQUESTER_SEND_FAIL, " unsupported Msg type: %d\n",
 			mctp_req_msg[0]);
 
 	/* Binding ID and information */
-	iov[0].iov_base = (uint8_t *)bind_id;
+	iov[0].iov_base = (uint8_t *)&bind_id;
 	iov[0].iov_len = sizeof(uint8_t);
 	iov[1].iov_base = (uint8_t *)mctp_binding_info;
 	iov[1].iov_len = mctp_binding_len;
@@ -122,7 +122,7 @@ mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_fd,
 	msg.msg_iov = iov;
 	msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
 
-	mctp_ctrl_print_buffer("mctp_bind_id  >> ", (uint8_t *)bind_id,
+	mctp_ctrl_print_buffer("mctp_bind_id  >> ", (uint8_t *)&bind_id,
 			       sizeof(uint8_t));
 	mctp_ctrl_print_buffer("mctp_pvt_data >> ", mctp_binding_info,
 			       mctp_binding_len);
@@ -228,8 +228,7 @@ int mctp_cmdline_exec(mctp_cmdline_args_t *cmd, int sock_fd)
 
 		mctp_ret = mctp_client_with_binding_send(
 			cmd->dest_eid, sock_fd, (const uint8_t *)cmd->tx_data,
-			cmd->tx_len, &cmd->binding_type, (void *)&pvt_binding,
-			sizeof(pvt_binding));
+			cmd->tx_len, (void *)&pvt_binding, sizeof(pvt_binding));
 
 		if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 			MCTP_CTRL_ERR("%s: Failed to send message..\n",
@@ -287,7 +286,7 @@ int mctp_cmdline_exec(mctp_cmdline_args_t *cmd, int sock_fd)
 	return MCTP_CMD_SUCCESS;
 }
 
-uint16_t mctp_ctrl_get_target_bdf(mctp_cmdline_args_t *cmd)
+uint16_t mctp_ctrl_get_target(mctp_cmdline_args_t *cmd)
 {
 	struct mctp_astpcie_pkt_private pvt_binding;
 

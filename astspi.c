@@ -293,7 +293,6 @@ static int mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	struct mctp_spi_header *spi_hdr_tx = (void *)spi->txbuf;
 	struct mctp_astspi_pkt_private *pkt_pvt =
 		(struct mctp_astspi_pkt_private *)pkt->msg_binding_private;
-	struct mctp_hdr *mctp_hdr = (void *)(&pkt->data[pkt->start]);
 	const size_t pkt_length = mctp_pktbuf_size(pkt);
 	size_t tx_buf_len = sizeof(*spi_hdr_tx);
 	int ret;
@@ -345,7 +344,7 @@ static void mctp_spi_hexdump(const char *prefix, int len, void *buf)
 	int ii = 0;
 
 	printf("%s> ", prefix);
-	printf("SPI HDR (%ld bytes): ", sizeof(struct mctp_spi_header));
+	printf("SPI HDR (%u bytes): ", sizeof(struct mctp_spi_header));
 	for (ii = 0; ii < sizeof(struct mctp_spi_header); ii++) {
 		printf("%02x ", data[ii]);
 	}

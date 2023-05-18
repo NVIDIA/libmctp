@@ -33,7 +33,7 @@
 #include "libmctp.h"
 #include "libmctp-serial.h"
 #include "libmctp-astlpc.h"
-#include "libmctp-astpcie.h"
+#include "libmctp-astspi.h"
 #include "libmctp-cmds.h"
 #include "libmctp-log.h"
 
@@ -69,7 +69,7 @@ static sd_bus *g_sdbus = NULL;
 static pthread_t g_keepalive_thread;
 
 extern void *mctp_spi_keepalive_event(void *arg);
-extern mctp_ret_codes_t mctp_spi_static_endpoint(void);
+extern mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl);
 
 const char mctp_spi_help_str[] =
 	"Various command line options mentioned below\n"
@@ -134,21 +134,28 @@ static void mctp_ctrl_clean_up(void)
 mctp_requester_rc_t
 mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_fd,
 			      const uint8_t *mctp_req_msg, size_t req_msg_len,
-			      mctp_binding_ids_t *bind_id,
 			      void *mctp_binding_info, size_t mctp_binding_len)
 {
 	uint8_t hdr[2] = { dest_eid, MCTP_MSG_TYPE_HDR };
 	struct iovec iov[4];
+	mctp_binding_ids_t bind_id;
+	struct mctp_astspi_pkt_private binding_info;
 
 	MCTP_ASSERT_RET(mctp_req_msg[0] == MCTP_MSG_TYPE_HDR,
 			MCTP_REQUESTER_SEND_FAIL, " unsupported Msg type: %d\n",
 			mctp_req_msg[0]);
 
-	/* Binding ID and information */
-	iov[0].iov_base = (uint8_t *)bind_id;
+	memset(&binding_info, 0, sizeof(binding_info));
+
+	/* We don't need binding information for SPI.
+	 * Ignore the binding info from the caller in mctp discovery.
+	 * We also reserve SPI binding info.
+	 * */
+	bind_id = MCTP_BINDING_SPI;
+	iov[0].iov_base = (uint8_t *)&bind_id;
 	iov[0].iov_len = sizeof(uint8_t);
-	iov[1].iov_base = (uint8_t *)mctp_binding_info;
-	iov[1].iov_len = mctp_binding_len;
+	iov[1].iov_base = (uint8_t *)&binding_info;
+	iov[1].iov_len = sizeof(binding_info);
 
 	/* MCTP header and payload */
 	iov[2].iov_base = hdr;
@@ -160,10 +167,10 @@ mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_fd,
 	msg.msg_iov = iov;
 	msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
 
-	mctp_ctrl_print_buffer("mctp_bind_id  >> ", (uint8_t *)bind_id,
+	mctp_ctrl_print_buffer("mctp_bind_id  >> ", (uint8_t *)&bind_id,
 			       sizeof(uint8_t));
-	mctp_ctrl_print_buffer("mctp_pvt_data >> ", mctp_binding_info,
-			       mctp_binding_len);
+	mctp_ctrl_print_buffer("mctp_pvt_data >> ", (uint8_t *)&binding_info,
+			       sizeof(binding_info));
 	mctp_ctrl_print_buffer("mctp_req_hdr  >> ", hdr, sizeof(hdr));
 	mctp_ctrl_print_buffer("mctp_req_msg  >> ", mctp_req_msg, req_msg_len);
 
@@ -245,8 +252,7 @@ int mctp_spi_cmdline_exec(mctp_spi_cmdline_args_t *cmd, int sock_fd)
 
 		mctp_ret = mctp_client_with_binding_send(
 			cmd->dest_eid, sock_fd, (const uint8_t *)cmd->tx_data,
-			cmd->tx_len, &cmd->binding_type, (void *)&pvt_binding,
-			sizeof(pvt_binding));
+			cmd->tx_len, (void *)&pvt_binding, sizeof(pvt_binding));
 
 		MCTP_ASSERT_RET(mctp_ret != MCTP_REQUESTER_SEND_FAIL,
 				MCTP_CMD_FAILED, "Failed to send message..\n");
@@ -271,7 +277,7 @@ int mctp_spi_cmdline_exec(mctp_spi_cmdline_args_t *cmd, int sock_fd)
 	return MCTP_CMD_SUCCESS;
 }
 
-uint16_t mctp_ctrl_get_target_bdf(mctp_cmdline_args_t *cmd)
+uint16_t mctp_ctrl_get_target(mctp_cmdline_args_t *cmd)
 {
 	/* no implementation for SPI interafce */
 	return 0;
@@ -466,7 +472,46 @@ int main(int argc, char *const *argv)
 		return EXIT_FAILURE;
 	}
 
-	/* Open the user socket file-descriptor */
+	/* Check for test mode */
+	if (cmdline.mode == MCTP_SPI_MODE_TEST) {
+		/* Open the user socket file-descriptor */
+		rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_MESSAGE_TYPE_VDIANA,
+					MCTP_CTRL_TXRX_TIMEOUT_5SECS);
+		if (rc != MCTP_REQUESTER_SUCCESS) {
+			MCTP_CTRL_ERR("Failed to open mctp sock\n");
+			close(g_socket_fd);
+			close(g_signal_fd);
+			return EXIT_FAILURE;
+		}
+
+		/* Update the MCTP socket descriptor */
+		mctp_ctrl->sock = fd;
+		/* Update global socket pointer */
+		g_socket_fd = mctp_ctrl->sock;
+
+		mctp_spi_test_cmd(mctp_ctrl, &cmdline);
+		close(g_socket_fd);
+		close(g_signal_fd);
+
+		return EXIT_SUCCESS;
+	}
+
+	/* Open the user socket file-descriptor for CTRL MSG type */
+	rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_CTRL_MSG_TYPE,
+				  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
+
+	MCTP_ASSERT_RET(MCTP_REQUESTER_SUCCESS == rc, EXIT_FAILURE,
+			"Failed to open mctp socket\n");
+
+	mctp_ctrl->sock = fd;
+
+	mctp_set_log_stdio(cmdline.verbose ? MCTP_LOG_DEBUG : MCTP_LOG_WARNING);
+
+	/* Create static endpoint 0 for spi ctrl daemon */
+	mctp_spi_discover_endpoint(mctp_ctrl);
+	close(fd);
+
+	/* Open the user socket file-descriptor for VDM MSG type */
 	rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_MESSAGE_TYPE_VDIANA,
 				  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
 	if (rc != MCTP_REQUESTER_SUCCESS) {
@@ -480,15 +525,6 @@ int main(int argc, char *const *argv)
 	mctp_ctrl->sock = fd;
 	/* Update global socket pointer */
 	g_socket_fd = mctp_ctrl->sock;
-
-	/* Check for test mode */
-	if (cmdline.mode == MCTP_SPI_MODE_TEST) {
-		mctp_spi_test_cmd(mctp_ctrl, &cmdline);
-		close(g_socket_fd);
-		close(g_signal_fd);
-
-		return EXIT_SUCCESS;
-	}
 
 	ret = pthread_cond_init(&mctp_ctrl->worker_cv, NULL);
 	MCTP_ASSERT_RET(ret == 0, EXIT_FAILURE, "pthread_cond_init(3) failed.");
@@ -506,10 +542,7 @@ int main(int argc, char *const *argv)
 	}
 	g_sdbus = mctp_ctrl->bus;
 
-	/* Create static endpoint 0 for spi ctrl daemon */
-	mctp_spi_static_endpoint();
-
-	//create pthread for sening keepalive messages
+	/* Create pthread for sending keepalive messages */
 	pthread_create(&keepalive_thread, NULL, &mctp_spi_keepalive_event,
 		       (void *)mctp_ctrl);
 

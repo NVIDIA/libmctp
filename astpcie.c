@@ -311,7 +311,6 @@ int mctp_astpcie_rx(struct mctp_binding_astpcie *astpcie)
 	struct mctp_astpcie_pkt_private pkt_prv;
 	struct mctp_pktbuf *pkt;
 	struct mctp_pcie_hdr *hdr;
-	struct mctp_hdr *mctp_hdr;
 	size_t payload_len;
 	int read_len;
 	int rc;

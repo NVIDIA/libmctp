@@ -38,7 +38,7 @@ struct mctp_spi_pkt_private {
 	uint8_t controller;
 } __attribute__((packed));
 
-uint16_t mctp_ctrl_get_target_bdf(mctp_cmdline_args_t *cmd);
+uint16_t mctp_ctrl_get_target(mctp_cmdline_args_t *cmd);
 
 #ifdef __cplusplus
 }

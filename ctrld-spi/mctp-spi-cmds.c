@@ -37,6 +37,7 @@
 
 #include "libmctp.h"
 #include "libmctp-cmds.h"
+#include "libmctp-astspi.h"
 #include "libmctp-log.h"
 
 #include "ctrld/mctp-ctrl.h"
@@ -78,10 +79,26 @@ int mctp_spi_get_version_support(mctp_spi_cmdline_args_t *cmd)
 	return 0;
 }
 
-int mctp_spi_get_message_type(mctp_spi_cmdline_args_t *cmd)
+int mctp_spi_get_message_type(int sock, mctp_spi_cmdline_args_t *cmd)
 {
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	struct mctp_ctrl_cmd_get_msg_type_support *req = { 0 };
+	mctp_requester_rc_t rc = 0;
+
+	mctp_encode_ctrl_cmd_get_msg_type_support(&req);
+	rc = mctp_client_send_recv(MCTP_NULL_ENDPOINT, sock,
+				   MCTP_CTRL_HDR_MSG_TYPE, (uint8_t *)&req,
+				   sizeof(req), &resp, &resp_len);
+
+	if (rc != MCTP_REQUESTER_SUCCESS)
+		fprintf(stderr, "%s: fail to recv [rc: %d] response\n",
+			__func__, rc);
+
+	free(resp);
+
 	/* will implement it */
-	return 0;
+	return rc;
 }
 
 /* Nvidia IANA specific functions */
@@ -329,7 +346,7 @@ void mctp_spi_test_cmd(mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmd)
 		case MCTP_SPI_GET_MESSAGE_TYPE:
 			MCTP_CTRL_DEBUG("%s: MCTP_SPI_GET_MESSAGE_TYPE\n",
 					__func__);
-			rc = mctp_spi_get_message_type(cmd);
+			rc = mctp_spi_get_message_type(ctrl->sock, cmd);
 			if (rc != MCTP_REQUESTER_SUCCESS) {
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_SPI_GET_MESSAGE_TYPE\n",
