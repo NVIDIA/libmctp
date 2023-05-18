@@ -294,9 +294,10 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 	struct mctp_smbus_header_rx *hdr;
 	int ret = 0;
 
-	if (ioctl(smbus->in_fd, I2C_SLAVE, 0) < 0) {
-		mctp_prerr("Invalid ioctl ret val: %d (%s)\n", errno, strerror(errno));
-		return 0;
+	ret = lseek(smbus->in_fd, 0, SEEK_SET);
+	if (ret < 0) {
+		mctp_prerr("Failed to seek");
+		return -1;
 	}
 
 	len = read(smbus->in_fd, smbus->rxbuf, sizeof(smbus->rxbuf));

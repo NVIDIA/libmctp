@@ -70,6 +70,7 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 
 	/* skip the fist null terminated and plus one to the length */
 	len = strlen(&path[1]) + 1;
+
 	memcpy(addr.sun_path, path, len);
 
 	/* Send a connect request to ther server */

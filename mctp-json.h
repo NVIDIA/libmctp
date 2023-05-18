@@ -9,8 +9,9 @@ enum eid_types {
 int parse_num(const char *param);
 int mctp_json_get_tokener_parse(const char *path);
 int mctp_json_get_eid_type(json_object *jo, const char *binding_name, uint8_t *bus_num);
-int mctp_json_i2c_get_params_for_bridge_static_mctp_demux(json_object * jo, uint8_t *bus_num, char **sockname,
-				uint8_t *dest_slave_addr, uint8_t *src_slave_addr, uint8_t *src_eid);
+int mctp_json_i2c_get_params_for_bridge_static_mctp_demux(json_object * jo, uint8_t *bus_num,
+				char **sockname, uint8_t *dest_slave_addr, uint8_t *src_slave_addr,
+				uint8_t *src_eid);
 void mctp_json_i2c_get_common_params_mctp_ctrl(json_object *jo, uint8_t *bus_num,
 				char **sockname, uint8_t *src_eid, uint8_t *dest_slave_addr,
 				uint8_t *src_slave_addr);

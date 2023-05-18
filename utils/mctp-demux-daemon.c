@@ -771,7 +771,7 @@ static int socket_init(struct ctx *ctx)
 	int namelen, rc;
 
 	memset(&addr, 0, sizeof(addr));
-printf("\nsockname = %s\n\n", ctx->binding->sockname);
+
 	if (ctx->binding->sockname[0] == '\0') {
 		namelen = 1 + strlen(ctx->binding->sockname + 1);
 	} else {

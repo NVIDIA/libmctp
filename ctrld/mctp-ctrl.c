@@ -804,6 +804,7 @@ static void parse_command_line(int argc, char *const *argv,
 	cmdline->binding_type = MCTP_BINDING_RESERVED;
 	cmdline->delay = MCTP_CTRL_DELAY_DEFAULT;
 	cmdline->ops = MCTP_CMDLINE_OP_NONE;
+	cmdline->dest_eid = 8;
 
 	memset(&cmdline->tx_data, 0, MCTP_WRITE_DATA_BUFF_SIZE);
 	memset(&cmdline->rx_data, 0, MCTP_READ_DATA_BUFF_SIZE);
@@ -952,7 +953,7 @@ static void parse_command_line(int argc, char *const *argv,
 			else {
 				// Get common parameters
 				mctp_json_i2c_get_common_params_mctp_ctrl(parsed_json,
-					&cmdline->i2c.bus_num, mctp_sock_path, &cmdline->i2c.own_eid,
+					&cmdline->i2c.bus_num, &mctp_sock_path, &cmdline->i2c.own_eid,
 					&cmdline->i2c.dest_slave_addr, &cmdline->i2c.src_slave_addr);
 
 				// Get info about eid_type

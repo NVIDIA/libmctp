@@ -892,7 +892,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 	do {
 		/* Wait for MCTP response */
 		mctp_ret =
-			mctp_discover_response(ctrl, discovery_mode, local_eid,
+			mctp_discover_response(ctrl, discovery_mode, cmd->dest_eid,
 					       &mctp_resp_msg, &resp_msg_len);
 		if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed to received message %d\n",
