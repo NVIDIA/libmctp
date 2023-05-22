@@ -336,6 +336,22 @@ static int mctp_ctrl_sdbus_get_uuid(sd_bus *bus, const char *path,
 	return sd_bus_message_append(reply, "s", uuid_data);
 }
 
+static int mctp_ctrl_sdbus_get_binding_type(sd_bus *bus, const char *path,
+					    const char *interface,
+					    const char *property,
+					    sd_bus_message *reply,
+					    void *userdata, sd_bus_error *error)
+{
+	char str[MCTP_CTRL_SDBUS_NMAE_SIZE] = { 0 };
+
+	snprintf(str, sizeof(str),
+		 "xyz.openbmc_project.MCTP.Binding.BindingTypes.%s",
+		 mctp_medium_type);
+
+	/* append the message */
+	return sd_bus_message_append(reply, "s", str);
+}
+
 static int mctp_ctrl_monitor_signal_events(mctp_sdbus_context_t *context)
 {
 	int ret;
@@ -400,6 +416,14 @@ static const sd_bus_vtable mctp_ctrl_common_sock_vtable[] = {
 	SD_BUS_PROPERTY("Protocol", "u", mctp_ctrl_sdbus_get_sock_proto, 0,
 			SD_BUS_VTABLE_PROPERTY_CONST),
 	SD_BUS_PROPERTY("Address", "ay", mctp_ctrl_sdbus_get_sock_name, 0,
+			SD_BUS_VTABLE_PROPERTY_CONST),
+	SD_BUS_VTABLE_END
+};
+
+/* Properties for xyz.openbmc_project.MCTP.Binding */
+static const sd_bus_vtable mctp_ctrl_binding_vtable[] = {
+	SD_BUS_VTABLE_START(0),
+	SD_BUS_PROPERTY("BindingType", "s", mctp_ctrl_sdbus_get_binding_type, 0,
 			SD_BUS_VTABLE_PROPERTY_CONST),
 	SD_BUS_VTABLE_END
 };
@@ -514,6 +538,19 @@ static mctp_sdbus_context_t *mctp_ctrl_sdbus_create_context(sd_bus *bus)
 				      strerror(-r));
 			goto finish;
 		}
+
+		MCTP_CTRL_TRACE("Registering object '%s' for Binding: %d\n",
+				mctp_ctrl_objpath, entry->eid);
+		r = sd_bus_add_object_vtable(context->bus, NULL,
+					     mctp_ctrl_objpath,
+					     MCTP_CTRL_DBUS_BINDING_INTERFACE,
+					     mctp_ctrl_binding_vtable, context);
+		if (r < 0) {
+			MCTP_CTRL_ERR("Failed to add Binding object: %s\n",
+				      strerror(-r));
+			goto finish;
+		}
+
 		r = sd_bus_emit_object_added(context->bus, mctp_ctrl_objpath);
 		if (r < 0) {
 			MCTP_CTRL_ERR("Failed to emit object added: %s\n",

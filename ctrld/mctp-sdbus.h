@@ -26,6 +26,7 @@ extern "C" {
 #define MCTP_CTRL_DBUS_EP_INTERFACE "xyz.openbmc_project.MCTP.Endpoint"
 #define MCTP_CTRL_DBUS_UUID_INTERFACE "xyz.openbmc_project.Common.UUID"
 #define MCTP_CTRL_DBUS_SOCK_INTERFACE "xyz.openbmc_project.Common.UnixSocket"
+#define MCTP_CTRL_DBUS_BINDING_INTERFACE "xyz.openbmc_project.MCTP.Binding"
 
 #define MCTP_CTRL_SDBUS_OBJ_PATH_SIZE 1024
 #define MCTP_CTRL_SDBUS_NMAE_SIZE 255
