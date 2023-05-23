@@ -56,7 +56,7 @@
 #define MCTP_INVALID_EID_FF 0xFF
 
 /* Global definitions */
-uint8_t g_verbose_level = 0;
+uint8_t g_verbose_level = 1;
 
 static pthread_t g_keepalive_thread;
 extern const uint8_t MCTP_MSG_TYPE_HDR;
@@ -774,11 +774,11 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 			break;
 		case EID_TYPE_STATIC:
 			/* Discover static endpoint via SMBus*/
-			// MCTP_CTRL_INFO("%s: Start MCTP-over-SMBus Discovery as static endpoint\n", __func__);
-			// mctp_err_ret = mctp_i2c_discover_static_endpoint(cmdline, mctp_ctrl);
-			// if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
-			// 	MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
-			// }
+			MCTP_CTRL_INFO("%s: Start MCTP-over-SMBus Discovery as static endpoint\n", __func__);
+			mctp_err_ret = mctp_i2c_discover_static_endpoint(cmdline, mctp_ctrl);
+			if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
+				MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
+			}
 
 			break;
 		case EID_TYPE_POOL:
@@ -789,7 +789,6 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		default:
 			break;
 		}
-
 
 	}
 
@@ -951,10 +950,19 @@ static void parse_command_line(int argc, char *const *argv,
 				exit(EXIT_FAILURE);
 			}
 			else {
+				// Debug
+				printf("\n\nconfig_json_file_path\n%s\n", config_json_file_path);
+
 				// Get common parameters
 				mctp_json_i2c_get_common_params_mctp_ctrl(parsed_json,
 					&cmdline->i2c.bus_num, &mctp_sock_path, &cmdline->i2c.own_eid,
 					&cmdline->i2c.dest_slave_addr, &cmdline->i2c.src_slave_addr);
+
+				// Debug
+				printf("bus_num = %d, socket name = %s\n",
+				cmdline->i2c.bus_num, (mctp_sock_path + 1));
+				printf("src_eid = %d, dest_slave_addr = %d, src_slave_addr = %d\n\n",
+				cmdline->i2c.own_eid, cmdline->i2c.dest_slave_addr, cmdline->i2c.src_slave_addr);
 
 				// Get info about eid_type
 				chosen_eid_type = mctp_json_get_eid_type(parsed_json, "smbus", &cmdline->i2c.bus_num);
@@ -984,7 +992,7 @@ static void parse_command_line(int argc, char *const *argv,
 			}
 
 			// Debug info on tests
-			printf("\n\nconfig_json_file_path\n%s\n", config_json_file_path);
+
 			printf("bus_num = %d, socket name = %s\n",
 				cmdline->i2c.bus_num, (mctp_sock_path + 1));
 			printf("src_eid = %d, bridge_eid = %d, bridge_pool_start = %d\n\n",

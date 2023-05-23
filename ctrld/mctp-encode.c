@@ -248,6 +248,21 @@ bool mctp_encode_ctrl_cmd_get_ver_support(
 	return true;
 }
 
+bool mctp_decode_resp_get_ver_support(
+	struct mctp_ctrl_resp_get_mctp_ver_support *mctp_ver_support_resp)
+{
+	if (!mctp_ver_support_resp)
+		return false;
+	
+	if (mctp_ver_support_resp->completion_code != MCTP_CTRL_CC_SUCCESS)
+		return false;
+	
+	MCTP_CTRL_DEBUG("%s: number of entries: %ld\n", __func__,
+			sizeof(mctp_ver_support_resp->number_of_entries));
+	
+	return true;
+}
+
 bool mctp_encode_ctrl_cmd_get_msg_type_support(
 	struct mctp_ctrl_cmd_get_msg_type_support *msg_type_support_cmd)
 {

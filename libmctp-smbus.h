@@ -23,6 +23,13 @@ struct mctp_smbus_pkt_private {
 	uint8_t _reserved[32];
 } __attribute__((packed));
 
+struct mctp_static_endpoint_mapper {
+	uint8_t endpoint_num;
+	uint8_t slave_address;
+	uint8_t support_mctp;
+	uint8_t udid[16];
+};
+
 struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t dest_addr, uint8_t src_addr, uint8_t eid_type);
 
 int mctp_smbus_open_in_bus(struct mctp_binding_smbus *smbus, int in_bus, int src_slv_addr);
@@ -35,6 +42,8 @@ int mctp_smbus_get_out_fd(struct mctp_binding_smbus *smbus);
 void mctp_smbus_register_bus(struct mctp_binding_smbus *smbus,
 			     struct mctp *mctp, mctp_eid_t eid);
 void mctp_smbus_free(struct mctp_binding_smbus *smbus);
+
+void send_udid_command(struct mctp_binding_smbus *smbus);
 
 /* SMBUS binding API's */
 int mctp_smbus_poll(struct mctp_binding_smbus *smbus, int timeout);

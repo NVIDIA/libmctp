@@ -119,6 +119,9 @@ struct ctx {
 	} pcap;
 };
 
+uint8_t chosen_eid_type;
+struct mctp_static_endpoint_mapper static_endpoints[1];
+
 static void mctp_print_hex(uint8_t *data, size_t length)
 {
 	for (int i = 0; i < length; ++i) {
@@ -573,7 +576,6 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 	};
 
 	bool use_config_json_file = false;
-	uint8_t chosen_eid_type;
 
 	if(n_params != 0) {
 		for (int ii = 0; ii < n_params; ii++) {
@@ -646,9 +648,13 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 				rc = mctp_json_i2c_get_params_for_bridge_static_mctp_demux(parsed_json,
 					&i2c_bus_num, &binding->sockname,
 					&i2c_dest_slave_addr, &i2c_src_slave_addr, &eid);
+				static_endpoints[0].slave_address = i2c_dest_slave_addr;
 
 				if (rc == EXIT_FAILURE)
 					binding_smbus_use_default_config();
+
+				rc = mctp_json_i2c_get_params_for_static_mctp_demux(parsed_json,
+					&i2c_bus_num, &static_endpoints[0].endpoint_num);
 
 				break;
 			case EID_TYPE_POOL:
@@ -982,6 +988,10 @@ static int run_daemon(struct ctx *ctx)
 	ctx->clients_changed = false;
 
 	mctp_set_rx_all(ctx->mctp, rx_message, ctx);
+
+	if (chosen_eid_type == EID_TYPE_STATIC) {
+		send_udid_command(ctx->binding->data);
+	}
 
 	for (;;) {
 		if (ctx->clients_changed) {

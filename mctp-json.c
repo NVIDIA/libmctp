@@ -206,6 +206,51 @@ int mctp_json_i2c_get_params_for_bridge_static_mctp_demux(json_object *jo, uint8
 	return EXIT_SUCCESS;
 }
 
+int mctp_json_i2c_get_params_for_static_mctp_demux(json_object *jo, uint8_t *bus_num,
+				uint8_t *dest_eid)
+{
+	json_object *jo_i2c_struct;
+	json_object *jo_i2c_obj_main;
+	json_object *jo_i2c_obj_i, *jo_i2c_obj_j;
+
+	const char *string_val;
+	uint8_t val;
+	size_t i, j;
+
+	jo_i2c_struct = json_object_object_get(jo, "i2c");
+
+	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "buses");
+	size_t val_conf_i2c = json_object_array_length(jo_i2c_obj_main);
+
+	for(i = 0; i < val_conf_i2c; i++) {
+		jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_main, i);
+		jo_i2c_obj_i = json_object_object_get(jo_i2c_struct, "bus_number");
+		string_val = json_object_get_string(jo_i2c_obj_i);
+		val = parse_num(string_val + 3);
+
+		if (val == *bus_num) {
+			/* Get parameters for endpoints*/
+			jo_i2c_obj_i = json_object_object_get(jo_i2c_struct, "endpoints");
+			size_t val_endpoints = json_object_array_length(jo_i2c_obj_i);
+
+			for(j = 0; j < val_endpoints; j++) {
+				jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_i, j);
+				jo_i2c_obj_j = json_object_object_get(jo_i2c_struct, "eid_type");
+				string_val = json_object_get_string(jo_i2c_obj_j);
+
+				if (strcmp(string_val, "static") == 0) {
+					/* Get static EID */
+					jo_i2c_obj_j = json_object_object_get(jo_i2c_struct, "eid");
+					string_val = json_object_get_string(jo_i2c_obj_j);
+					*dest_eid = (uint8_t)parse_num(string_val);
+				}
+			}
+		}
+	}
+
+	return EXIT_SUCCESS;
+}
+
 /**
  * @brief Get common paramiters from json_object for mctp-ctrl
  *        using I2C.
@@ -323,7 +368,6 @@ void mctp_json_i2c_get_params_for_bridge_mctp_ctrl(json_object *jo, uint8_t *bus
 				string_val = json_object_get_string(jo_i2c_obj_j);
 
 				if (strcmp(string_val, "bridge") == 0) {
-					printf("bridge");
 					/* Get bridge EID */
 					jo_i2c_obj_j = json_object_object_get(jo_i2c_struct, "eid");
 					string_val = json_object_get_string(jo_i2c_obj_j);
@@ -380,7 +424,6 @@ void mctp_json_i2c_get_params_for_static_mctp_ctrl(json_object *jo, uint8_t *bus
 				string_val = json_object_get_string(jo_i2c_obj_j);
 
 				if (strcmp(string_val, "static") == 0) {
-					printf("static\n");
 					/* Get static EID */
 					jo_i2c_obj_j = json_object_object_get(jo_i2c_struct, "eid");
 					string_val = json_object_get_string(jo_i2c_obj_j);
