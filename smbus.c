@@ -294,8 +294,6 @@ void send_udid_command(struct mctp_binding_smbus *smbus) {
 	int retval;
 	uint8_t outbuf[1] = { 0x03 };	// Set 'Get UDID' command
 	uint8_t inbuf[20];
-	uint8_t outbuf_mctp[13] = { 0x0f, 0x0a, 0x31, 0x01, 0x64, 0x08, 0xc8, 0x00, 0x80, 0x04, 0x00, 0x00};
-	uint8_t inbuf_mctp[20];
 	struct i2c_msg msgs[2];
 	struct i2c_rdwr_ioctl_data msgset[1];
 	uint8_t interface_ASF = 0;
@@ -340,24 +338,28 @@ void send_udid_command(struct mctp_binding_smbus *smbus) {
 	for(i = 0; i < 16; i++) {
 		printf("0x%x ", static_endpoints[0].udid[i]);
 	}
-	printf("\n");
+	printf("\n\n");
+}
 
-	for(i = 0; i < 18; i++) {
-		inbuf_mctp[i] = 0;
-	}
+void send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus) {
+	uint8_t outbuf_mctp[13] = { 0x0f, 0x0a, 0x31, 0x01, 0x64, 0x08, 0xc8, 0x00, 0x80, 0x04, 0x00, 0x00, 0x6a };
+	uint8_t inbuf_mctp[20];
+	struct i2c_msg msgs[2];
+	struct i2c_rdwr_ioctl_data msgset[1];
+	int slave_addr = 0x61;
 
-	msgs[0].addr = 0x32;
+	msgs[0].addr = slave_addr;	//0x32    0x61
 	msgs[0].flags = 0;
 	msgs[0].len = 13;
 	msgs[0].buf = outbuf_mctp;
 
-	msgs[1].addr = 0x32;
+	msgs[1].addr = slave_addr;
 	msgs[1].flags = I2C_M_RD | I2C_M_NOSTART;
 	msgs[1].len = 18;
 	msgs[1].buf = inbuf_mctp;
 
 	msgset[0].msgs = msgs;
-	msgset[0].nmsgs = 1;
+	msgset[0].nmsgs = 2;
 
 	if (ioctl(smbus->out_fd, I2C_RDWR, &msgset) < 0) {
 		perror("ioctl(I2C_RDWR) in i2c_read");
@@ -366,6 +368,10 @@ void send_udid_command(struct mctp_binding_smbus *smbus) {
 
 	mctp_trace_tx(outbuf_mctp, msgs[0].len);
 	mctp_trace_rx(inbuf_mctp, msgs[1].len);
+
+	// for(i = 0; i < 18; i++) {
+	// 	inbuf_mctp[i] = 0;
+	// }
 }
 
 int mctp_smbus_read(struct mctp_binding_smbus *smbus)
@@ -434,26 +440,26 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 		return ret;
 	}
 	else if (g_mctp_smbus_eid_type == EID_TYPE_STATIC) {
+	// Need to improved
 		// if (ioctl(smbus->in_fd, I2C_RDWR, 0) < 0) {
-		if (ioctl(smbus->in_fd, I2C_SLAVE, 0) < 0) {
-			mctp_prerr("Invalid ioctl ret val: %d (%s)\n", errno, strerror(errno));
-			return 0;
-		}
-
-		// ret = lseek(smbus->in_fd, 0, SEEK_SET);
-		// if (ret < 0) {
-		// 	mctp_prerr("Failed to seek");
-		// 	return -1;
-		// }
-
-		// len = read(smbus->in_fd, smbus->rxbuf, sizeof(smbus->rxbuf));
-		// if (len < sizeof(*hdr)) {
-		// 	// This condition hits from time to time, even with
-		// 	// a properly written poll loop, although it's not clear
-		// 	// why. Return an error so that the upper layer can
-		// 	// retry.
+		// 	mctp_prerr("Invalid ioctl ret val: %d (%s)\n", errno, strerror(errno));
 		// 	return 0;
 		// }
+
+		ret = lseek(smbus->in_fd, 0, SEEK_SET);
+		if (ret < 0) {
+			mctp_prerr("Failed to seek");
+			return -1;
+		}
+
+		len = read(smbus->in_fd, smbus->rxbuf, sizeof(smbus->rxbuf));
+		if (len < sizeof(*hdr)) {
+			// This condition hits from time to time, even with
+			// a properly written poll loop, although it's not clear
+			// why. Return an error so that the upper layer can
+			// retry.
+			return 0;
+		}
 
 		hdr = (void *)smbus->rxbuf;
 
@@ -571,19 +577,16 @@ static int mctp_smbus_start(struct mctp_binding *b)
 	/* Set out fd */
 	mctp_smbus_set_out_fd(smbus, outfd);
 
-	if (g_mctp_smbus_eid_type == EID_TYPE_BRIDGE) {
-		/* Open I2C in node */
-		mctp_prdebug("%s: Setting up I2C input fd: %d %d", __func__,
-				smbus->bus_num, smbus->dest_slave_addr);
-		infd = mctp_smbus_open_in_bus(smbus, smbus->bus_num,
-						smbus->src_slave_addr);
-		MCTP_ASSERT_RET(infd >= 0, -1, "Failed to open I2C Rx node: %d", infd);
+	if (g_mctp_smbus_eid_type == EID_TYPE_STATIC) {
+		smbus->bus_num = 5;	// Set bus num for slave-mqueue
 	}
-	else if (g_mctp_smbus_eid_type == EID_TYPE_STATIC) {
-		/* Open I2C in node */
-		mctp_prdebug("%s: Setting up I2C input fd", __func__);
-		infd = dup(outfd);
-	}
+
+	/* Open I2C in node */
+	mctp_prdebug("%s: Setting up I2C input fd: %d %d", __func__,
+			smbus->bus_num, smbus->dest_slave_addr);
+	infd = mctp_smbus_open_in_bus(smbus, smbus->bus_num,
+					smbus->src_slave_addr);
+	MCTP_ASSERT_RET(infd >= 0, -1, "Failed to open I2C Rx node: %d", infd);
 
 	/* Set in fd */
 	mctp_smbus_set_in_fd(smbus, infd);

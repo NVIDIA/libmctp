@@ -44,6 +44,7 @@ void mctp_smbus_register_bus(struct mctp_binding_smbus *smbus,
 void mctp_smbus_free(struct mctp_binding_smbus *smbus);
 
 void send_udid_command(struct mctp_binding_smbus *smbus);
+void send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus);
 
 /* SMBUS binding API's */
 int mctp_smbus_poll(struct mctp_binding_smbus *smbus, int timeout);

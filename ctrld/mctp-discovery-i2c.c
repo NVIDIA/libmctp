@@ -1176,10 +1176,10 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 				/* Send the MCTP_GET_VERSION_SUPPORT_REQUEST */
 				MCTP_CTRL_DEBUG(
 					"%s: Send MCTP Version Support Request for EID: 0x%x\n",
-					__func__, cmd->dest_eid);
+					__func__, MCTP_EID_NULL);
 
 				mctp_ret = mctp_i2c_get_mctp_ver_support_request(
-					ctrl->sock, cmd->dest_eid);
+					ctrl->sock, MCTP_EID_NULL);
 				if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 					MCTP_CTRL_ERR(
 						"%s: Failed MCTP_GET_VERSION_SUPPORT_REQUEST\n",
@@ -1188,7 +1188,7 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 				}
 
 				/* Wait for the endpoint response */
-				discovery_mode = MCTP_GET_EP_UUID_REQUEST;
+				discovery_mode = MCTP_FINISH_DISCOVERY;
 
 				break;
 
