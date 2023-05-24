@@ -49,6 +49,7 @@ static const struct option options[] = {
 	{ "cmd", required_argument, 0, 'c' },
 	{ "file", required_argument, 0, 'f' },
 	{ "help", no_argument, 0, 'h' },
+	{ "more", no_argument, 0, 'm' },
 	{ 0 },
 };
 
@@ -78,7 +79,7 @@ static void usage(void)
 		boot_complete_v2_slot_0, boot_complete_v2_slot_1\n \
 		set_heartbeat_enable, set_heartbeat_disable\n \
 		heartbeat\n \
-		query_boot_status\n \
+		query_boot_status -m (more descriptive boot status - not required)\n \
 		download_log -f filename(not required)\n \
 		restart_notification\n \
 		debug_token_install - need 256 bytes debug token\n \
@@ -306,16 +307,20 @@ int main(int argc, char *const *argv)
 	char file[PATH_MAX] = { 0 };
 	unsigned int max_len = 0;
 	uint8_t teid = 0;
+	bool more = false;
 	uint8_t payload_required = 0;
 	uint8_t payload[MCTP_CERTIFICATE_CHAIN_SIZE] = { '\0' };
 	sd_bus *bus = NULL;
 
 	for (;;) {
-		rc = getopt_long(argc, argv, "vt:c:f:h", options, NULL);
+		rc = getopt_long(argc, argv, "mvt:c:f:h", options, NULL);
 		if (rc == -1)
 			break;
 
 		switch (rc) {
+		case 'm':
+			more = true;
+			break;
 		case 'v':
 			ctx.verbose = true;
 			break;
@@ -453,7 +458,7 @@ int main(int argc, char *const *argv)
 				    "fail to send restart notification: %d\n",
 				    rc);
 	} else if (!strcmp(item, "query_boot_status")) {
-		rc = query_boot_status(fd, teid, VERBOSE_EN);
+		rc = query_boot_status(fd, teid, VERBOSE_EN, more);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to query boot status: %d\n", rc);
 	} else if (!strcmp(item, "download_log")) {

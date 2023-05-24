@@ -50,6 +50,91 @@
 /* MCTP-VDM Response output macros */
 const uint8_t mctp_vdm_op_success = MCTP_VDM_CMD_OP_SUCCESS;
 
+/* Boot Status Code Bits */
+#define EC_TAG0_AUTH_ERROR	     0
+#define EC_TAG1_COPY_ERROR	     1
+#define EC_OTP_MISMATCH_ERROR	     2
+#define EC_SET_KEY_REVOKE	     3
+#define EC_SET_ROLLBACK_PROTECTION   4
+#define EC_RECEIVE_AP0_BOOT_COMPLETE 5
+#define EC_STRAP_MISMATCH	     6
+
+#define AP0_PRIMARY_FW_AUTHENTICATION_STATUS   8
+#define AP0_SECONDARY_FW_AUTHENTICATION_STATUS 12
+#define AP0_RECOVERY_FW_AUTHENTICATION_STATUS  16
+
+#define AP0_ACTIVE_SLOT			20
+#define AP0_SPI_READ_FAILURE		21
+#define AP0_POWER_GOOD			22
+#define AP0_RESET_ON_HOLD		23
+#define AP0_SPI_ACCESS_VIOLATION_OPCODE 24
+#define AP0_SPI_ACCESS_VIOLATION_RANGE	25
+#define AP0_HEARTBEAT_TIMEOUT		26
+#define AP0_BOOTCOMPLETE_TIMEOUT	27
+
+#define FATAL_ERROR_CODE 28
+
+#define PRIMARY_PUF_AC_VALID  32
+#define FALLBACK_PUF_AC_VALID 33
+#define PUF0_ENGINE_STARTED   34
+#define PUF0_AK_GEN	      35
+#define AK_SRC_IS_PUF	      36
+#define PUF1_ENGINE_STARTED   37
+#define PUF1_UDS_GEN	      38
+#define PUF1_IK_GEN	      39
+#define IK_SRC_IS_PUF	      40
+
+#define NO_FATAL_ERROR			      0 /* SUCCESS */
+#define FATAL_ERR_AUTH_AP_FW		      1
+#define FATAL_ERR_INIT_RESET_EVENT_FAIL	      2
+#define FATAL_ERR_SETUP_SPIMON_FAIL	      3
+#define FATAL_ERR_GRANT_AP_SPI_ACCESS_FAIL    4
+#define FATAL_ERR_TIMEOUT_WAIT_AP_PGOOD	      5
+#define FATAL_ERR_TRY_RELEASE_ON_INVALID_SLOT 6
+#define FATAL_ERR_BC_ON_INVALID_SLOT	      7
+#define FATAL_ERR_BC_TIMEOUT_MAX_ATTEMPT      8
+#define FATAL_ERR_SET_TIMER		      9
+
+#define AUTHENTICATE_SUCCESS		1
+#define VALIDATE_PUBLIC_KEY_ERROR	2
+#define KEY_REVOKE_CHECK_ERROR		3
+#define ROLLBACK_PROTECTION_CHECK_ERROR 4
+#define AUTHENTICATE_ERROR		6
+#define SPI_READ_ERROR			7
+#define AUTHENTICATE_IN_PROGRESS	15
+
+#define print_boot_flag(flag, val, offset)                                     \
+	do {                                                                   \
+		printf("%-40s:\t %s \n", #flag,                                \
+		       (val) & (uint8_t)(0x01) << ((flag) - (offset)) ?        \
+			       "true" :                                        \
+			       "false");                                       \
+	} while (0)
+
+#define print_boot_flag_rep_name(flag_name, flag_val, val, offset)             \
+	do {                                                                   \
+		printf("%-40s:\t %s \n", (flag_name),                          \
+		       (val) & (uint8_t)(0x01) << ((flag) - (offset)) ?        \
+			       "true" :                                        \
+			       "false");                                       \
+	} while (0)
+
+#define print_boot_value(flag, val)                                            \
+	do {                                                                   \
+		printf("%-40s:\t %s \n", #flag,                                \
+		       ((val) == (flag)) ? "true" : "false");                  \
+	} while (0)
+
+#define print_boot_value_rep_name(flag_name, flag_val, val)                    \
+	do {                                                                   \
+		printf("%-40s:\t %s \n", (flag_name),                          \
+		       ((val) == (flag_val)) ? "true" : "false");              \
+	} while (0)
+
+/* short messages for command 'query_boot_status' whether boot succeeded or failed */
+#define MSG_BOOT_OK	"AP boot success"
+#define MSG_BOOT_FAILED "AP boot failed"
+
 /*
  * Print the output to console and also redirect the output
  * to log file
@@ -323,11 +408,209 @@ int heartbeat(int fd, uint8_t tid, uint8_t verbose)
 }
 
 /*
+ * The function reads byte 8 from response from command 'query_boot_status' and 
+ * displays it in readable form  
+ */
+static void query_boot_status_print_byte8(const uint8_t *resp_msg,
+					  const int resp_len)
+{
+	uint8_t respByte8 = resp_msg[resp_len - 1];
+	int offset = 0;
+
+	print_boot_flag(EC_TAG0_AUTH_ERROR, respByte8, offset);
+	print_boot_flag(EC_TAG1_COPY_ERROR, respByte8, offset);
+	print_boot_flag(EC_OTP_MISMATCH_ERROR, respByte8, offset);
+	print_boot_flag(EC_SET_KEY_REVOKE, respByte8, offset);
+	print_boot_flag(EC_SET_ROLLBACK_PROTECTION, respByte8, offset);
+	print_boot_flag(EC_RECEIVE_AP0_BOOT_COMPLETE, respByte8, offset);
+	print_boot_flag(EC_STRAP_MISMATCH, respByte8, offset);
+	printf("\n");
+}
+
+/*
+ * The function reads byte storing Authentication status code and
+ * displays it in readable form 
+ */
+static void query_boot_status_print_authentication_status(const uint8_t respByte)
+{
+	print_boot_value(AUTHENTICATE_SUCCESS, (respByte & 0xF));
+	print_boot_value(VALIDATE_PUBLIC_KEY_ERROR, (respByte & 0xF));
+	print_boot_value(KEY_REVOKE_CHECK_ERROR, (respByte & 0xF));
+	print_boot_value(ROLLBACK_PROTECTION_CHECK_ERROR, (respByte & 0xF));
+	print_boot_value(AUTHENTICATE_ERROR, (respByte & 0xF));
+	print_boot_value(SPI_READ_ERROR, (respByte & 0xF));
+	print_boot_value(AUTHENTICATE_IN_PROGRESS, (respByte & 0xF));
+}
+
+/*
+ * The function reads byte 7 from response from command 'query_boot_status' and 
+ * displays it in readable form  
+ */
+static void query_boot_status_print_byte7(const uint8_t *resp_msg,
+					  const int resp_len)
+{
+	uint8_t respByte7 = resp_msg[resp_len - 2];
+
+	printf("AP0_PRIMARY_FW_AUTHENTICATION_STATUS\n");
+	query_boot_status_print_authentication_status(respByte7);
+
+	printf("\n");
+
+	printf("AP0_SECONDARY_FW_AUTHENTICATION_STATUS\n");
+	query_boot_status_print_authentication_status(respByte7 >> 4);
+
+	printf("\n");
+}
+
+/*
+ * The function reads byte 6 from response from command 'query_boot_status' and 
+ * displays it in readable form  
+ */
+static void query_boot_status_print_byte6(const uint8_t *resp_msg,
+					  const int resp_len)
+{
+	uint8_t respByte6 = resp_msg[resp_len - 3];
+	int offset = AP0_ACTIVE_SLOT;
+
+	printf("AP0_RECOVERY_FW_AUTHENTICATION_STATUS\n");
+	query_boot_status_print_authentication_status(respByte6);
+	printf("\n");
+	print_boot_flag(AP0_ACTIVE_SLOT, (respByte6 >> 4), offset);
+	print_boot_flag(AP0_SPI_READ_FAILURE, (respByte6 >> 4), offset);
+	print_boot_flag(AP0_POWER_GOOD, (respByte6 >> 4), offset);
+	print_boot_flag(AP0_RESET_ON_HOLD, (respByte6 >> 4), offset);
+	printf("\n");
+}
+
+/*
+ * The function reads byte 5 from response from command 'query_boot_status' and 
+ * displays it in readable form  
+ */
+static void query_boot_status_print_byte5(const uint8_t *resp_msg,
+					  const int resp_len)
+{
+	uint8_t respByte5 = resp_msg[resp_len - 4];
+	int offset = AP0_SPI_ACCESS_VIOLATION_OPCODE;
+
+	print_boot_flag(AP0_SPI_ACCESS_VIOLATION_OPCODE, respByte5, offset);
+	print_boot_flag(AP0_SPI_ACCESS_VIOLATION_RANGE, respByte5, offset);
+	print_boot_flag(AP0_HEARTBEAT_TIMEOUT, respByte5, offset);
+	print_boot_flag(AP0_BOOTCOMPLETE_TIMEOUT, respByte5, offset);
+
+	if (NO_FATAL_ERROR != (respByte5 >> 4)) {
+		printf("\n");
+		printf("FATAL_ERROR_CODE\n");
+		print_boot_value(FATAL_ERR_AUTH_AP_FW, (respByte5 >> 4));
+		print_boot_value(FATAL_ERR_INIT_RESET_EVENT_FAIL,
+				 (respByte5 >> 4));
+		print_boot_value(FATAL_ERR_SETUP_SPIMON_FAIL, (respByte5 >> 4));
+		print_boot_value(FATAL_ERR_GRANT_AP_SPI_ACCESS_FAIL,
+				 (respByte5 >> 4));
+		print_boot_value(FATAL_ERR_TIMEOUT_WAIT_AP_PGOOD,
+				 (respByte5 >> 4));
+		print_boot_value(FATAL_ERR_TRY_RELEASE_ON_INVALID_SLOT,
+				 (respByte5 >> 4));
+		print_boot_value(FATAL_ERR_BC_ON_INVALID_SLOT,
+				 (respByte5 >> 4));
+		print_boot_value(FATAL_ERR_BC_TIMEOUT_MAX_ATTEMPT,
+				 (respByte5 >> 4));
+		print_boot_value(FATAL_ERR_SET_TIMER, (respByte5 >> 4));
+	}
+	printf("\n");
+}
+
+/*
+ * The function reads byte 4 from response from command 'query_boot_status' and 
+ * displays it in readable form  
+ */
+static void query_boot_status_print_byte4(const uint8_t *resp_msg,
+					  const int resp_len)
+{
+	uint8_t respByte4 = resp_msg[resp_len - 5];
+	int offset = PRIMARY_PUF_AC_VALID;
+
+	print_boot_flag(PRIMARY_PUF_AC_VALID, respByte4, offset);
+	print_boot_flag(FALLBACK_PUF_AC_VALID, respByte4, offset);
+	print_boot_flag(PUF0_ENGINE_STARTED, respByte4, offset);
+	print_boot_flag(PUF0_AK_GEN, respByte4, offset);
+	print_boot_flag(AK_SRC_IS_PUF, respByte4, offset);
+	print_boot_flag(PUF1_ENGINE_STARTED, respByte4, offset);
+	print_boot_flag(PUF1_UDS_GEN, respByte4, offset);
+	print_boot_flag(PUF1_IK_GEN, respByte4, offset);
+	printf("\n");
+}
+
+/*
+ * The function reads byte 3 from response from command 'query_boot_status' and 
+ * displays it in readable form  
+ */
+static void query_boot_status_print_byte3(const uint8_t *resp_msg,
+					  const int resp_len)
+{
+	uint8_t respByte3 = resp_msg[resp_len - 6];
+	int offset = IK_SRC_IS_PUF;
+
+	print_boot_flag(IK_SRC_IS_PUF, respByte3, offset);
+	printf("\n");
+}
+
+/*
+ * Check Boot Status Codes to verify whether AP booted successfully or not.
+ * The list of bits used in the function is presented below:
+ *
+ *	AP0_HEARTBEAT_TIMEOUT
+ *	AP0_BOOTCOMPLETE_TIMEOUT
+ *	FATAL_ERR_AUTH_AP_FW
+ *	FATAL_ERR_INIT_RESET_EVENT_FAIL,
+ *	FATAL_ERR_SETUP_SPIMON_FAIL,
+ *	FATAL_ERR_GRANT_AP_SPI_ACCESS_FAIL,
+ *	FATAL_ERR_TRY_RELEASE_ON_INVALID_SLOT,
+ *	FATAL_ERR_BC_ON_INVALID_SLOT,
+ *	FATAL_ERR_BC_TIMEOUT_MAX_ATTEMPT
+ *	FATAL_ERR_SET_TIMER
+ *
+ * If all these bits are set to 0 then the function returns true.
+ */
+bool is_booted_OK(const uint8_t *resp_msg, const int resp_len)
+{
+	uint8_t respByte5 = resp_msg[resp_len - 4];
+
+	int offset = AP0_SPI_ACCESS_VIOLATION_OPCODE;
+
+	bool hasTimeout =
+		respByte5 & (uint8_t)(0x01)
+				    << (AP0_HEARTBEAT_TIMEOUT - offset) ||
+		respByte5 & (uint8_t)(0x01)
+				    << (AP0_BOOTCOMPLETE_TIMEOUT - offset);
+
+	if (hasTimeout == true) {
+		return false;
+	}
+
+	bool hasFatalError =
+		((respByte5 >> 4) == FATAL_ERR_AUTH_AP_FW) ||
+		((respByte5 >> 4) == FATAL_ERR_INIT_RESET_EVENT_FAIL) ||
+		((respByte5 >> 4) == FATAL_ERR_SETUP_SPIMON_FAIL) ||
+		((respByte5 >> 4) == FATAL_ERR_GRANT_AP_SPI_ACCESS_FAIL) ||
+		((respByte5 >> 4) == FATAL_ERR_TIMEOUT_WAIT_AP_PGOOD) ||
+		((respByte5 >> 4) == FATAL_ERR_TRY_RELEASE_ON_INVALID_SLOT) ||
+		((respByte5 >> 4) == FATAL_ERR_BC_ON_INVALID_SLOT) ||
+		((respByte5 >> 4) == FATAL_ERR_BC_TIMEOUT_MAX_ATTEMPT) ||
+		((respByte5 >> 4) == FATAL_ERR_SET_TIMER);
+
+	if (hasFatalError == true) {
+		return false;
+	}
+
+	return true;
+}
+
+/*
  * Query boot status:
  * Query Boot Status command can be called by AP firmware to know Glacier
  * and AP status. The returned boot status code is a 64-bit data.
  */
-int query_boot_status(int fd, uint8_t tid, uint8_t verbose)
+int query_boot_status(int fd, uint8_t tid, uint8_t verbose, uint8_t more)
 {
 	uint8_t *resp = NULL;
 	size_t resp_len = 0;
@@ -340,6 +623,26 @@ int query_boot_status(int fd, uint8_t tid, uint8_t verbose)
 	/* Send and Receive the MCTP-VDM command */
 	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
 				       (uint8_t **)&resp, &resp_len, verbose);
+
+	/* Show boot status codes when flag 'more' is set */
+	if (more == true) {
+		printf("\n");
+		if (is_booted_OK(resp, resp_len) == true) {
+			printf(MSG_BOOT_OK);
+		} else {
+			printf(MSG_BOOT_FAILED);
+		}
+		printf("\n");
+		printf("\n");
+		printf("Boot Status Codes\n");
+		printf("\n");
+		query_boot_status_print_byte8(resp, resp_len);
+		query_boot_status_print_byte7(resp, resp_len);
+		query_boot_status_print_byte6(resp, resp_len);
+		query_boot_status_print_byte5(resp, resp_len);
+		query_boot_status_print_byte4(resp, resp_len);
+		query_boot_status_print_byte3(resp, resp_len);
+	}
 
 	/* free memory */
 	free(resp);

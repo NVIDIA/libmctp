@@ -203,7 +203,7 @@ void *mctp_spi_keepalive_event(void *arg)
 	int signal_fd = -1;
 	sigset_t mask;
 	int retries = MAX_HEARTBEAT_RETRY;
-	mctp_ctrl_t *ctrl = (mctp_ctrl_t *) arg;
+	mctp_ctrl_t *ctrl = (mctp_ctrl_t *)arg;
 
 	sigemptyset(&mask);
 	sigaddset(&mask, SIGUSR2);
@@ -230,7 +230,7 @@ void *mctp_spi_keepalive_event(void *arg)
 
 		/* Terminate the main thread */
 		mctp_ctrl_sdbus_stop();
-			  
+
 		/* Let the main thread continue to run and stop */
 		pthread_cond_signal(&ctrl->worker_cv);
 		pthread_mutex_unlock(&ctrl->worker_mtx);
@@ -268,12 +268,10 @@ void *mctp_spi_keepalive_event(void *arg)
 			      EVT_CRITICAL, "Reset the baseboard");
 			if (retries == 0) {
 				break;
+			} else {
+				retries--;
 			}
-			else {
-				retries --;
-			}
-		}
-		else {
+		} else {
 			retries = MAX_HEARTBEAT_RETRY;
 		}
 		/* Consume forwarding resposnses from other mctp client */
@@ -410,7 +408,7 @@ void mctp_spi_test_cmd(mctp_ctrl_t *ctrl, mctp_spi_cmdline_args_t *cmd)
 	case MCTP_SPI_QUERY_BOOT_STATUS:
 		MCTP_CTRL_DEBUG("%s: MCTP_SPI_QUERY_BOOT_STATUS\n", __func__);
 		rc = query_boot_status(ctrl->sock, MCTP_NULL_ENDPOINT,
-				       VERBOSE_EN);
+				       VERBOSE_EN, false);
 		if (rc != MCTP_REQUESTER_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed MCTP_SPI_QUERY_BOOT_STATUS\n",
 				      __func__);
