@@ -34,6 +34,7 @@ struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t dest_addr, uint8
 
 int mctp_smbus_open_in_bus(struct mctp_binding_smbus *smbus, int in_bus, int src_slv_addr);
 int mctp_smbus_open_out_bus(struct mctp_binding_smbus *smbus, int out_bus);
+int mctp_smbus_read_only(struct mctp_binding_smbus *smbus);
 int mctp_smbus_read(struct mctp_binding_smbus *smbus);
 int mctp_smbus_set_in_fd(struct mctp_binding_smbus *smbus, int fd);
 int mctp_smbus_set_out_fd(struct mctp_binding_smbus *smbus, int fd);
@@ -43,8 +44,8 @@ void mctp_smbus_register_bus(struct mctp_binding_smbus *smbus,
 			     struct mctp *mctp, mctp_eid_t eid);
 void mctp_smbus_free(struct mctp_binding_smbus *smbus);
 
-void send_udid_command(struct mctp_binding_smbus *smbus);
-void send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus);
+int check_device_supports_mctp(struct mctp_binding_smbus *smbus);
+int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus);
 
 /* SMBUS binding API's */
 int mctp_smbus_poll(struct mctp_binding_smbus *smbus, int timeout);

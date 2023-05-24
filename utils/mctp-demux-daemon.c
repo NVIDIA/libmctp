@@ -990,12 +990,7 @@ static int run_daemon(struct ctx *ctx)
 	mctp_set_rx_all(ctx->mctp, rx_message, ctx);
 
 	if (chosen_eid_type == EID_TYPE_STATIC) {
-		int i;
-		for (i = 0; i < 1; i++) {
-			send_udid_command(ctx->binding->data);
-			// send_mctp_get_ver_support_command(ctx->binding->data);
-		}
-		send_mctp_get_ver_support_command(ctx->binding->data);
+		check_device_supports_mctp(ctx->binding->data);
 	}
 
 	for (;;) {

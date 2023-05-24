@@ -293,16 +293,17 @@ int mctp_smbus_poll(struct mctp_binding_smbus *smbus, int timeout)
 	return 0;
 }
 
-void send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus)
+int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus)
 {
-	uint8_t outbuf_mctp[13] = { 0x0f, 0x0a, 0x31, 0x01, 0x64, 0x08, 0xc8,
-				    0x00, 0x80, 0x04, 0x00, 0x00, 0x6a };
+	int rc;
+	// MCTP frame - Get MCTP version support
+	uint8_t outbuf_mctp[13] = { 0x0f, 0x0a, 0x31, 0x01, 0x00, 0x08, 0xc8,
+				    0x00, 0x80, 0x04, 0x00, 0x00, 0x94 };
 	uint8_t inbuf_mctp[20];
 	struct i2c_msg msgs[1];
 	struct i2c_rdwr_ioctl_data msgset[1];
-	int slave_addr = 0x32;
 
-	msgs[0].addr = slave_addr; //0x32    0x61
+	msgs[0].addr = static_endpoints[0].slave_address;
 	msgs[0].flags = 0;
 	msgs[0].len = 13;
 	msgs[0].buf = outbuf_mctp;
@@ -310,30 +311,59 @@ void send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus)
 	msgset[0].msgs = msgs;
 	msgset[0].nmsgs = 1;
 
-	if (ioctl(smbus->out_fd, I2C_RDWR, &msgset) < 0) {
-		perror("ioctl(I2C_RDWR) in i2c_read");
-		return -1;
+	rc = ioctl(smbus->out_fd, I2C_RDWR, &msgset);
+	if (rc < 0) {
+		MCTP_ASSERT_RET(rc >= 0, rc, "Invalid ioctl ret val: %d (%s)",
+				errno, strerror(errno));
+		return EXIT_FAILURE;
 	}
 
+	mctp_prdebug("%s: TX Get MCTP version support command", __func__);
 	mctp_trace_tx(outbuf_mctp, msgs[0].len);
+
+	/* Wait for answer */
+	sleep(1);
+	rc = mctp_smbus_read_only(smbus);
+
+	/* Check "Command Code" if a good response was received and
+	 * "Completion Code", 0x00-support, 0x80-not support.
+	 * See DSP0236 v1.3.0 sec. 12.6. Tab. 18
+	 */
+	if (smbus->rxbuf[10] == 0x04) {
+		if (smbus->rxbuf[11] == 0x00) {
+			static_endpoints[0].support_mctp = 1;
+			mctp_prdebug("%s: Message type number supported", __func__);
+		} else {
+			mctp_prdebug("%s: Message type number not supported (Completion Code = 0x%x)",
+				__func__, smbus->rxbuf[11]);
+			return EXIT_FAILURE;
+		}
+	} else {
+		mctp_prdebug("%s: Received wrong Command Code", __func__);
+		return EXIT_FAILURE;
+	}
+
+	return EXIT_SUCCESS;
 }
 
-void send_udid_command(struct mctp_binding_smbus *smbus)
+int check_device_supports_mctp(struct mctp_binding_smbus *smbus)
 {
-	int retval;
+	int rc;
 	uint8_t outbuf[1] = { 0x03 }; // Set 'Get UDID' command
 	uint8_t inbuf[20];
 	struct i2c_msg msgs[2];
 	struct i2c_rdwr_ioctl_data msgset[1];
+	int slave_addr = 0x61; // As 7-bit
 	uint8_t interface_ASF = 0;
 	uint8_t i;
 
-	msgs[0].addr = static_endpoints[0].slave_address;
+	/* Prepare message to send Get UDID */
+	msgs[0].addr = slave_addr;
 	msgs[0].flags = 0;
 	msgs[0].len = 1;
 	msgs[0].buf = outbuf;
 
-	msgs[1].addr = static_endpoints[0].slave_address;
+	msgs[1].addr = slave_addr;
 	msgs[1].flags = I2C_M_RD | I2C_M_NOSTART;
 	msgs[1].len = 18;
 	msgs[1].buf = inbuf;
@@ -341,15 +371,18 @@ void send_udid_command(struct mctp_binding_smbus *smbus)
 	msgset[0].msgs = msgs;
 	msgset[0].nmsgs = 2;
 
-	if (ioctl(smbus->out_fd, I2C_RDWR, &msgset) < 0) {
-		perror("ioctl(I2C_RDWR) in i2c_read");
-		return -1;
+	rc = ioctl(smbus->out_fd, I2C_RDWR, &msgset);
+	if (rc < 0) {
+		MCTP_ASSERT_RET(rc >= 0, rc, "Invalid ioctl ret val: %d (%s)",
+				errno, strerror(errno));
+		return EXIT_FAILURE;
 	}
 
+	mctp_prdebug("%s: TX and RX Get UDID command", __func__);
 	mctp_trace_tx(outbuf, msgs[0].len);
 	mctp_trace_rx(inbuf, msgs[1].len);
 
-	// Check ASF bit
+	// Check ASF bit from UDID
 	interface_ASF = inbuf[8];
 	interface_ASF = (interface_ASF >> 5) & 0x01;
 
@@ -357,16 +390,44 @@ void send_udid_command(struct mctp_binding_smbus *smbus)
 		for (i = 0; i < 16; i++) {
 			static_endpoints[0].udid[i] = inbuf[i + 1];
 		}
+		/* Get MCTP version support */
+		rc = send_mctp_get_ver_support_command(smbus);
+		if (rc != 0) {
+			mctp_prdebug("%s: Get MCTP version support failed!", __func__);
+		}
 	}
 
-	printf("Endpoint = %d\n", static_endpoints[0].endpoint_num);
-	printf("Slave address = 0x%x\n", static_endpoints[0].slave_address);
-	printf("Support MCTP = %d\n", static_endpoints[0].support_mctp);
-	printf("UDID = ");
+	mctp_prdebug("\n%s: Static endpoint", __func__);
+	mctp_prdebug("Endpoint = %d", static_endpoints[0].endpoint_num);
+	mctp_prdebug("Slave address = 0x%x", static_endpoints[0].slave_address);
+	mctp_prdebug("Support MCTP = %d", static_endpoints[0].support_mctp);
+	mctp_prdebug("UDID = ");
 	for (i = 0; i < 16; i++) {
-		printf("0x%x ", static_endpoints[0].udid[i]);
+		mctp_prdebug("0x%x ", static_endpoints[0].udid[i]);
 	}
-	printf("\n\n");
+}
+
+int mctp_smbus_read_only(struct mctp_binding_smbus *smbus)
+{
+	ssize_t len = 0;
+	int ret = 0;
+
+	ret = lseek(smbus->in_fd, 0, SEEK_SET);
+	if (ret < 0) {
+		mctp_prerr("Failed to seek");
+		return -1;
+	}
+
+	len = read(smbus->in_fd, smbus->rxbuf, sizeof(smbus->rxbuf));
+
+	if (len < 0) {
+		mctp_prerr("Can't read from smbus device: %m");
+		return -1;
+	}
+
+	mctp_trace_rx(smbus->rxbuf, len);
+
+	return len;
 }
 
 int mctp_smbus_read(struct mctp_binding_smbus *smbus)
