@@ -3,6 +3,7 @@
 #include "compiler.h"
 #include "libmctp.h"
 #include "libmctp-serial.h"
+#include "libmctp-smbus.h"
 
 #include <assert.h>
 #include <err.h>
@@ -11,6 +12,8 @@
 #include <unistd.h>
 #include <sys/poll.h>
 #include <sys/socket.h>
+
+struct mctp_static_endpoint_mapper static_endpoints[1];
 
 static void
 rx_message(uint8_t eid __unused, bool tag_owner __unused,

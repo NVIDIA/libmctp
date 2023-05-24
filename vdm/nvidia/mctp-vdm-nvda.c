@@ -22,6 +22,7 @@
 #include "libmctp.h"
 #include "libmctp-cmds.h"
 #include "libmctp-log.h"
+#include "libmctp-smbus.h"
 
 #include "mctp-vdm-nvda.h"
 #include "mctp-vdm-commands.h"
@@ -41,6 +42,8 @@ uint8_t g_verbose_level = 0;
 
 /* Global socket name */
 char g_sock_name[32] = { 0 };
+
+struct mctp_static_endpoint_mapper static_endpoints[1];
 
 /* Global commandline options */
 static const struct option options[] = {
