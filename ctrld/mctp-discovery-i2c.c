@@ -41,7 +41,7 @@ mctp_ret_codes_t mctp_i2c_get_mctp_ver_support_request(int sock_fd, uint8_t eid)
 	struct mctp_smbus_pkt_private pvt_binding;
 
 	/* Set destination EID */
-	dest_eid = 100;
+	dest_eid = 0;
 
 	/* Set Bind ID as SMBus */
 	bind_id = MCTP_BINDING_SMBUS;
@@ -1146,11 +1146,14 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd, mct
 /* Routine to Discover the endpoint devices */
 mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cmd, mctp_ctrl_t *ctrl)
 {
-	static int discovery_mode = MCTP_GET_VER_SUPPORT_REQUEST;
+	static int discovery_mode = MCTP_SET_EP_REQUEST;
 	mctp_ret_codes_t mctp_ret;
+	mctp_ctrl_cmd_set_eid_op set_eid_op;
+	uint8_t eid = 0, eid_count = 0;
 	uint8_t *mctp_resp_msg;
 	mctp_eid_t local_eid = 11;
 	size_t resp_msg_len;
+	int timeout = 0;
 
 	do {
 		/* Wait for MCTP response */
@@ -1171,44 +1174,82 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 		}
 
 		switch(discovery_mode) {
-			case MCTP_GET_VER_SUPPORT_REQUEST:
 
-				/* Send the MCTP_GET_VERSION_SUPPORT_REQUEST */
-				MCTP_CTRL_DEBUG(
-					"%s: Send MCTP Version Support Request for EID: 0x%x\n",
-					__func__, MCTP_EID_NULL);
+			case MCTP_SET_EP_REQUEST:
 
-				mctp_ret = mctp_i2c_get_mctp_ver_support_request(
-					ctrl->sock, MCTP_EID_NULL);
+				/* Update the EID operation and EID number */
+				set_eid_op = set_eid;
+				eid = cmd->dest_static_eid;
+
+				/* Send the MCTP_SET_EP_REQUEST */
+				mctp_ret = mctp_i2c_set_eid_send_request(ctrl->sock, set_eid_op, eid);
 				if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
-					MCTP_CTRL_ERR(
-						"%s: Failed MCTP_GET_VERSION_SUPPORT_REQUEST\n",
-						__func__);
+					MCTP_CTRL_ERR("%s: Failed MCTP_I2C_SET_EP_REQUEST\n", __func__);
 					return MCTP_RET_DISCOVERY_FAILED;
 				}
 
 				/* Wait for the endpoint response */
-				discovery_mode = MCTP_FINISH_DISCOVERY;
+				discovery_mode = MCTP_SET_EP_RESPONSE;
+
+				break;
+
+			case MCTP_SET_EP_RESPONSE:
+				/* Process the MCTP_SET_EP_RESPONSE */
+				mctp_ret = mctp_i2c_set_eid_get_response(mctp_resp_msg, resp_msg_len,
+													eid, &eid_count);
+				/* Free Rx packet */
+				free(mctp_resp_msg);
+
+				/* Retry if the device is not ready */
+				if (mctp_ret == MCTP_RET_DEVICE_NOT_READY) {
+					/* Make sure it's not timedout before continuing */
+					if (timeout < MCTP_DEVICE_SET_EID_TIMEOUT) {
+						/* Increment the timeout */
+						timeout += MCTP_DEVICE_READY_DELAY;
+
+						/* Set the discover mode as MCTP_SET_EP_REQUEST */
+						discovery_mode = MCTP_SET_EP_REQUEST;
+
+						/* Sleep for a while */
+						sleep(MCTP_DEVICE_READY_DELAY);
+						break;
+					}
+
+					MCTP_CTRL_ERR(
+						"%s: Timedout[%d] MCTP_EP_DISCOVERY_RESPONSE\n",
+						__func__, timeout);
+					return MCTP_RET_DISCOVERY_FAILED;
+				}
+
+				if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+					MCTP_CTRL_ERR(
+						"%s: Failed MCTP_EP_DISCOVERY_RESPONSE\n",
+						__func__);
+					return MCTP_RET_DISCOVERY_FAILED;
+				}
+
+				/* Reset the timeout */
+				timeout = 0;
+
+				discovery_mode = MCTP_GET_EP_UUID_REQUEST;
 
 				break;
 
 			case MCTP_GET_EP_UUID_REQUEST:
-
 				/* Send the MCTP_GET_EP_UUID_REQUEST */
 
 				MCTP_CTRL_DEBUG(
 					"%s: Send UUID Request for EID: 0x%x\n",
-					__func__, cmd->dest_eid);
+					__func__, cmd->dest_static_eid);
 
 				mctp_ret = mctp_i2c_get_endpoint_uuid_send_request(
-					ctrl->sock, cmd->dest_eid);
+					ctrl->sock, cmd->dest_static_eid);
 				if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 					MCTP_CTRL_ERR(
 						"%s: Failed MCTP_GET_EP_UUID_REQUEST\n",
 						__func__);
 					return MCTP_RET_DISCOVERY_FAILED;
 				}
-
 
 				/* Wait for the endpoint response */
 				discovery_mode = MCTP_GET_EP_UUID_RESPONSE;
@@ -1220,11 +1261,11 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 				if (mctp_ret == MCTP_RET_REQUEST_FAILED) {
 					MCTP_CTRL_ERR(
 						"%s: MCTP_GET_EP_UUID_RESPONSE Failed EID: %d\n",
-						__func__, cmd->dest_eid);
+						__func__, cmd->dest_static_eid);
 				} else {
 					/* Process the MCTP_GET_EP_UUID_RESPONSE */
 					mctp_ret = mctp_i2c_get_endpoint_uuid_response(
-						cmd->dest_eid, mctp_resp_msg, resp_msg_len);
+						cmd->dest_static_eid, mctp_resp_msg, resp_msg_len);
 
 					if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 						MCTP_CTRL_ERR(
@@ -1233,6 +1274,51 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 					}
 					/* Free Rx packet */
 					free(mctp_resp_msg);
+				}
+
+				discovery_mode = MCTP_GET_MSG_TYPE_REQUEST;
+
+				break;
+
+			case MCTP_GET_MSG_TYPE_REQUEST:
+
+					MCTP_CTRL_DEBUG(
+						"%s: Send Get Msg type Request for EID: 0x%x\n",
+						__func__, cmd->dest_static_eid);
+
+					mctp_ret = mctp_i2c_get_msg_type_request(ctrl->sock,
+										cmd->dest_static_eid);
+					if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+						MCTP_CTRL_ERR(
+							"%s: Failed MCTP_GET_MSG_TYPE_REQUEST\n",
+							__func__);
+						return MCTP_RET_DISCOVERY_FAILED;
+					}
+
+				/* Wait for the endpoint response */
+				discovery_mode = MCTP_GET_MSG_TYPE_RESPONSE;
+
+				break;
+
+			case MCTP_GET_MSG_TYPE_RESPONSE:
+
+				if (mctp_ret == MCTP_RET_REQUEST_FAILED) {
+					MCTP_CTRL_ERR(
+						"%s: MCTP_GET_MSG_TYPE_RESPONSE Failed EID: %d\n",
+						__func__, cmd->dest_static_eid);
+				} else {
+					/* Process the MCTP_GET_MSG_TYPE_RESPONSE */
+					mctp_ret = mctp_i2c_get_msg_type_response(
+						cmd->dest_static_eid, mctp_resp_msg, resp_msg_len);
+
+					/* Free Rx packet */
+					free(mctp_resp_msg);
+
+					if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+						MCTP_CTRL_ERR(
+							"%s: MCTP_GET_MSG_TYPE_RESPONSE Failed\n",
+							__func__);
+					}
 				}
 
 				/* Finally update the global mctp_discovered_endpoints */
@@ -1251,4 +1337,13 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 
 	} while (discovery_mode != MCTP_FINISH_DISCOVERY);
 
+	/* Display all UUID details */
+	MCTP_CTRL_DEBUG("%s: Obtained UUID entries\n", __func__);
+	mctp_uuid_display();
+
+	/* Display all message type details */
+	MCTP_CTRL_DEBUG("%s: Obtained Message type entries\n", __func__);
+	mctp_msg_types_display();
+
+	return MCTP_RET_DISCOVERY_SUCCESS;
 }

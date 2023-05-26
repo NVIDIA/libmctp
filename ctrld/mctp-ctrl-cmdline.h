@@ -71,6 +71,7 @@ typedef struct mctp_cmdline_args_ {
 	int list_device_op;
 	mctp_cmdline_ops_t ops;
 	mctp_eid_t dest_eid;
+	mctp_eid_t dest_static_eid;
 	uint8_t uuid;
 	union {
 		struct mctp_cmdline_pcie pcie;

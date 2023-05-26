@@ -979,7 +979,7 @@ static void parse_command_line(int argc, char *const *argv,
 				case EID_TYPE_STATIC:
 					mctp_prinfo("Use static endpoint");
 					mctp_json_i2c_get_params_for_static_mctp_ctrl(parsed_json,
-					&cmdline->i2c.bus_num, &cmdline->dest_eid, &cmdline->uuid);
+					&cmdline->i2c.bus_num, &cmdline->dest_static_eid, &cmdline->uuid);
 
 					break;
 				case EID_TYPE_POOL:
