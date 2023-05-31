@@ -57,7 +57,6 @@
 	0x30 //Dest_Slave_Addr:	0x52(BMC), 0x30(HMC) [7-bit]
 #define MCTP_SMBUS_SRC_SLAVE_ADDR                                              \
 	0x18 //Src_Slave_Addr:	0x51(BMC), 0x18(HMC) [7-bit]
->>>>>>> 58b12b1 (Add SMBus functionality to mctp-demux-daemon.)
 
 #if HAVE_SYSTEMD_SD_DAEMON_H
 #include <systemd/sd-daemon.h>

@@ -653,7 +653,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 
 		mctp_ctrl->sock = fd;
 
-		mctp_set_log_stdio(cmdline.verbose ? MCTP_LOG_DEBUG :
+		mctp_set_log_stdio(cmdline->verbose ? MCTP_LOG_DEBUG :
 						     MCTP_LOG_WARNING);
 
 		/* Create static endpoint 0 for spi ctrl daemon */
@@ -737,9 +737,6 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		}
 	}
 	else if (cmdline->binding_type == MCTP_BINDING_SPI) {
-		/* Create static endpoint 0 for spi ctrl daemon */
-		mctp_spi_static_endpoint();
-
 		/* Create pthread for sening keepalive messages */
 		pthread_create(&keepalive_thread, NULL, &mctp_spi_keepalive_event,
 				(void *)mctp_ctrl);

@@ -78,8 +78,7 @@ static int mctp_spi_get_version_support(const mctp_cmdline_args_t *cmd)
 	return 0;
 }
 
-static int mctp_spi_get_message_type(int sock,
-				     const mctp_spi_cmdline_args_t *cmd)
+static int mctp_spi_get_message_type(int sock, const mctp_cmdline_args_t *cmd)
 {
 	uint8_t *resp = NULL;
 	size_t resp_len = 0;

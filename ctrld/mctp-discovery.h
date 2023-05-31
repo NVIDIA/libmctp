@@ -18,26 +18,30 @@ extern "C" {
 #endif
 
 /* Function prototypes */
-mctp_ret_codes_t mctp_prepare_ep_discovery_send_request(int sock_fd);
+mctp_ret_codes_t
+mctp_prepare_ep_discovery_send_request(int sock_fd, mctp_binding_ids_t bind_id);
 mctp_ret_codes_t mctp_prepare_ep_discovery_get_response(uint8_t *mctp_resp_msg,
 							size_t resp_msg_len);
 
-mctp_ret_codes_t mctp_ep_discovery_send_request(int sock_fd);
+mctp_ret_codes_t mctp_ep_discovery_send_request(int sock_fd,
+						mctp_binding_ids_t bind_id);
 int mctp_ep_discovery_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len);
 
 mctp_ret_codes_t mctp_set_eid_send_request(int sock_fd,
+					   mctp_binding_ids_t bind_id,
 					   mctp_ctrl_cmd_set_eid_op op,
 					   uint8_t eid);
 int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
 			      uint8_t eid, uint8_t *eid_count);
 
-mctp_ret_codes_t mctp_alloc_eid_send_request(int sock_fd, mctp_eid_t eid,
-					     mctp_ctrl_cmd_set_eid_op op,
-					     uint8_t eid_count,
-					     uint8_t eid_start);
+mctp_ret_codes_t
+mctp_alloc_eid_send_request(int sock_fd, mctp_binding_ids_t bind_id,
+			    mctp_eid_t eid, mctp_ctrl_cmd_set_eid_op op,
+			    uint8_t eid_count, uint8_t eid_start);
 int mctp_alloc_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len);
 
 mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd,
+						     mctp_binding_ids_t bind_id,
 						     mctp_eid_t eid,
 						     uint8_t entry_handle);
 int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
@@ -45,11 +49,14 @@ int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
 					size_t resp_msg_len);
 
 mctp_ret_codes_t mctp_get_endpoint_uuid_send_request(int sock_fd,
+						     mctp_binding_ids_t bind_id,
 						     mctp_eid_t eid);
 int mctp_get_endpoint_uuid_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 				    size_t resp_msg_len);
 
-mctp_ret_codes_t mctp_get_msg_type_request(int sock_fd, mctp_eid_t eid);
+mctp_ret_codes_t mctp_get_msg_type_request(int sock_fd,
+					   mctp_binding_ids_t bind_id,
+					   mctp_eid_t eid);
 int mctp_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 			       size_t resp_msg_len);
 

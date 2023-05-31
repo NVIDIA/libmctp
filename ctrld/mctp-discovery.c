@@ -37,7 +37,8 @@ static int g_target_bdf = 0;
 static uint8_t g_pci_bridge_eid, g_pci_own_eid, g_pci_bridge_pool_start;
 
 /* Send function for Prepare for Endpoint discovery */
-mctp_ret_codes_t mctp_prepare_ep_discovery_send_request(int sock_fd)
+mctp_ret_codes_t
+mctp_prepare_ep_discovery_send_request(int sock_fd, mctp_binding_ids_t bind_id)
 {
 	bool req_ret;
 	mctp_requester_rc_t mctp_ret;
@@ -81,7 +82,7 @@ mctp_ret_codes_t mctp_prepare_ep_discovery_send_request(int sock_fd)
 	MCTP_CTRL_DEBUG("%s: Sending EP request\n", __func__);
 	mctp_ret = mctp_client_with_binding_send(
 		dest_eid, sock_fd, (const uint8_t *)&ep_discovery_req,
-		sizeof(struct mctp_ctrl_cmd_prepare_ep_discovery),
+		sizeof(struct mctp_ctrl_cmd_prepare_ep_discovery), &bind_id,
 		(void *)&pvt_binding, sizeof(pvt_binding));
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
@@ -118,7 +119,8 @@ mctp_ret_codes_t mctp_prepare_ep_discovery_get_response(uint8_t *mctp_resp_msg,
 }
 
 /* Send function for Endpoint discovery */
-mctp_ret_codes_t mctp_ep_discovery_send_request(int sock_fd)
+mctp_ret_codes_t mctp_ep_discovery_send_request(int sock_fd,
+						mctp_binding_ids_t bind_id)
 {
 	bool req_ret;
 	mctp_requester_rc_t mctp_ret;
@@ -158,8 +160,8 @@ mctp_ret_codes_t mctp_ep_discovery_send_request(int sock_fd)
 	/* Send the request message over socket */
 	mctp_ret = mctp_client_with_binding_send(
 		dest_eid, sock_fd, (const uint8_t *)&ep_req,
-		sizeof(struct mctp_ctrl_cmd_ep_discovery), (void *)&pvt_binding,
-		sizeof(pvt_binding));
+		sizeof(struct mctp_ctrl_cmd_ep_discovery), &bind_id,
+		(void *)&pvt_binding, sizeof(pvt_binding));
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
@@ -193,8 +195,10 @@ int mctp_ep_discovery_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len)
 }
 
 /* Send function for Set Endpoint ID */
-mctp_ret_codes_t
-mctp_set_eid_send_request(int sock_fd, mctp_ctrl_cmd_set_eid_op op, uint8_t eid)
+mctp_ret_codes_t mctp_set_eid_send_request(int sock_fd,
+					   mctp_binding_ids_t bind_id,
+					   mctp_ctrl_cmd_set_eid_op op,
+					   uint8_t eid)
 {
 	bool req_ret;
 	mctp_requester_rc_t mctp_ret;
@@ -237,8 +241,8 @@ mctp_set_eid_send_request(int sock_fd, mctp_ctrl_cmd_set_eid_op op, uint8_t eid)
 	/* Send the request message over socket */
 	mctp_ret = mctp_client_with_binding_send(
 		dest_eid, sock_fd, (const uint8_t *)&ep_req,
-		sizeof(struct mctp_ctrl_cmd_set_eid), (void *)&pvt_binding,
-		sizeof(pvt_binding));
+		sizeof(struct mctp_ctrl_cmd_set_eid), &bind_id,
+		(void *)&pvt_binding, sizeof(pvt_binding));
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
@@ -320,11 +324,9 @@ int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
 }
 
 /* Send function for Allocate Endpoint ID */
-mctp_ret_codes_t mctp_alloc_eid_send_request(int sock_fd,
-					     mctp_eid_t assigned_eid,
-					     mctp_ctrl_cmd_set_eid_op op,
-					     uint8_t eid_count,
-					     uint8_t eid_start)
+mctp_ret_codes_t mctp_alloc_eid_send_request(
+	int sock_fd, mctp_binding_ids_t bind_id, mctp_eid_t assigned_eid,
+	mctp_ctrl_cmd_set_eid_op op, uint8_t eid_count, uint8_t eid_start)
 {
 	bool req_ret;
 	mctp_requester_rc_t mctp_ret;
@@ -367,8 +369,8 @@ mctp_ret_codes_t mctp_alloc_eid_send_request(int sock_fd,
 	/* Send the request message over socket */
 	mctp_ret = mctp_client_with_binding_send(
 		dest_eid, sock_fd, (const uint8_t *)&ep_req,
-		sizeof(struct mctp_ctrl_cmd_alloc_eid), (void *)&pvt_binding,
-		sizeof(pvt_binding));
+		sizeof(struct mctp_ctrl_cmd_alloc_eid), &bind_id,
+		(void *)&pvt_binding, sizeof(pvt_binding));
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
@@ -418,6 +420,7 @@ int mctp_alloc_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len)
 
 /* Send function for Get routing table */
 mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd,
+						     mctp_binding_ids_t bind_id,
 						     mctp_eid_t eid,
 						     uint8_t entry_handle)
 {
@@ -465,7 +468,7 @@ mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd,
 	/* Send the request message over socket */
 	mctp_ret = mctp_client_with_binding_send(
 		dest_eid, sock_fd, (const uint8_t *)&ep_req,
-		sizeof(struct mctp_ctrl_cmd_get_routing_table),
+		sizeof(struct mctp_ctrl_cmd_get_routing_table), &bind_id,
 		(void *)&pvt_binding, sizeof(pvt_binding));
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
@@ -592,6 +595,7 @@ int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
 
 /* Send function for Get UUID */
 mctp_ret_codes_t mctp_get_endpoint_uuid_send_request(int sock_fd,
+						     mctp_binding_ids_t bind_id,
 						     mctp_eid_t eid)
 {
 	bool req_ret;
@@ -631,8 +635,8 @@ mctp_ret_codes_t mctp_get_endpoint_uuid_send_request(int sock_fd,
 	/* Send the request message over socket */
 	mctp_ret = mctp_client_with_binding_send(
 		dest_eid, sock_fd, (const uint8_t *)&ep_req,
-		sizeof(struct mctp_ctrl_cmd_get_uuid), (void *)&pvt_binding,
-		sizeof(pvt_binding));
+		sizeof(struct mctp_ctrl_cmd_get_uuid), &bind_id,
+		(void *)&pvt_binding, sizeof(pvt_binding));
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
@@ -684,7 +688,9 @@ int mctp_get_endpoint_uuid_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 }
 
 /* Send function for Get Messgae types */
-mctp_ret_codes_t mctp_get_msg_type_request(int sock_fd, mctp_eid_t eid)
+mctp_ret_codes_t mctp_get_msg_type_request(int sock_fd,
+					   mctp_binding_ids_t bind_id,
+					   mctp_eid_t eid)
 {
 	bool req_ret;
 	mctp_requester_rc_t mctp_ret;
@@ -725,7 +731,7 @@ mctp_ret_codes_t mctp_get_msg_type_request(int sock_fd, mctp_eid_t eid)
 	MCTP_CTRL_TRACE("%s: Sending EP request\n", __func__);
 	mctp_ret = mctp_client_with_binding_send(
 		dest_eid, sock_fd, (const uint8_t *)&ep_req,
-		sizeof(struct mctp_ctrl_cmd_get_msg_type_support),
+		sizeof(struct mctp_ctrl_cmd_get_msg_type_support), &bind_id,
 		(void *)&pvt_binding, sizeof(pvt_binding));
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
@@ -875,9 +881,10 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 	size_t resp_msg_len;
 	int timeout = 0;
 	mctp_routing_table_t *routing_entry = NULL;
+	mctp_binding_ids_t bind_id = MCTP_BINDING_PCIE;
 
 	/* Update Target BDF */
-	g_target_bdf = mctp_ctrl_get_target(cmd);
+	g_target_bdf = mctp_ctrl_get_target_bdf(cmd);
 
 	/* Update the EID lists */
 	g_pci_own_eid = cmd->pcie.own_eid;
@@ -921,7 +928,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 
 			/* Send the prepare endpoint discovery message */
 			mctp_ret = mctp_prepare_ep_discovery_send_request(
-				ctrl->sock);
+				ctrl->sock, bind_id);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				doLog(ctrl->bus,
 				      "PCIe Device Enumeration Service",
@@ -962,7 +969,8 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 		case MCTP_EP_DISCOVERY_REQUEST:
 
 			/* Send the prepare endpoint message */
-			mctp_ret = mctp_ep_discovery_send_request(ctrl->sock);
+			mctp_ret = mctp_ep_discovery_send_request(ctrl->sock,
+								  bind_id);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				doLog(ctrl->bus,
 				      "PCIe Device Enumeration Service",
@@ -1007,8 +1015,8 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			eid = g_pci_bridge_eid;
 
 			/* Send the MCTP_SET_EP_REQUEST */
-			mctp_ret = mctp_set_eid_send_request(ctrl->sock,
-							     set_eid_op, eid);
+			mctp_ret = mctp_set_eid_send_request(
+				ctrl->sock, bind_id, set_eid_op, eid);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_SET_EP_REQUEST\n",
@@ -1082,10 +1090,9 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			eid_start = g_pci_bridge_pool_start;
 
 			/* Send the MCTP_ALLOCATE_EP_ID_REQUEST */
-			mctp_ret = mctp_alloc_eid_send_request(ctrl->sock, eid,
-							       alloc_eid_op,
-							       eid_count,
-							       eid_start);
+			mctp_ret = mctp_alloc_eid_send_request(
+				ctrl->sock, bind_id, eid, alloc_eid_op,
+				eid_count, eid_start);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_SET_EP_REQUEST\n",
@@ -1142,7 +1149,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 
 			/* Send the MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST */
 			mctp_ret = mctp_get_routing_table_send_request(
-				ctrl->sock, eid, entry_hdl);
+				ctrl->sock, bind_id, eid, entry_hdl);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST\n",
@@ -1238,7 +1245,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 					__func__, eid_start);
 
 				mctp_ret = mctp_get_endpoint_uuid_send_request(
-					ctrl->sock, eid_start);
+					ctrl->sock, bind_id, eid_start);
 				if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 					MCTP_CTRL_ERR(
 						"%s: Failed MCTP_GET_EP_UUID_REQUEST\n",
@@ -1309,8 +1316,8 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 					"%s: Send Get Msg type Request for EID: 0x%x\n",
 					__func__, eid_start);
 
-				mctp_ret = mctp_get_msg_type_request(ctrl->sock,
-								     eid_start);
+				mctp_ret = mctp_get_msg_type_request(
+					ctrl->sock, bind_id, eid_start);
 				if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 					MCTP_CTRL_ERR(
 						"%s: Failed MCTP_GET_MSG_TYPE_REQUEST\n",
@@ -1398,6 +1405,7 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl)
 	mctp_ret_codes_t mctp_ret;
 	uint8_t *mctp_resp_msg = NULL;
 	size_t resp_msg_len;
+	mctp_binding_ids_t bind_id = MCTP_BINDING_SPI;
 
 	/* Implement SPI UUID and MSG_TYPE commamnds*/
 	do {
@@ -1413,7 +1421,7 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl)
 
 			/* Send the MCTP_GET_EP_UUID_REQUEST */
 			mctp_ret = mctp_get_endpoint_uuid_send_request(
-				ctrl->sock, MCTP_NULL_ENDPOINT);
+				ctrl->sock, bind_id, MCTP_NULL_ENDPOINT);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_GET_EP_UUID_REQUEST\n",
@@ -1458,8 +1466,8 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl)
 				"%s: Send Get Msg type Request for EID: 0x%x\n",
 				__func__, MCTP_NULL_ENDPOINT);
 
-			mctp_ret = mctp_get_msg_type_request(ctrl->sock,
-							     MCTP_NULL_ENDPOINT);
+			mctp_ret = mctp_get_msg_type_request(
+				ctrl->sock, bind_id, MCTP_NULL_ENDPOINT);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_GET_MSG_TYPE_REQUEST\n",

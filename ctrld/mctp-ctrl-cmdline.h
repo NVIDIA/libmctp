@@ -21,6 +21,24 @@ typedef enum mctp_cmdline_ops {
 	MCTP_CMDLINE_OP_NONE,
 } mctp_cmdline_ops_t;
 
+/* Various SPI read/write operations (NVIDIA VDM commands) */
+typedef enum mctp_spi_vdm_ops {
+	MCTP_SPI_SET_ENDPOINT_ID = 1,
+	MCTP_SPI_GET_ENDPOINT_ID,
+	MCTP_SPI_GET_ENDPOINT_UUID,
+	MCTP_SPI_GET_VERSION,
+	MCTP_SPI_GET_MESSAGE_TYPE,
+} mctp_spi_vdm_ops_t;
+
+/* Various SPI read/write operations (NVIDIA IANA VDM commands) */
+typedef enum mctp_spi_iana_vdm_ops {
+	MCTP_SPI_SET_ENDPOINT_UUID = 1,
+	MCTP_SPI_BOOT_COMPLETE,
+	MCTP_SPI_HEARTBEAT_SEND,
+	MCTP_SPI_HEARTBEAT_ENABLE,
+	MCTP_SPI_QUERY_BOOT_STATUS,
+} mctp_spi_iana_vdm_ops_t;
+
 /* Various commandline modes */
 typedef enum mctp_mode_ops {
 	MCTP_MODE_CMDLINE,
@@ -34,6 +52,27 @@ struct mctp_cmdline_pcie {
 	uint8_t bridge_eid;
 	uint8_t bridge_pool_start;
 };
+
+/* SPI operations */
+typedef enum mctp_spi_cmd_mode {
+	MCTP_SPI_NONE = 0,
+	MCTP_SPI_RAW_READ,
+	MCTP_SPI_RAW_WRITE,
+	MCTP_SPI_MAILBOX_WRITE,
+	MCTP_SPI_MAILBOX_READ_READY,
+	MCTP_SPI_MAILBOX_READ_DONE,
+	MCTP_SPI_MAILBOX_SPB_RESET,
+	MCTP_SPI_MAILBOX_WRITE_LEN,
+	MCTP_SPI_POST_READ,
+	MCTP_SPI_POST_WRITE,
+	MCTP_SPI_GPIO_READ,
+} mctp_spi_cmd_mode_t;
+
+/**/
+typedef enum mctp_spi_hrtb_ops {
+	MCTP_SPI_HB_DISABLE_CMD = 0,
+	MCTP_SPI_HB_ENABLE_CMD,
+} mctp_spi_hrtb_ops_t;
 
 /* SPI specific configuration */
 struct mctp_cmdline_spi {
