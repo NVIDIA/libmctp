@@ -257,7 +257,7 @@ bool mctp_decode_resp_get_ver_support(
 	if (mctp_ver_support_resp->completion_code != MCTP_CTRL_CC_SUCCESS)
 		return false;
 	
-	MCTP_CTRL_DEBUG("%s: number of entries: %ld\n", __func__,
+	MCTP_CTRL_DEBUG("%s: number of entries: %d\n", __func__,
 			sizeof(mctp_ver_support_resp->number_of_entries));
 	
 	return true;

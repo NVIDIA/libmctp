@@ -72,10 +72,10 @@ int mctp_json_get_tokener_parse(const char *path)
 int mctp_json_get_eid_type(json_object *jo, const char *binding_name, uint8_t *bus_num)
 {
 	if (strcmp(binding_name, "astpcie") == 0) {
-
+		printf("Parameters for PCIe from JSON file not supported\n");
 	}
 	else if (strcmp(binding_name, "astspi") == 0) {
-
+		printf("Parameters for SPI from JSON file not supported\n");
 	}
 	else if (strcmp(binding_name, "smbus") == 0) {
 		json_object *jo_i2c_struct;
@@ -135,7 +135,7 @@ int mctp_json_get_eid_type(json_object *jo, const char *binding_name, uint8_t *b
  *
  * @returns int return success or failure.
  */
-int mctp_json_i2c_get_params_for_bridge_static_mctp_demux(json_object *jo, uint8_t *bus_num,
+int mctp_json_i2c_get_params_bridge_static_demux(json_object *jo, uint8_t *bus_num,
 				char **sockname, uint8_t *dest_slave_addr, uint8_t *src_slave_addr,
 				uint8_t *src_eid)
 {
@@ -206,7 +206,7 @@ int mctp_json_i2c_get_params_for_bridge_static_mctp_demux(json_object *jo, uint8
 	return EXIT_SUCCESS;
 }
 
-int mctp_json_i2c_get_params_for_static_mctp_demux(json_object *jo, uint8_t *bus_num,
+int mctp_json_i2c_get_params_static_demux(json_object *jo, uint8_t *bus_num,
 				uint8_t *dest_eid)
 {
 	json_object *jo_i2c_struct;
@@ -262,7 +262,7 @@ int mctp_json_i2c_get_params_for_static_mctp_demux(json_object *jo, uint8_t *bus
  * @param[out] dest_slave_addr - Destination slave address (e.g. FPGA)
  * @param[out] src_slave_addr - Source slave address (e.g. HMC)
  */
-void mctp_json_i2c_get_common_params_mctp_ctrl(json_object *jo, uint8_t *bus_num,
+void mctp_json_i2c_get_common_params_ctrl(json_object *jo, uint8_t *bus_num,
 				char **sockname, uint8_t *src_eid, uint8_t *dest_slave_addr,
 				uint8_t *src_slave_addr)
 {
@@ -335,7 +335,7 @@ void mctp_json_i2c_get_common_params_mctp_ctrl(json_object *jo, uint8_t *bus_num
  * @param[out] dest_eid - EID of endpoint
  * @param[out] pool_start - Bridge pool start
  */
-void mctp_json_i2c_get_params_for_bridge_mctp_ctrl(json_object *jo, uint8_t *bus_num,
+void mctp_json_i2c_get_params_bridge_ctrl(json_object *jo, uint8_t *bus_num,
 				uint8_t *dest_eid, uint8_t *pool_start)
 {
 	json_object *jo_i2c_struct;

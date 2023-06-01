@@ -47,6 +47,7 @@ struct mctp_binding_smbus {
 #endif
 
 #define binding_to_smbus(b) container_of(b, struct mctp_binding_smbus, binding)
+#define total_tab_elements(a) (sizeof(a) / sizeof(a)[0])
 
 #define MCTP_SMBUS_BUS_NUM 2
 #define MCTP_SMBUS_DESTINATION_SLAVE_ADDRESS                                   \
@@ -297,15 +298,14 @@ int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus)
 {
 	int rc;
 	// MCTP frame - Get MCTP version support
-	uint8_t outbuf_mctp[13] = { 0x0f, 0x0a, 0x31, 0x01, 0x00, 0x08, 0xc8,
+	uint8_t outbuf_mctp[] = { 0x0f, 0x0a, 0x31, 0x01, 0x00, 0x08, 0xc8,
 				    0x00, 0x80, 0x04, 0x00, 0x00, 0x94 };
-	uint8_t inbuf_mctp[20];
 	struct i2c_msg msgs[1];
 	struct i2c_rdwr_ioctl_data msgset[1];
 
 	msgs[0].addr = static_endpoints[0].slave_address;
 	msgs[0].flags = 0;
-	msgs[0].len = 13;
+	msgs[0].len = total_tab_elements(outbuf_mctp);
 	msgs[0].buf = outbuf_mctp;
 
 	msgset[0].msgs = msgs;
@@ -394,7 +394,11 @@ int check_device_supports_mctp(struct mctp_binding_smbus *smbus)
 		rc = send_mctp_get_ver_support_command(smbus);
 		if (rc != 0) {
 			mctp_prdebug("%s: Get MCTP version support failed!", __func__);
+			return EXIT_FAILURE;
 		}
+	} else {
+		mctp_prwarn("%s: Device doesn't support MCTP", __func__);
+		return EXIT_FAILURE;
 	}
 
 	mctp_prdebug("\n%s: Static endpoint", __func__);
@@ -405,6 +409,7 @@ int check_device_supports_mctp(struct mctp_binding_smbus *smbus)
 	for (i = 0; i < 16; i++) {
 		mctp_prdebug("0x%x ", static_endpoints[0].udid[i]);
 	}
+	return EXIT_SUCCESS;
 }
 
 int mctp_smbus_read_only(struct mctp_binding_smbus *smbus)

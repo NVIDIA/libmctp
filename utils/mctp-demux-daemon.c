@@ -70,7 +70,7 @@ static inline int sd_listen_fds(int i __unused)
 uint8_t i2c_bus_num = MCTP_SMBUS_BUS_NUM;
 uint8_t i2c_dest_slave_addr = MCTP_SMBUS_DEST_SLAVE_ADDR;
 uint8_t i2c_src_slave_addr = MCTP_SMBUS_SRC_SLAVE_ADDR;
-static const char *config_json_file_path = NULL;
+static char *config_json_file_path = NULL;
 extern json_object *parsed_json;
 
 static const mctp_eid_t local_eid_default = 8;
@@ -634,7 +634,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 			{
 			case EID_TYPE_BRIDGE:
 				mctp_prinfo("Use bridge endpoint");
-				rc = mctp_json_i2c_get_params_for_bridge_static_mctp_demux(parsed_json,
+				rc = mctp_json_i2c_get_params_bridge_static_demux(parsed_json,
 					&i2c_bus_num, &binding->sockname,
 					&i2c_dest_slave_addr, &i2c_src_slave_addr, &eid);
 
@@ -644,7 +644,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 				break;
 			case EID_TYPE_STATIC:
 				mctp_prinfo("Use static endpoint");
-				rc = mctp_json_i2c_get_params_for_bridge_static_mctp_demux(parsed_json,
+				rc = mctp_json_i2c_get_params_bridge_static_demux(parsed_json,
 					&i2c_bus_num, &binding->sockname,
 					&i2c_dest_slave_addr, &i2c_src_slave_addr, &eid);
 				static_endpoints[0].slave_address = i2c_dest_slave_addr;
@@ -652,7 +652,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 				if (rc == EXIT_FAILURE)
 					binding_smbus_use_default_config();
 
-				rc = mctp_json_i2c_get_params_for_static_mctp_demux(parsed_json,
+				rc = mctp_json_i2c_get_params_static_demux(parsed_json,
 					&i2c_bus_num, &static_endpoints[0].endpoint_num);
 
 				break;

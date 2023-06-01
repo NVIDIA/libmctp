@@ -138,6 +138,8 @@ void mctp_spi_set_tx_fn(struct mctp_binding_spi *spi, mctp_spi_tx_fn fn,
 			void *data);
 int mctp_spi_process(struct mctp_binding_spi *spi);
 
+int mctp_spi_init_pollfd(struct mctp_binding_spi *spi, struct pollfd *pollfd);
+
 #ifdef __cplusplus
 }
 #endif

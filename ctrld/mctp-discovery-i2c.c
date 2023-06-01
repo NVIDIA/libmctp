@@ -691,11 +691,10 @@ int mctp_i2c_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 
 /* MCTP discovery response receive routine */
 static mctp_ret_codes_t mctp_discover_response(mctp_discovery_mode mode,
-													mctp_eid_t eid, int sock,
-													uint8_t **mctp_resp_msg,
-													size_t *mctp_resp_len)
+			mctp_eid_t eid, int sock, uint8_t **mctp_resp_msg,
+			size_t *mctp_resp_len)
 {
-	mctp_ret_codes_t        mctp_ret;
+	mctp_requester_rc_t mctp_ret;
 
 	/* Ignore request commands */
 	switch (mode)
@@ -812,7 +811,7 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd, mct
 			case MCTP_SET_EP_RESPONSE:
 				/* Process the MCTP_SET_EP_RESPONSE */
 				mctp_ret = mctp_i2c_set_eid_get_response(mctp_resp_msg, resp_msg_len,
-													g_i2c_bridge_eid, &eid_count);
+							g_i2c_bridge_eid, &eid_count);
 				/* Free Rx packet */
 				free(mctp_resp_msg);
 

@@ -71,7 +71,7 @@ int g_signal_fd = -1;
 static sd_bus *g_sdbus = NULL;
 struct mctp_static_endpoint_mapper static_endpoints[1];
 
-static const char *config_json_file_path = NULL;
+static char *config_json_file_path = NULL;
 bool use_config_json_file_mc = false;
 extern json_object *parsed_json;
 static uint8_t chosen_eid_type = 0;
@@ -197,7 +197,7 @@ static void usage_common(void)
 		"\t-v\tVerbose level\n"
 		"\t-e\tTarget Endpoint Id\n"
 		"\t-m\tMode: (0 - Commandline mode, 1 - daemon mode, 2 - SPI test mode)\n"
-		"\t-t\tBinding Type (0 - Resvd, 2 - PCIe, 6 -SPI)\n"
+		"\t-t\tBinding Type (0 - Resvd, 1 - I2C, 2 - PCIe, 6 - SPI)\n"
 		"\t-b\tBinding data (pvt)\n"
 		"\t-d\tDelay in seconds (for MCTP enumeration)\n"
 		"\t-s\tTx data (MCTP packet payload: [Req-dgram]-[cmd-code]--)\n"
@@ -355,7 +355,7 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 	case MCTP_CMDLINE_OP_LIST_SUPPORTED_DEV:
 		MCTP_CTRL_INFO("%s: Supported bindigs: PCIe\n", __func__);
 		MCTP_CTRL_INFO("%s: Supported bindigs: SPI\n", __func__);
-		MCTP_CTRL_INFO("%s: Supported bindigs: I2C\n", __func__);
+		MCTP_CTRL_INFO("%s: Supported bindigs: SMBus\n", __func__);
 		break;
 
 	default:
@@ -588,13 +588,13 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 
 	MCTP_CTRL_INFO("%s: Run mode: Commandline mode\n", __func__);
 
-	// Chosse binding type (PCIe or I2C)
+	// Chosse binding type (PCIe or SMBus)
 	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		MCTP_CTRL_DEBUG("%s: Setting up PCIe socket\n", __func__);
 		if(use_config_json_file_mc == false)
 			mctp_sock_path = MCTP_SOCK_PATH_PCIE;
 	} else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
-		MCTP_CTRL_DEBUG("%s: Setting up I2C socket\n", __func__);
+		MCTP_CTRL_DEBUG("%s: Setting up SMBus socket\n", __func__);
 		if(use_config_json_file_mc == false)
 			mctp_sock_path = MCTP_SOCK_PATH_I2C;
 	}
@@ -623,7 +623,7 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 			    mctp_ctrl_t *mctp_ctrl)
 {
-	int rc, fd, ret;
+	int rc = -1, fd, ret;
 	mctp_ret_codes_t mctp_err_ret;
 	pthread_t keepalive_thread;
 
@@ -805,7 +805,7 @@ static void parse_command_line(int argc, char *const *argv,
 
 	memset(&cmdline->tx_data, 0, MCTP_WRITE_DATA_BUFF_SIZE);
 	memset(&cmdline->rx_data, 0, MCTP_READ_DATA_BUFF_SIZE);
-	uint8_t own_eid, bridge_eid, bridge_pool;
+	uint8_t own_eid = 0, bridge_eid = 0, bridge_pool = 0;
 	int vdm_ops = 0, command_mode = 0;
 
 	/* Get the binding type parameter first,
@@ -948,19 +948,10 @@ static void parse_command_line(int argc, char *const *argv,
 				exit(EXIT_FAILURE);
 			}
 			else {
-				// Debug
-				printf("\n\nconfig_json_file_path\n%s\n", config_json_file_path);
-
 				// Get common parameters
-				mctp_json_i2c_get_common_params_mctp_ctrl(parsed_json,
+				mctp_json_i2c_get_common_params_ctrl(parsed_json,
 					&cmdline->i2c.bus_num, &mctp_sock_path, &cmdline->i2c.own_eid,
 					&cmdline->i2c.dest_slave_addr, &cmdline->i2c.src_slave_addr);
-
-				// Debug
-				printf("bus_num = %d, socket name = %s\n",
-				cmdline->i2c.bus_num, (mctp_sock_path + 1));
-				printf("src_eid = %d, dest_slave_addr = %d, src_slave_addr = %d\n\n",
-				cmdline->i2c.own_eid, cmdline->i2c.dest_slave_addr, cmdline->i2c.src_slave_addr);
 
 				// Get info about eid_type
 				chosen_eid_type = mctp_json_get_eid_type(parsed_json, "smbus", &cmdline->i2c.bus_num);
@@ -969,18 +960,20 @@ static void parse_command_line(int argc, char *const *argv,
 				{
 				case EID_TYPE_BRIDGE:
 					mctp_prinfo("Use bridge endpoint");
-					mctp_json_i2c_get_params_for_bridge_mctp_ctrl(parsed_json,
+					mctp_json_i2c_get_params_bridge_ctrl(parsed_json,
 					&cmdline->i2c.bus_num, &cmdline->i2c.bridge_eid, &cmdline->i2c.bridge_pool_start);
 
 					break;
 				case EID_TYPE_STATIC:
 					mctp_prinfo("Use static endpoint");
-					mctp_json_i2c_get_params_for_static_mctp_ctrl(parsed_json,
+					mctp_json_i2c_get_params_bridge_ctrl(parsed_json,
 					&cmdline->i2c.bus_num, &cmdline->dest_static_eid, &cmdline->uuid);
 
 					break;
 				case EID_TYPE_POOL:
 					mctp_prinfo("Use pool endpoints");
+					MCTP_CTRL_WARN("%s: EID type poll not supported\n", __func__);
+					exit(EXIT_SUCCESS);
 
 					break;
 
