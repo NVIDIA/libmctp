@@ -39,11 +39,8 @@ systemdsystemunit_DATA = \
 	systemd/system/mctp-pcie-demux.socket \
 	systemd/system/mctp-spi-demux.service \
 	systemd/system/mctp-spi-demux.socket \
-	systemd/system/mctp-i2c-demux.service \
-	systemd/system/mctp-i2c-demux.socket \
 	systemd/system/mctp-pcie-ctrl.service \
-	systemd/system/mctp-spi-ctrl.service \
-	systemd/system/mctp-i2c-ctrl.service
+	systemd/system/mctp-spi-ctrl.service
 endif
 
 bin_PROGRAMS = utils/mctp-demux-daemon ctrld/mctp-ctrl vdm/nvidia/mctp-vdm-util
