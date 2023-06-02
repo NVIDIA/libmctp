@@ -27,6 +27,14 @@ extern const uint8_t MCTP_ROUTING_ENTRY_START;
 
 /* The EIDs and pool start information would be obtaind from commandline */
 static uint8_t g_i2c_bridge_eid, g_i2c_own_eid, g_i2c_bridge_pool_start;
+static uint8_t g_i2c_bus, g_i2c_dest_slave_addr, g_i2c_src_slave_addr;
+
+void set_g_val_for_pvt_binding(uint8_t bus_num, uint8_t dest_slave_addr, uint8_t src_slave_addr)
+{
+	g_i2c_bus = bus_num;
+	g_i2c_dest_slave_addr = dest_slave_addr;
+	g_i2c_src_slave_addr = src_slave_addr;
+}
 
 /* Send function for Get MCTP version support */
 mctp_ret_codes_t mctp_i2c_get_mctp_ver_support_request(int sock_fd, uint8_t eid)
@@ -47,9 +55,9 @@ mctp_ret_codes_t mctp_i2c_get_mctp_ver_support_request(int sock_fd, uint8_t eid)
 	bind_id = MCTP_BINDING_SMBUS;
 
 	/* Set private binding */
-	pvt_binding.i2c_bus = 16;
-	pvt_binding.dest_slave_addr = 0x61;	//32 61
-	pvt_binding.src_slave_addr = 0x18;
+	pvt_binding.i2c_bus = g_i2c_bus;
+	pvt_binding.dest_slave_addr = g_i2c_dest_slave_addr;
+	pvt_binding.src_slave_addr = g_i2c_src_slave_addr;
 
 	/* Encode Get MCTP version support message */
 	req_ret = mctp_encode_ctrl_cmd_get_ver_support(&get_mctp_ver_support, MCTP_MESSAGE_TYPE_MCTP_CTRL);
@@ -110,9 +118,9 @@ mctp_ret_codes_t mctp_i2c_set_eid_send_request(int sock_fd, mctp_ctrl_cmd_set_ei
 	bind_id = MCTP_BINDING_SMBUS;
 
 	/* Set private binding */
-	pvt_binding.i2c_bus = MCTP_I2C_BUS_NUM_DEFAULT;
-	pvt_binding.dest_slave_addr = MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT;
-	pvt_binding.src_slave_addr = MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT;
+	pvt_binding.i2c_bus = g_i2c_bus;
+	pvt_binding.dest_slave_addr = g_i2c_dest_slave_addr;
+	pvt_binding.src_slave_addr = g_i2c_src_slave_addr;
 
 	/* Encode Set Endpoint ID message */
 	req_ret = mctp_encode_ctrl_cmd_set_eid(&set_eid_req, op, eid);
@@ -246,9 +254,9 @@ mctp_ret_codes_t mctp_i2c_alloc_eid_send_request(int sock_fd,
 	bind_id = MCTP_BINDING_SMBUS;
 
 	/* Set private binding */
-	pvt_binding.i2c_bus = MCTP_I2C_BUS_NUM_DEFAULT;
-	pvt_binding.dest_slave_addr = MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT;
-	pvt_binding.src_slave_addr = MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT;
+	pvt_binding.i2c_bus = g_i2c_bus;
+	pvt_binding.dest_slave_addr = g_i2c_dest_slave_addr;
+	pvt_binding.src_slave_addr = g_i2c_src_slave_addr;
 
 	/* Allocate Endpoint ID's message */
 	req_ret = mctp_encode_ctrl_cmd_alloc_eid(&set_eid_req, op, eid_count,
@@ -346,9 +354,9 @@ mctp_ret_codes_t mctp_i2c_get_routing_table_send_request(int sock_fd,
 	bind_id = MCTP_BINDING_SMBUS;
 
 	/* Set private binding */
-	pvt_binding.i2c_bus = MCTP_I2C_BUS_NUM_DEFAULT;
-	pvt_binding.dest_slave_addr = MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT;
-	pvt_binding.src_slave_addr = MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT;
+	pvt_binding.i2c_bus = g_i2c_bus;
+	pvt_binding.dest_slave_addr = g_i2c_dest_slave_addr;
+	pvt_binding.src_slave_addr = g_i2c_src_slave_addr;
 
 	/* Get routing table request message */
 	req_ret = mctp_encode_ctrl_cmd_get_routing_table(
@@ -504,9 +512,9 @@ mctp_ret_codes_t mctp_i2c_get_endpoint_uuid_send_request(int sock_fd,
 	bind_id = MCTP_BINDING_SMBUS;
 
 	/* Set private binding */
-	pvt_binding.i2c_bus = MCTP_I2C_BUS_NUM_DEFAULT;
-	pvt_binding.dest_slave_addr = MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT;
-	pvt_binding.src_slave_addr = MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT;
+	pvt_binding.i2c_bus = g_i2c_bus;
+	pvt_binding.dest_slave_addr = g_i2c_dest_slave_addr;
+	pvt_binding.src_slave_addr = g_i2c_src_slave_addr;
 
 	/* Encode for Get Endpoint UUID message */
 	req_ret = mctp_encode_ctrl_cmd_get_uuid(&uuid_req);
@@ -601,9 +609,9 @@ mctp_ret_codes_t mctp_i2c_get_msg_type_request(int sock_fd, mctp_eid_t eid)
 	bind_id = MCTP_BINDING_SMBUS;
 
 	/* Set private binding */
-	pvt_binding.i2c_bus = MCTP_I2C_BUS_NUM_DEFAULT;
-	pvt_binding.dest_slave_addr = MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT;
-	pvt_binding.src_slave_addr = MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT;
+	pvt_binding.i2c_bus = g_i2c_bus;
+	pvt_binding.dest_slave_addr = g_i2c_dest_slave_addr;
+	pvt_binding.src_slave_addr = g_i2c_src_slave_addr;
 
 	/* Encode for Get Endpoint UUID message */
 	req_ret = mctp_encode_ctrl_cmd_get_msg_type_support(&msg_type_req);

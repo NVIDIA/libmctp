@@ -953,6 +953,10 @@ static void parse_command_line(int argc, char *const *argv,
 					&cmdline->i2c.bus_num, &mctp_sock_path, &cmdline->i2c.own_eid,
 					&cmdline->i2c.dest_slave_addr, &cmdline->i2c.src_slave_addr);
 
+				// Set values for SMBus private binding used in discovery
+				set_g_val_for_pvt_binding(cmdline->i2c.bus_num, cmdline->i2c.dest_slave_addr,
+						cmdline->i2c.src_slave_addr);
+
 				// Get info about eid_type
 				chosen_eid_type = mctp_json_get_eid_type(parsed_json, "smbus", &cmdline->i2c.bus_num);
 
@@ -995,6 +999,9 @@ static void parse_command_line(int argc, char *const *argv,
 			free(config_json_file_path);
 		}
 		else {
+			// Run as Bridge
+			set_g_val_for_pvt_binding(MCTP_I2C_BUS_NUM_DEFAULT, MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT,
+					MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT);
 			cmdline->i2c.bridge_eid = bridge_eid;
 			cmdline->i2c.bridge_pool_start = bridge_pool;
 			cmdline->i2c.own_eid = own_eid;

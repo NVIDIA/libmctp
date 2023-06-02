@@ -9,6 +9,7 @@
 #include "libmctp-log.h"
 
 json_object *parsed_json;
+char *buffer;
 
 int parse_num(const char *param)
 {
@@ -34,8 +35,9 @@ int parse_num(const char *param)
  */
 int mctp_json_get_tokener_parse(const char *path)
 {
+	int rc;
 	FILE *fp;
-	char buffer[4096];
+	int file_size;
 
 	fp = fopen(path, "r");
 
@@ -45,12 +47,33 @@ int mctp_json_get_tokener_parse(const char *path)
 		return EXIT_FAILURE;
 	}
 	else {
-		fread(buffer, 4096, 1, fp);
+		rc = fseek(fp, 0, SEEK_END);
+		if (rc == -1) {
+			printf("Failed to fseek\n");
+			return EXIT_FAILURE;
+		}
+
+		file_size = ftell(fp);
+		if (file_size == -1) {
+			printf("Failed to ftell\n");
+			return EXIT_FAILURE;
+		}
+
+		rc = fseek(fp, 0, SEEK_SET);
+		if (rc == -1) {
+			printf("Failed to fseek\n");
+			return EXIT_FAILURE;
+		}
+
+		buffer = malloc(file_size);
+		fread(buffer, file_size, 1, fp);
 	}
 	fclose(fp);
 
 	/* Get parameters from *.json */
 	parsed_json = json_tokener_parse(buffer);
+
+	free(buffer);
 
 	if (parsed_json == NULL) {
 		printf("Json tokener parse fail\n\n");

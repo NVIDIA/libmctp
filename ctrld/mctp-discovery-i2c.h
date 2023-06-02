@@ -14,6 +14,8 @@
 #include "mctp-discovery-common.h"
 
 // /* Function prototypes */
+void set_g_val_for_pvt_binding(uint8_t bus_num, uint8_t dest_slave_addr, uint8_t src_slave_addr);
+
 mctp_ret_codes_t mctp_i2c_get_mctp_ver_support_request(int sock_fd, uint8_t eid);
 
 mctp_ret_codes_t mctp_i2c_set_eid_send_request(int sock_fd, mctp_ctrl_cmd_set_eid_op op, uint8_t eid);
