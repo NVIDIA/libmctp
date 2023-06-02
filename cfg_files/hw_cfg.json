@@ -37,6 +37,7 @@
       },
       {
         "bus_number": "i2c16",
+        "bus_number_smq": "i2c5",
         "socket_name": "mctp-i2c2-mux",
         "endpoints": [
           {

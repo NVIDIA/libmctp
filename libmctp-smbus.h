@@ -30,7 +30,8 @@ struct mctp_static_endpoint_mapper {
 	uint8_t udid[16];
 };
 
-struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t dest_addr, uint8_t src_addr, uint8_t eid_type);
+struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t bus_smq, uint8_t dest_addr,
+			     uint8_t src_addr, uint8_t eid_type);
 
 int mctp_smbus_open_in_bus(struct mctp_binding_smbus *smbus, int in_bus, int src_slv_addr);
 int mctp_smbus_open_out_bus(struct mctp_binding_smbus *smbus, int out_bus);
@@ -44,8 +45,11 @@ void mctp_smbus_register_bus(struct mctp_binding_smbus *smbus,
 			     struct mctp *mctp, mctp_eid_t eid);
 void mctp_smbus_free(struct mctp_binding_smbus *smbus);
 
+int send_get_udid_command(struct mctp_binding_smbus *smbus, uint8_t *inbuf, uint8_t len);
+int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus, uint8_t which_endpoint);
+int check_mctp_get_ver_support(struct mctp_binding_smbus *smbus, uint8_t which_endpoint,
+			uint8_t *inbuf, uint8_t len);
 int check_device_supports_mctp(struct mctp_binding_smbus *smbus);
-int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus);
 
 /* SMBUS binding API's */
 int mctp_smbus_poll(struct mctp_binding_smbus *smbus, int timeout);

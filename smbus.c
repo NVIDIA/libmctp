@@ -35,6 +35,8 @@ struct mctp_binding_smbus {
 
 	/* bus number */
 	uint8_t bus_num;
+	/* bus number */
+	uint8_t bus_num_smq;
 	/* dest slave address */
 	uint8_t dest_slave_addr;
 	/* src slave address */
@@ -66,6 +68,7 @@ struct mctp_binding_smbus {
 
 /* Global definitions: i2c bus number, destination slave address, source slave address */
 uint8_t g_mctp_smbus_bus_num = MCTP_SMBUS_BUS_NUM;
+uint8_t g_mctp_smbus_bus_num_smq = MCTP_SMBUS_BUS_NUM;
 uint8_t g_mctp_smbus_dest_slave_address = MCTP_SMBUS_DESTINATION_SLAVE_ADDRESS;
 uint8_t g_mctp_smbus_src_slave_address = MCTP_SMBUS_SOURCE_SLAVE_ADDRESS;
 uint8_t g_mctp_smbus_eid_type = EID_TYPE_BRIDGE;
@@ -83,7 +86,8 @@ struct mctp_smbus_header_rx {
 	uint8_t source_slave_address;
 };
 
-extern struct mctp_static_endpoint_mapper static_endpoints[1];
+extern struct mctp_static_endpoint_mapper *static_endpoints;
+extern uint8_t static_endpoints_len;
 
 /**
  * @brief Print prepared MCTP packet ready to send via i2c.
@@ -294,7 +298,43 @@ int mctp_smbus_poll(struct mctp_binding_smbus *smbus, int timeout)
 	return 0;
 }
 
-int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus)
+int send_get_udid_command(struct mctp_binding_smbus *smbus, uint8_t *inbuf, uint8_t len)
+{
+	int rc;
+	uint8_t outbuf[1] = { 0x03 }; // Set 'Get UDID' command
+	struct i2c_msg msgs[2];
+	struct i2c_rdwr_ioctl_data msgset[1];
+	int slave_addr = 0x61; // As 7-bit
+
+	/* Prepare message to send Get UDID */
+	msgs[0].addr = slave_addr;
+	msgs[0].flags = 0;
+	msgs[0].len = 1;
+	msgs[0].buf = outbuf;
+
+	msgs[1].addr = slave_addr;
+	msgs[1].flags = I2C_M_RD | I2C_M_NOSTART;
+	msgs[1].len = len;
+	msgs[1].buf = inbuf;
+
+	msgset[0].msgs = msgs;
+	msgset[0].nmsgs = 2;
+
+	rc = ioctl(smbus->out_fd, I2C_RDWR, &msgset);
+	if (rc < 0) {
+		MCTP_ASSERT_RET(rc >= 0, rc, "Invalid ioctl ret val: %d (%s)",
+				errno, strerror(errno));
+		return EXIT_FAILURE;
+	}
+
+	mctp_prdebug("%s: TX and RX Get UDID command", __func__);
+	mctp_trace_tx(outbuf, msgs[0].len);
+	mctp_trace_rx(inbuf, msgs[1].len);
+
+	return EXIT_SUCCESS;
+}
+
+int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus, uint8_t which_endpoint)
 {
 	int rc;
 	// MCTP frame - Get MCTP version support
@@ -303,7 +343,7 @@ int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus)
 	struct i2c_msg msgs[1];
 	struct i2c_rdwr_ioctl_data msgset[1];
 
-	msgs[0].addr = static_endpoints[0].slave_address;
+	msgs[0].addr = static_endpoints[which_endpoint].slave_address;
 	msgs[0].flags = 0;
 	msgs[0].len = total_tab_elements(outbuf_mctp);
 	msgs[0].buf = outbuf_mctp;
@@ -331,7 +371,7 @@ int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus)
 	 */
 	if (smbus->rxbuf[10] == 0x04) {
 		if (smbus->rxbuf[11] == 0x00) {
-			static_endpoints[0].support_mctp = 1;
+			static_endpoints[which_endpoint].support_mctp = 1;
 			mctp_prdebug("%s: Message type number supported", __func__);
 		} else {
 			mctp_prdebug("%s: Message type number not supported (Completion Code = 0x%x)",
@@ -346,41 +386,12 @@ int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus)
 	return EXIT_SUCCESS;
 }
 
-int check_device_supports_mctp(struct mctp_binding_smbus *smbus)
+int check_mctp_get_ver_support(struct mctp_binding_smbus *smbus, uint8_t which_endpoint,
+			uint8_t *inbuf, uint8_t len)
 {
 	int rc;
-	uint8_t outbuf[1] = { 0x03 }; // Set 'Get UDID' command
-	uint8_t inbuf[20];
-	struct i2c_msg msgs[2];
-	struct i2c_rdwr_ioctl_data msgset[1];
-	int slave_addr = 0x61; // As 7-bit
 	uint8_t interface_ASF = 0;
 	uint8_t i;
-
-	/* Prepare message to send Get UDID */
-	msgs[0].addr = slave_addr;
-	msgs[0].flags = 0;
-	msgs[0].len = 1;
-	msgs[0].buf = outbuf;
-
-	msgs[1].addr = slave_addr;
-	msgs[1].flags = I2C_M_RD | I2C_M_NOSTART;
-	msgs[1].len = 18;
-	msgs[1].buf = inbuf;
-
-	msgset[0].msgs = msgs;
-	msgset[0].nmsgs = 2;
-
-	rc = ioctl(smbus->out_fd, I2C_RDWR, &msgset);
-	if (rc < 0) {
-		MCTP_ASSERT_RET(rc >= 0, rc, "Invalid ioctl ret val: %d (%s)",
-				errno, strerror(errno));
-		return EXIT_FAILURE;
-	}
-
-	mctp_prdebug("%s: TX and RX Get UDID command", __func__);
-	mctp_trace_tx(outbuf, msgs[0].len);
-	mctp_trace_rx(inbuf, msgs[1].len);
 
 	// Check ASF bit from UDID
 	interface_ASF = inbuf[8];
@@ -388,27 +399,35 @@ int check_device_supports_mctp(struct mctp_binding_smbus *smbus)
 
 	if (interface_ASF == 1) {
 		for (i = 0; i < 16; i++) {
-			static_endpoints[0].udid[i] = inbuf[i + 1];
+			static_endpoints[which_endpoint].udid[i] = inbuf[i + 1];
 		}
 		/* Get MCTP version support */
-		rc = send_mctp_get_ver_support_command(smbus);
+		rc = send_mctp_get_ver_support_command(smbus, which_endpoint);
 		if (rc != 0) {
 			mctp_prdebug("%s: Get MCTP version support failed!", __func__);
-			return EXIT_FAILURE;
 		}
-	} else {
-		mctp_prwarn("%s: Device doesn't support MCTP", __func__);
-		return EXIT_FAILURE;
 	}
 
 	mctp_prdebug("\n%s: Static endpoint", __func__);
-	mctp_prdebug("Endpoint = %d", static_endpoints[0].endpoint_num);
-	mctp_prdebug("Slave address = 0x%x", static_endpoints[0].slave_address);
-	mctp_prdebug("Support MCTP = %d", static_endpoints[0].support_mctp);
+	mctp_prdebug("Endpoint = %d", static_endpoints[which_endpoint].endpoint_num);
+	mctp_prdebug("Slave address = 0x%x", static_endpoints[which_endpoint].slave_address);
+	mctp_prdebug("Support MCTP = %d", static_endpoints[which_endpoint].support_mctp);
 	mctp_prdebug("UDID = ");
 	for (i = 0; i < 16; i++) {
-		mctp_prdebug("0x%x ", static_endpoints[0].udid[i]);
+		mctp_prdebug("0x%x ", static_endpoints[which_endpoint].udid[i]);
 	}
+
+	return EXIT_SUCCESS;
+}
+
+int check_device_supports_mctp(struct mctp_binding_smbus *smbus)
+{
+	uint8_t inbuf[18];
+	uint8_t inbuf_len = total_tab_elements(inbuf);
+
+	send_get_udid_command(smbus, inbuf, inbuf_len);
+	check_mctp_get_ver_support(smbus, 0, inbuf, inbuf_len);
+
 	return EXIT_SUCCESS;
 }
 
@@ -568,14 +587,10 @@ static int mctp_smbus_start(struct mctp_binding *b)
 	/* Set out fd */
 	mctp_smbus_set_out_fd(smbus, outfd);
 
-	if (g_mctp_smbus_eid_type == EID_TYPE_STATIC) {
-		smbus->bus_num = 5; // Set bus num for slave-mqueue
-	}
-
 	/* Open I2C in node */
 	mctp_prdebug("%s: Setting up I2C input fd: %d %d", __func__,
-		     smbus->bus_num, smbus->dest_slave_addr);
-	infd = mctp_smbus_open_in_bus(smbus, smbus->bus_num,
+		     smbus->bus_num_smq, smbus->dest_slave_addr);
+	infd = mctp_smbus_open_in_bus(smbus, smbus->bus_num_smq,
 				      smbus->src_slave_addr);
 	MCTP_ASSERT_RET(infd >= 0, -1, "Failed to open I2C Rx node: %d", infd);
 
@@ -588,13 +603,14 @@ static int mctp_smbus_start(struct mctp_binding *b)
 	return 0;
 }
 
-struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t dest_addr,
+struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t bus_smq, uint8_t dest_addr,
 					   uint8_t src_addr, uint8_t eid_type)
 {
 	struct mctp_binding_smbus *smbus;
 
 	/* Actualize global MCTP SMBus params */
 	g_mctp_smbus_bus_num = bus;
+	g_mctp_smbus_bus_num_smq = bus_smq;
 	g_mctp_smbus_dest_slave_address = dest_addr;
 	g_mctp_smbus_src_slave_address = src_addr;
 	g_mctp_smbus_eid_type = eid_type;
@@ -616,6 +632,7 @@ struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t dest_addr,
 
 	/* Setting the default bus number */
 	smbus->bus_num = bus;
+	smbus->bus_num_smq = bus_smq;
 	/* Setting the default destination and source slave address */
 	smbus->dest_slave_addr = dest_addr;
 	smbus->src_slave_addr = src_addr;

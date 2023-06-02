@@ -1153,6 +1153,7 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 	mctp_eid_t local_eid = 11;
 	size_t resp_msg_len;
 	int timeout = 0;
+	uint8_t number_of_eid = 0;
 
 	do {
 		/* Wait for MCTP response */
@@ -1178,7 +1179,7 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 
 				/* Update the EID operation and EID number */
 				set_eid_op = set_eid;
-				eid = cmd->dest_static_eid;
+				eid = cmd->dest_eid_tab[number_of_eid];
 
 				/* Send the MCTP_SET_EP_REQUEST */
 				mctp_ret = mctp_i2c_set_eid_send_request(ctrl->sock, set_eid_op, eid);
@@ -1239,10 +1240,10 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 
 				MCTP_CTRL_DEBUG(
 					"%s: Send UUID Request for EID: 0x%x\n",
-					__func__, cmd->dest_static_eid);
+					__func__, cmd->dest_eid_tab[number_of_eid]);
 
 				mctp_ret = mctp_i2c_get_endpoint_uuid_send_request(
-					ctrl->sock, cmd->dest_static_eid);
+					ctrl->sock, cmd->dest_eid_tab[number_of_eid]);
 				if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 					MCTP_CTRL_ERR(
 						"%s: Failed MCTP_GET_EP_UUID_REQUEST\n",
@@ -1260,11 +1261,11 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 				if (mctp_ret == MCTP_RET_REQUEST_FAILED) {
 					MCTP_CTRL_ERR(
 						"%s: MCTP_GET_EP_UUID_RESPONSE Failed EID: %d\n",
-						__func__, cmd->dest_static_eid);
+						__func__, cmd->dest_eid_tab[number_of_eid]);
 				} else {
 					/* Process the MCTP_GET_EP_UUID_RESPONSE */
 					mctp_ret = mctp_i2c_get_endpoint_uuid_response(
-						cmd->dest_static_eid, mctp_resp_msg, resp_msg_len);
+						cmd->dest_eid_tab[number_of_eid], mctp_resp_msg, resp_msg_len);
 
 					if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 						MCTP_CTRL_ERR(
@@ -1283,10 +1284,10 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 
 					MCTP_CTRL_DEBUG(
 						"%s: Send Get Msg type Request for EID: 0x%x\n",
-						__func__, cmd->dest_static_eid);
+						__func__, cmd->dest_eid_tab[number_of_eid]);
 
 					mctp_ret = mctp_i2c_get_msg_type_request(ctrl->sock,
-										cmd->dest_static_eid);
+								cmd->dest_eid_tab[number_of_eid]);
 					if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 						MCTP_CTRL_ERR(
 							"%s: Failed MCTP_GET_MSG_TYPE_REQUEST\n",
@@ -1304,11 +1305,11 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 				if (mctp_ret == MCTP_RET_REQUEST_FAILED) {
 					MCTP_CTRL_ERR(
 						"%s: MCTP_GET_MSG_TYPE_RESPONSE Failed EID: %d\n",
-						__func__, cmd->dest_static_eid);
+						__func__, cmd->dest_eid_tab[number_of_eid]);
 				} else {
 					/* Process the MCTP_GET_MSG_TYPE_RESPONSE */
 					mctp_ret = mctp_i2c_get_msg_type_response(
-						cmd->dest_static_eid, mctp_resp_msg, resp_msg_len);
+						cmd->dest_eid_tab[number_of_eid], mctp_resp_msg, resp_msg_len);
 
 					/* Free Rx packet */
 					free(mctp_resp_msg);

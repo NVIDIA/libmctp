@@ -859,8 +859,8 @@ static void parse_command_line(int argc, char *const *argv,
 				optarg, cmdline->tx_data, strlen(optarg));
 			break;
 		case 'f':
-			config_json_file_path = malloc(strlen(optarg));
-			memcpy(config_json_file_path, optarg, strlen(optarg)+1);
+			config_json_file_path = malloc(strlen(optarg) + 1);
+			memcpy(config_json_file_path, optarg, (strlen(optarg) + 1));
 			use_config_json_file_mc = true;
 			break;
 		case 'p':
@@ -966,8 +966,10 @@ static void parse_command_line(int argc, char *const *argv,
 					break;
 				case EID_TYPE_STATIC:
 					mctp_prinfo("Use static endpoint");
-					mctp_json_i2c_get_params_bridge_ctrl(parsed_json,
-					&cmdline->i2c.bus_num, &cmdline->dest_static_eid, &cmdline->uuid);
+					cmdline->dest_eid_tab = NULL;
+					mctp_json_i2c_get_params_static_ctrl(parsed_json,
+					&cmdline->i2c.bus_num, &cmdline->dest_eid_tab,
+					&cmdline->dest_eid_tab_len, &cmdline->uuid);
 
 					break;
 				case EID_TYPE_POOL:
