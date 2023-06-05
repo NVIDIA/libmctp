@@ -337,6 +337,7 @@ int send_get_udid_command(struct mctp_binding_smbus *smbus, uint8_t *inbuf, uint
 int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus, uint8_t which_endpoint)
 {
 	int rc;
+	int i = 0;
 	// MCTP frame - Get MCTP version support
 	uint8_t outbuf_mctp[] = { 0x0f, 0x0a, 0x31, 0x01, 0x00, 0x08, 0xc8,
 				    0x00, 0x80, 0x04, 0x00, 0x00, 0x94 };
@@ -362,8 +363,23 @@ int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus, uint8_t 
 	mctp_trace_tx(outbuf_mctp, msgs[0].len);
 
 	/* Wait for answer */
-	sleep(1);
-	rc = mctp_smbus_read_only(smbus);
+	while(1) {
+		usleep(MCTP_SMBUS_READ_TIMEOUT_WAIT);
+		rc = mctp_smbus_read_only(smbus);
+
+		if (rc != -1) {
+			if ((smbus->rxbuf[8] == 0x00) && (smbus->rxbuf[10] == 0x04))
+			{
+				mctp_prdebug("%s: Received correct command", __func__);
+				break;
+			}
+		}
+		i++;
+		if (i >= MCTP_SMBUS_READ_TIMEOUT_REPEAT) {
+			mctp_prdebug("%s: RX timeout", __func__);
+			return EXIT_FAILURE;
+		}
+	}
 
 	/* Check "Command Code" if a good response was received and
 	 * "Completion Code", 0x00-support, 0x80-not support.

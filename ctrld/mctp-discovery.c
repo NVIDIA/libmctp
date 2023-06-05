@@ -877,7 +877,6 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 	uint8_t eid = 0, eid_count = 0, eid_start = 0;
 	uint8_t entry_hdl = MCTP_ROUTING_ENTRY_START;
 	uint8_t *mctp_resp_msg = NULL;
-	mctp_eid_t local_eid = 8;
 	size_t resp_msg_len;
 	int timeout = 0;
 	mctp_routing_table_t *routing_entry = NULL;

@@ -1158,14 +1158,13 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 	mctp_ctrl_cmd_set_eid_op set_eid_op;
 	uint8_t eid = 0, eid_count = 0;
 	uint8_t *mctp_resp_msg;
-	mctp_eid_t local_eid = 11;
 	size_t resp_msg_len;
 	int timeout = 0;
 	uint8_t number_of_eid = 0;
 
 	do {
 		/* Wait for MCTP response */
-		mctp_ret = mctp_discover_response(discovery_mode, local_eid,
+		mctp_ret = mctp_discover_response(discovery_mode, cmd->dest_eid,
 						ctrl->sock, &mctp_resp_msg,
 						&resp_msg_len);
 		if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {

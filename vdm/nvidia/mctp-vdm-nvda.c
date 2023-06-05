@@ -43,8 +43,6 @@ uint8_t g_verbose_level = 0;
 /* Global socket name */
 char g_sock_name[32] = { 0 };
 
-struct mctp_static_endpoint_mapper static_endpoints[1];
-
 /* Global commandline options */
 static const struct option options[] = {
 	{ "verbose", no_argument, 0, 'v' },
@@ -59,7 +57,7 @@ static const struct option options[] = {
 static char *dbus_services[] = {
 	"xyz.openbmc_project.MCTP.Control.PCIe",
 	"xyz.openbmc_project.MCTP.Control.SPI",
-	"xyz.openbmc_project.MCTP.Control.I2C",
+	"xyz.openbmc_project.MCTP.Control.SMBus",
 };
 
 #define VMD_CMD_ASSERT_GOTO(cond, label, fmt, ...)                             \

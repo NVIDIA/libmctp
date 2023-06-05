@@ -2,7 +2,7 @@
   "i2c":
   {
     "i2c_src_address": 24,
-    "src_eid": 8,
+    "src_eid": 11,
     "buses": [
       {
         "bus_number": "i2c2",

@@ -13,6 +13,8 @@ extern "C" {
 #define MCTP_I2C_BUS_NUM_DEFAULT 2
 #define MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT 0x30
 #define MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT 0x18
+#define MCTP_SMBUS_READ_TIMEOUT_WAIT 100 // microseconds
+#define MCTP_SMBUS_READ_TIMEOUT_REPEAT 20
 
 struct mctp_binding_smbus;
 

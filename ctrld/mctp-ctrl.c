@@ -668,7 +668,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		MCTP_CTRL_INFO("%s: Binding type: SMBus\n", __func__);
 		if(use_config_json_file_mc == false)
 			mctp_sock_path = MCTP_SOCK_PATH_I2C;
-		mctp_medium_type = "I2C";
+		mctp_medium_type = "SMBus";
 
 		/* Open the user socket file-descriptor */
 		rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_CTRL_MSG_TYPE,
