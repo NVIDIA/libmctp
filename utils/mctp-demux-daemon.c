@@ -120,8 +120,9 @@ struct ctx {
 };
 
 uint8_t chosen_eid_type;
-struct mctp_static_endpoint_mapper *static_endpoints = NULL;
-uint8_t static_endpoints_len = 0;
+
+extern struct mctp_static_endpoint_mapper *static_endpoints;
+extern uint8_t static_endpoints_len;
 
 static void mctp_print_hex(uint8_t *data, size_t length)
 {

@@ -86,8 +86,10 @@ struct mctp_smbus_header_rx {
 	uint8_t source_slave_address;
 };
 
-extern struct mctp_static_endpoint_mapper *static_endpoints;
-extern uint8_t static_endpoints_len;
+struct mctp_static_endpoint_mapper *static_endpoints = NULL;
+uint8_t static_endpoints_len = 0;
+// extern struct mctp_static_endpoint_mapper *static_endpoints;
+// extern uint8_t static_endpoints_len;
 
 /**
  * @brief Print prepared MCTP packet ready to send via i2c.

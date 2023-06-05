@@ -69,7 +69,6 @@ const char *mctp_medium_type;
 int g_socket_fd = -1;
 int g_signal_fd = -1;
 static sd_bus *g_sdbus = NULL;
-struct mctp_static_endpoint_mapper static_endpoints[1];
 
 static char *config_json_file_path = NULL;
 bool use_config_json_file_mc = false;
