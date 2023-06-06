@@ -88,8 +88,6 @@ struct mctp_smbus_header_rx {
 
 struct mctp_static_endpoint_mapper *static_endpoints = NULL;
 uint8_t static_endpoints_len = 0;
-// extern struct mctp_static_endpoint_mapper *static_endpoints;
-// extern uint8_t static_endpoints_len;
 
 /**
  * @brief Print prepared MCTP packet ready to send via i2c.
@@ -370,7 +368,8 @@ int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus, uint8_t 
 		rc = mctp_smbus_read_only(smbus);
 
 		if (rc != -1) {
-			if ((smbus->rxbuf[8] == 0x00) && (smbus->rxbuf[10] == 0x04))
+			if ((smbus->rxbuf[8] == MCTP_MESSAGE_TYPE_MCTP_CTRL) &&
+			    (smbus->rxbuf[10] == MCTP_COMMAND_CODE_GET_MCTP_VERSION_SUPPORT))
 			{
 				mctp_prdebug("%s: Received correct command", __func__);
 				break;
@@ -387,8 +386,8 @@ int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus, uint8_t 
 	 * "Completion Code", 0x00-support, 0x80-not support.
 	 * See DSP0236 v1.3.0 sec. 12.6. Tab. 18
 	 */
-	if (smbus->rxbuf[10] == 0x04) {
-		if (smbus->rxbuf[11] == 0x00) {
+	if (smbus->rxbuf[10] == MCTP_COMMAND_CODE_GET_MCTP_VERSION_SUPPORT) {
+		if (smbus->rxbuf[11] == MCTP_CONTROL_MSG_STATUS_SUCCESS) {
 			static_endpoints[which_endpoint].support_mctp = 1;
 			mctp_prdebug("%s: Message type number supported", __func__);
 		} else {

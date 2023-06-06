@@ -62,7 +62,7 @@ static pthread_t g_keepalive_thread;
 extern const uint8_t MCTP_MSG_TYPE_HDR;
 extern const uint8_t MCTP_CTRL_MSG_TYPE;
 
-const char *mctp_sock_path;
+char *mctp_sock_path;
 const char *mctp_medium_type;
 
 /* Static variables for clean up*/

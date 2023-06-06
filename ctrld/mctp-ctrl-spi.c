@@ -26,7 +26,7 @@
 
 static pthread_t g_keepalive_thread;
 
-extern const char *mctp_sock_path;
+extern char *mctp_sock_path;
 extern bool use_config_json_file_mc;
 
 extern int g_socket_fd;

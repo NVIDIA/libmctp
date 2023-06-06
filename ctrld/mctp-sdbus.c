@@ -39,7 +39,7 @@ extern int g_uuid_table_len;
 extern mctp_msg_type_table_t *g_msg_type_entries;
 extern int g_msg_type_table_len;
 
-extern const char *mctp_sock_path;
+extern char *mctp_sock_path;
 extern const char *mctp_medium_type;
 
 int mctp_ctrl_running = 1;

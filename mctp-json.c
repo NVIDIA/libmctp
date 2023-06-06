@@ -44,29 +44,33 @@ int mctp_json_get_tokener_parse(const char *path)
 	if (fp == NULL) {
 		parsed_json = NULL;
 		printf("Unable to open: %s, err = %d\n", path, errno);
-		return EXIT_FAILURE;
+		goto err_close;
 	}
 	else {
 		rc = fseek(fp, 0, SEEK_END);
 		if (rc == -1) {
 			printf("Failed to fseek\n");
-			return EXIT_FAILURE;
+			goto err_close;
 		}
 
 		file_size = ftell(fp);
 		if (file_size == -1) {
 			printf("Failed to ftell\n");
-			return EXIT_FAILURE;
+			goto err_close;
 		}
 
 		rc = fseek(fp, 0, SEEK_SET);
 		if (rc == -1) {
 			printf("Failed to fseek\n");
-			return EXIT_FAILURE;
+			goto err_close;
 		}
 
 		buffer = malloc(file_size);
-		fread(buffer, file_size, 1, fp);
+		rc = fread(buffer, file_size, 1, fp);
+		if (rc <= 0) {
+			printf("Failed to fread\n");
+			goto err_close;
+		}
 	}
 	fclose(fp);
 
@@ -81,6 +85,10 @@ int mctp_json_get_tokener_parse(const char *path)
 	}
 
 	return EXIT_SUCCESS;
+
+err_close:
+	fclose(fp);
+	return EXIT_FAILURE;
 }
 
 /**
