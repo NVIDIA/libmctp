@@ -719,7 +719,7 @@ int mctp_get_endpoint_uuid_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 	bool req_ret;
 	struct mctp_ctrl_resp_get_uuid *uuid_resp;
 	int ret;
-	mctp_uuid_table_t uuid_table;
+	mctp_uuid_table_t uuid_table = { 0 };
 
 	/* Trace the Rx message */
 	mctp_print_resp_msg((struct mctp_ctrl_resp *)mctp_resp_msg,
@@ -738,8 +738,21 @@ int mctp_get_endpoint_uuid_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 
 	/* Update UUID private params to export to upper layer */
 	uuid_table.eid = eid;
-	memcpy(&uuid_table.uuid.canonical, &uuid_resp->uuid.canonical,
-	       sizeof(guid_t));
+
+	/* Special UUID handling for EID 0 (peer endpoint) and if the endpoint
+	reports a NIL UUID */
+	if ((eid == 0) && !memcmp(&uuid_resp->uuid.raw, &uuid_table.uuid.raw,
+				  sizeof(guid_t))) {
+		/* TODO: Once we move to JSON based configuration, we should get this
+		UUID from the JSON file */
+		const char raw[16] = { 0xad, 0x4c, 0x83, 0x6b, 0xc5, 0x4c,
+				       0x11, 0xeb, 0x85, 0x29, 0x02, 0x42,
+				       0xac, 0x13, 0x00, 0x03 };
+		memcpy(&uuid_table.uuid.raw, &raw, sizeof(guid_t));
+	} else {
+		memcpy(&uuid_table.uuid.canonical, &uuid_resp->uuid.canonical,
+		       sizeof(guid_t));
+	}
 	uuid_table.next = NULL;
 
 	/* Create a new UUID entry and add to list */
