@@ -36,7 +36,7 @@
         ]
       },
       {
-        "bus_number": "i2c16",
+        "bus_number": "i2c15",
         "bus_number_smq": "i2c5",
         "socket_name": "mctp-i2c2-mux",
         "endpoints": [
@@ -46,6 +46,18 @@
             "i2c_slave_address": 50,
             "uuid": null,
             "description": "Static configurtion for CX7."
+          }
+        ]
+      },
+      {
+        "bus_number": "i2c16",
+        "bus_number_smq": "i2c5",
+        "socket_name": "mctp-i2c2-mux",
+        "endpoints": [
+          {
+            "eid_type": "pool",
+            "eid": [ 101, 102, 103],
+            "description": "Definition of a pool of eids assigned for automatic discovery on i2c bus"
           }
         ]
       }

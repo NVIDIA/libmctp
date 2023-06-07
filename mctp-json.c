@@ -164,7 +164,7 @@ int mctp_json_get_eid_type(json_object *jo, const char *binding_name, uint8_t *b
  * @returns int return success or failure.
  */
 int mctp_json_i2c_get_common_params_mctp_demux(json_object *jo, uint8_t *bus_num,
-				uint8_t *bus_num_smq, char **sockname)
+				uint8_t *bus_num_smq, uint8_t *src_slave_addr, char **sockname)
 {
 	json_object *jo_i2c_struct;
 	json_object *jo_i2c_obj_main;
@@ -175,6 +175,10 @@ int mctp_json_i2c_get_common_params_mctp_demux(json_object *jo, uint8_t *bus_num
 	size_t i;
 
 	jo_i2c_struct = json_object_object_get(jo, "i2c");
+	/* Get source slave address */
+	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "i2c_src_address");
+	string_val = json_object_get_string(jo_i2c_obj_main);
+	*src_slave_addr = parse_num(string_val);
 
 	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "buses");
 	size_t val_conf_i2c = json_object_array_length(jo_i2c_obj_main);
@@ -220,8 +224,7 @@ int mctp_json_i2c_get_common_params_mctp_demux(json_object *jo, uint8_t *bus_num
  * @returns int return success or failure.
  */
 int mctp_json_i2c_get_params_bridge_static_demux(json_object *jo, uint8_t *bus_num,
-				uint8_t *dest_slave_addr, uint8_t *src_slave_addr,
-				uint8_t *src_eid)
+				uint8_t *dest_slave_addr, uint8_t *src_eid)
 {
 	json_object *jo_i2c_struct;
 	json_object *jo_i2c_obj_main;
@@ -232,10 +235,6 @@ int mctp_json_i2c_get_params_bridge_static_demux(json_object *jo, uint8_t *bus_n
 	size_t i, j;
 
 	jo_i2c_struct = json_object_object_get(jo, "i2c");
-	/* Get source slave address */
-	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "i2c_src_address");
-	string_val = json_object_get_string(jo_i2c_obj_main);
-	*src_slave_addr = parse_num(string_val);
 	/* Get own EID */
 	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "src_eid");
 	string_val = json_object_get_string(jo_i2c_obj_main);
@@ -326,6 +325,71 @@ int mctp_json_i2c_get_params_static_demux(json_object *jo, uint8_t *bus_num,
 		}
 	}
 
+	return EXIT_SUCCESS;
+}
+
+int mctp_json_i2c_get_params_pool_demux(json_object *jo, uint8_t *bus_num,
+				struct mctp_static_endpoint_mapper **static_endpoints_tab,
+				uint8_t *static_endpoints_len)
+{
+	json_object *jo_i2c_struct;
+	json_object *jo_i2c_obj_main;
+	json_object *jo_i2c_obj_i, *jo_i2c_obj_j;
+
+	const char *string_val;
+	uint8_t val;
+	size_t i, j, k, l;
+
+	jo_i2c_struct = json_object_object_get(jo, "i2c");
+
+	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "buses");
+	size_t val_conf_i2c = json_object_array_length(jo_i2c_obj_main);
+
+	for(i = 0; i < val_conf_i2c; i++) {
+		jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_main, i);
+		jo_i2c_obj_i = json_object_object_get(jo_i2c_struct, "bus_number");
+		string_val = json_object_get_string(jo_i2c_obj_i);
+		val = parse_num(string_val + 3);
+
+		if (val == *bus_num) {
+			/* Get parameters for endpoints*/
+			jo_i2c_obj_i = json_object_object_get(jo_i2c_struct, "endpoints");
+			size_t val_endpoints = json_object_array_length(jo_i2c_obj_i);
+
+			for(j = 0; j < val_endpoints; j++) {
+				jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_i, j);
+				jo_i2c_obj_j = json_object_object_get(jo_i2c_struct, "eid_type");
+				string_val = json_object_get_string(jo_i2c_obj_j);
+
+				if (strcmp(string_val, "pool") == 0) {
+					/* Get pool of EID's */
+					jo_i2c_obj_j = json_object_object_get(jo_i2c_struct, "eid");
+					size_t pool_of_endpoints = json_object_array_length(jo_i2c_obj_j);
+
+					*static_endpoints_len = (uint8_t)pool_of_endpoints;
+
+					*static_endpoints_tab = malloc(*static_endpoints_len * sizeof(struct mctp_static_endpoint_mapper));
+					if (*static_endpoints_tab == NULL) {
+						mctp_prerr("Malloc static endpoints failed!");
+						return EXIT_FAILURE;
+					}
+
+					for(k = 0; k < pool_of_endpoints; k++) {
+						jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_j, k);
+						string_val = json_object_get_string(jo_i2c_struct);
+						val = parse_num(string_val);
+						// Initial default values
+						(*static_endpoints_tab)[k].endpoint_num = val;
+						(*static_endpoints_tab)[k].slave_address = 0;
+						(*static_endpoints_tab)[k].support_mctp = 0;
+						for (l = 0; l < 16; l++) {
+							(*static_endpoints_tab)[k].udid[l] = 0;
+						}
+					}
+				}
+			}
+		}
+	}
 	return EXIT_SUCCESS;
 }
 
@@ -506,7 +570,7 @@ int mctp_json_i2c_get_params_static_ctrl(json_object *jo, uint8_t *bus_num,
 					*dest_eid_len = 1;
 					*dest_eid_tab = malloc(*dest_eid_len * sizeof(uint8_t));
 					if (*dest_eid_tab == NULL) {
-						printf("Malloc static endpoints failed!\n");
+						mctp_prerr("Malloc static endpoints failed!");
 						return EXIT_FAILURE;
 					}
 
@@ -523,6 +587,71 @@ int mctp_json_i2c_get_params_static_ctrl(json_object *jo, uint8_t *bus_num,
 						*uuid = 0;
 					else
 						*uuid = (uint8_t)parse_num(string_val);
+				}
+			}
+		}
+	}
+	return EXIT_SUCCESS;
+}
+
+/**
+ * @brief Get paramiters for eid_type = static from json_object
+ *        for mctp-ctrl using I2C.
+ *
+ * @param[in] jo - json_object got after parse string from JSON file
+ * @param[in] bus_num - I2C bus number
+ * @param[out] dest_eid_tab - Table of EID
+ * @param[out] dest_eid_len - Length of table
+ */
+int mctp_json_i2c_get_params_pool_ctrl(json_object *jo, uint8_t *bus_num,
+				uint8_t **dest_eid_tab, uint8_t *dest_eid_len)
+{
+	json_object *jo_i2c_struct;
+	json_object *jo_i2c_obj_main;
+	json_object *jo_i2c_obj_i, *jo_i2c_obj_j;
+
+	const char *string_val;
+	uint8_t val;
+	size_t i, j, k;
+
+	jo_i2c_struct = json_object_object_get(jo, "i2c");
+
+	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "buses");
+	size_t val_conf_i2c = json_object_array_length(jo_i2c_obj_main);
+
+	for(i = 0; i < val_conf_i2c; i++) {
+		jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_main, i);
+		jo_i2c_obj_i = json_object_object_get(jo_i2c_struct, "bus_number");
+		string_val = json_object_get_string(jo_i2c_obj_i);
+		val = parse_num(string_val + 3);
+
+		if (val == *bus_num) {
+			/* Get parameters for endpoints*/
+			jo_i2c_obj_i = json_object_object_get(jo_i2c_struct, "endpoints");
+			size_t val_endpoints = json_object_array_length(jo_i2c_obj_i);
+
+			for(j = 0; j < val_endpoints; j++) {
+				jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_i, j);
+				jo_i2c_obj_j = json_object_object_get(jo_i2c_struct, "eid_type");
+				string_val = json_object_get_string(jo_i2c_obj_j);
+
+				if (strcmp(string_val, "pool") == 0) {
+					/* Get pool of EID's */
+					jo_i2c_obj_j = json_object_object_get(jo_i2c_struct, "eid");
+					size_t pool_of_endpoints = json_object_array_length(jo_i2c_obj_j);
+
+					*dest_eid_len = (uint8_t)pool_of_endpoints;
+					*dest_eid_tab = malloc(*dest_eid_len * sizeof(uint8_t));
+					if (*dest_eid_tab == NULL) {
+						mctp_prerr("Malloc static endpoints failed!");
+						return EXIT_FAILURE;
+					}
+
+					for(k = 0; k < *dest_eid_len; k++) {
+						jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_j, k);
+						string_val = json_object_get_string(jo_i2c_struct);
+						(*dest_eid_tab)[k] = (uint8_t)parse_num(string_val);
+					}
 				}
 			}
 		}

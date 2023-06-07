@@ -73,7 +73,7 @@ static sd_bus *g_sdbus = NULL;
 static char *config_json_file_path = NULL;
 bool use_config_json_file_mc = false;
 extern json_object *parsed_json;
-static uint8_t chosen_eid_type = 0;
+static uint8_t chosen_eid_type = EID_TYPE_BRIDGE;
 
 extern void mctp_routing_entry_delete_all(void);
 extern void mctp_uuid_delete_all(void);
@@ -772,16 +772,17 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 
 			break;
 		case EID_TYPE_STATIC:
-			/* Discover static endpoint via SMBus*/
-			MCTP_CTRL_INFO("%s: Start MCTP-over-SMBus Discovery as static endpoint\n", __func__);
-			mctp_err_ret = mctp_i2c_discover_static_endpoint(cmdline, mctp_ctrl);
+		case EID_TYPE_POOL:
+			/* Discover static/pool endpoint via SMBus*/
+			if (cmdline->dest_eid_tab_len == 1) {
+				MCTP_CTRL_INFO("%s: Start MCTP-over-SMBus Discovery as static endpoint\n", __func__);
+			} else {
+				MCTP_CTRL_INFO("%s: Start MCTP-over-SMBus Discovery as pool endpoint\n", __func__);
+			}
+			mctp_err_ret = mctp_i2c_discover_static_pool_endpoint(cmdline, mctp_ctrl);
 			if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
 				MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
 			}
-
-			break;
-		case EID_TYPE_POOL:
-			mctp_prinfo("Use pool endpoints");
 
 			break;
 
@@ -979,8 +980,10 @@ static void parse_command_line(int argc, char *const *argv,
 					break;
 				case EID_TYPE_POOL:
 					mctp_prinfo("Use pool endpoints");
-					MCTP_CTRL_WARN("%s: EID type poll not supported\n", __func__);
-					exit(EXIT_SUCCESS);
+					cmdline->dest_eid_tab = NULL;
+					mctp_json_i2c_get_params_pool_ctrl(parsed_json,
+							&cmdline->i2c.bus_num, &cmdline->dest_eid_tab,
+							&cmdline->dest_eid_tab_len);
 
 					break;
 
@@ -989,14 +992,6 @@ static void parse_command_line(int argc, char *const *argv,
 				}
 			}
 
-			// Debug info on tests
-
-			printf("bus_num = %d, socket name = %s\n",
-				cmdline->i2c.bus_num, (mctp_sock_path + 1));
-			printf("src_eid = %d, bridge_eid = %d, bridge_pool_start = %d\n\n",
-				cmdline->i2c.own_eid, cmdline->i2c.bridge_eid,
-				cmdline->i2c.bridge_pool_start);
-			// end
 			free(config_json_file_path);
 		}
 		else {

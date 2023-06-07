@@ -1151,7 +1151,7 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd, mct
 }
 
 /* Routine to Discover the endpoint devices */
-mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cmd, mctp_ctrl_t *ctrl)
+mctp_ret_codes_t mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_t *cmd, mctp_ctrl_t *ctrl)
 {
 	static int discovery_mode = MCTP_SET_EP_REQUEST;
 	mctp_ret_codes_t mctp_ret;
@@ -1164,26 +1164,40 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 
 	do {
 		/* Wait for MCTP response */
-		mctp_ret = mctp_discover_response(discovery_mode, cmd->dest_eid,
+		mctp_ret = mctp_discover_response(discovery_mode, cmd->i2c.own_eid,
 						ctrl->sock, &mctp_resp_msg,
 						&resp_msg_len);
 		if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed to received message %d\n",
 					__func__, mctp_ret);
 
-			if ((discovery_mode != MCTP_GET_EP_UUID_RESPONSE) &&
-				(discovery_mode != MCTP_GET_MSG_TYPE_RESPONSE)) {
-				MCTP_CTRL_ERR(
-					"%s: Unexpected failure %d, mode[%d]\n",
-					__func__, mctp_ret, discovery_mode);
-				return MCTP_RET_DISCOVERY_FAILED;
+			/* Try to repeat discovery for next endpoint from pool */
+			if (cmd->dest_eid_tab_len > 1) {
+				MCTP_CTRL_DEBUG("%s: Endpoint from pool doesn't response.\n", __func__);
+				number_of_eid++;
+				// Do procedure again if next EID is available
+				if (number_of_eid < cmd->dest_eid_tab_len) {
+					MCTP_CTRL_DEBUG("%s: Set EID for next endpoint from pool.\n", __func__);
+					discovery_mode = MCTP_SET_EP_REQUEST;
+				} else {
+					MCTP_CTRL_DEBUG("%s: End of pool.\n", __func__);
+					discovery_mode = MCTP_FINISH_DISCOVERY;
+					break;
+				}
+			} else {
+				if ((discovery_mode != MCTP_GET_EP_UUID_RESPONSE) &&
+				    (discovery_mode != MCTP_GET_MSG_TYPE_RESPONSE)) {
+					MCTP_CTRL_ERR(
+						"%s: Unexpected failure %d, mode[%d]\n",
+						__func__, mctp_ret, discovery_mode);
+					return MCTP_RET_DISCOVERY_FAILED;
+				}
 			}
 		}
 
 		switch(discovery_mode) {
 
 			case MCTP_SET_EP_REQUEST:
-
 				/* Update the EID operation and EID number */
 				set_eid_op = set_eid;
 				eid = cmd->dest_eid_tab[number_of_eid];
@@ -1326,6 +1340,14 @@ mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cm
 							"%s: MCTP_GET_MSG_TYPE_RESPONSE Failed\n",
 							__func__);
 					}
+				}
+
+				/* Do procedure again if next EID is available */
+				number_of_eid++;
+				if (number_of_eid < cmd->dest_eid_tab_len) {
+					MCTP_CTRL_DEBUG("%s: Set EID for next endpoint from pool.\n", __func__);
+					discovery_mode = MCTP_SET_EP_REQUEST;
+					break;
 				}
 
 				/* Finally update the global mctp_discovered_endpoints */

@@ -49,6 +49,10 @@
 #define MCTP_SMBUS_EID_OFFSET                                                  \
 	MCTP_BIND_INFO_OFFSET + sizeof(struct mctp_smbus_pkt_private)
 #define MCTP_SMBUS_MSG_OFFSET MCTP_SMBUS_EID_OFFSET + (sizeof(uint8_t))
+#define MCTP_SMBUS_MSG_COMMAND_CODE_OFFSET                                     \
+	MCTP_SMBUS_EID_OFFSET + (3 * sizeof(uint8_t))
+#define MCTP_SMBUS_MSG_DATA_0_OFFSET                                           \
+	MCTP_SMBUS_EID_OFFSET + (5 * sizeof(uint8_t))
 
 #define MCTP_SMBUS_BUS_NUM                                                     \
 	2 //I2C Bus: 			11(BMC), 2(HMC) [7-bit]
@@ -192,10 +196,6 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		memcpy(&pvt_binding.i2c, (msg + MCTP_BIND_INFO_OFFSET),
 		       sizeof(struct mctp_smbus_pkt_private));
 
-		pvt_binding.i2c.i2c_bus = i2c_bus_num;
-		pvt_binding.i2c.dest_slave_addr = i2c_dest_slave_addr;
-		pvt_binding.i2c.src_slave_addr = i2c_src_slave_addr;
-
 		/* Get target EID */
 		eid = *((uint8_t *)msg + MCTP_SMBUS_EID_OFFSET);
 
@@ -205,6 +205,23 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		printf("Print msg: ");
 		mctp_print_hex((uint8_t *)msg + MCTP_SMBUS_MSG_OFFSET, len);
 		printf("\n");
+
+		/* Set correct dest slave addres from pool bese on EID */
+		if (chosen_eid_type == EID_TYPE_POOL) {
+			uint8_t searched_eid = eid;
+
+			if (eid == 0) { // Get EID from other place
+				if (*((uint8_t *)msg + MCTP_SMBUS_MSG_COMMAND_CODE_OFFSET) == MCTP_COMMAND_CODE_SET_EID) {
+					searched_eid = *((uint8_t *)msg + MCTP_SMBUS_MSG_DATA_0_OFFSET);
+				}
+			}
+
+			i2c_dest_slave_addr = set_global_dest_slave_addr_from_pool(searched_eid);
+		}
+
+		pvt_binding.i2c.i2c_bus = i2c_bus_num;
+		pvt_binding.i2c.dest_slave_addr = i2c_dest_slave_addr;
+		pvt_binding.i2c.src_slave_addr = i2c_src_slave_addr;
 
 		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, MCTP_MESSAGE_TO_SRC, 0,
 					      msg + MCTP_SMBUS_MSG_OFFSET, len,
@@ -631,7 +648,8 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 		else {
 			// Get common parameters
 				mctp_json_i2c_get_common_params_mctp_demux(parsed_json,
-					&i2c_bus_num, &i2c_bus_num_smq, &binding->sockname);
+					&i2c_bus_num, &i2c_bus_num_smq, &i2c_src_slave_addr,
+					&binding->sockname);
 
 			// Get info about eid_type
 			chosen_eid_type = mctp_json_get_eid_type(parsed_json, binding->name, &i2c_bus_num);
@@ -641,7 +659,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 			case EID_TYPE_BRIDGE:
 				mctp_prinfo("Use bridge endpoint");
 				rc = mctp_json_i2c_get_params_bridge_static_demux(parsed_json,
-					&i2c_bus_num, &i2c_dest_slave_addr, &i2c_src_slave_addr, &eid);
+					&i2c_bus_num, &i2c_dest_slave_addr, &eid);
 
 				if (rc == EXIT_FAILURE)
 					binding_smbus_use_default_config();
@@ -651,7 +669,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 				mctp_prinfo("Use static endpoint");
 				static_endpoints = malloc(1 * sizeof(struct mctp_static_endpoint_mapper));
 				rc = mctp_json_i2c_get_params_bridge_static_demux(parsed_json,
-					&i2c_bus_num, &i2c_dest_slave_addr, &i2c_src_slave_addr, &eid);
+					&i2c_bus_num, &i2c_dest_slave_addr, &eid);
 				static_endpoints[0].slave_address = i2c_dest_slave_addr;
 
 				if (rc == EXIT_FAILURE)
@@ -664,6 +682,14 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 			case EID_TYPE_POOL:
 				mctp_prinfo("Use pool endpoints");
 
+				rc = mctp_json_i2c_get_params_pool_demux(parsed_json,
+					&i2c_bus_num, &static_endpoints, &static_endpoints_len);
+
+				if (rc == EXIT_FAILURE) {
+					mctp_prinfo("Get params for pool failed!");
+					binding_smbus_use_default_config();
+				}
+
 				break;
 
 			default:
@@ -673,13 +699,6 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 		}
 		free(config_json_file_path);
 	}
-
-// Debug info on tests
-	printf("\n\ni2c bus num = %d, i2c dest addr = 0x%x, i2c src addr = 0x%x\n",
-			i2c_bus_num, i2c_dest_slave_addr, i2c_src_slave_addr);
-	printf("socket name = %s, src_eid = %d\n\n",
-			(binding->sockname + 1), eid);
-// end
 
 	smbus = mctp_smbus_init(i2c_bus_num, i2c_bus_num_smq, i2c_dest_slave_addr,
 			i2c_src_slave_addr, chosen_eid_type);
@@ -996,6 +1015,20 @@ static int run_daemon(struct ctx *ctx)
 
 	if (chosen_eid_type == EID_TYPE_STATIC) {
 		check_device_supports_mctp(ctx->binding->data);
+	} else if (chosen_eid_type == EID_TYPE_POOL) {
+		find_and_set_pool_of_endpoints(ctx->binding->data);
+
+		int j, k;
+		for (j = 0; j < static_endpoints_len; j++) {
+			mctp_prdebug("\n%s: Static endpoint Pool", __func__);
+			mctp_prdebug("Endpoint = %d", static_endpoints[j].endpoint_num);
+			mctp_prdebug("Slave address = 0x%x", static_endpoints[j].slave_address);
+			mctp_prdebug("Support MCTP = %d", static_endpoints[j].support_mctp);
+			mctp_prdebug("UDID = ");
+			for (k = 0; k < 16; k++) {
+				mctp_prdebug("0x%x ", static_endpoints[j].udid[k]);
+			}
+		}
 	}
 
 	for (;;) {

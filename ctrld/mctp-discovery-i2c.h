@@ -34,6 +34,6 @@ mctp_ret_codes_t mctp_i2c_get_msg_type_request(int sock_fd, mctp_eid_t eid);
 int mctp_i2c_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg, size_t resp_msg_len);
 
 mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd, mctp_ctrl_t *ctrl);
-mctp_ret_codes_t mctp_i2c_discover_static_endpoint(const mctp_cmdline_args_t *cmd, mctp_ctrl_t *ctrl);
+mctp_ret_codes_t mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_t *cmd, mctp_ctrl_t *ctrl);
 
 #endif /* __MCTP_I2C_DISCOVERY_H__ */

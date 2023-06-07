@@ -181,7 +181,7 @@ static int mctp_binding_smbus_tx(struct mctp_binding *b,
 	struct mctp_binding_smbus *smbus = binding_to_smbus(b);
 	struct mctp_smbus_header_tx *hdr;
 	size_t pkt_length = mctp_pktbuf_size(pkt);
-	int rv;
+	int rv, i;
 
 	uint8_t *buf_ptr;
 	uint8_t i2c_message_len;
@@ -194,6 +194,15 @@ static int mctp_binding_smbus_tx(struct mctp_binding *b,
 	/* 8 bit address */
 	hdr->source_slave_address =
 		(g_mctp_smbus_src_slave_address << 1) | 0x01;
+
+	// Check if endpoint support mctp, if no just drop send message
+	for(i = 0; i < static_endpoints_len; i++) {
+		if (static_endpoints[i].slave_address == g_mctp_smbus_dest_slave_address) {
+			if(static_endpoints[i].support_mctp == 0) {
+				return 0;
+			}
+		}
+	}
 
 	buf_ptr = (uint8_t *)smbus->txbuf + sizeof(*hdr);
 	memcpy(buf_ptr, &pkt->data[pkt->start], pkt_length);
@@ -296,6 +305,20 @@ int mctp_smbus_poll(struct mctp_binding_smbus *smbus, int timeout)
 			errno);
 
 	return 0;
+}
+
+uint8_t set_global_dest_slave_addr_from_pool(uint8_t eid)
+{
+	int i;
+
+	for(i = 0; i < static_endpoints_len; i++) {
+		if(eid == static_endpoints[i].endpoint_num) {
+			g_mctp_smbus_dest_slave_address = static_endpoints[i].slave_address;
+			break;
+		}
+	}
+
+	return g_mctp_smbus_dest_slave_address;
 }
 
 int send_get_udid_command(struct mctp_binding_smbus *smbus, uint8_t *inbuf, uint8_t len)
@@ -432,6 +455,29 @@ int check_mctp_get_ver_support(struct mctp_binding_smbus *smbus, uint8_t which_e
 	mctp_prdebug("UDID = ");
 	for (i = 0; i < 16; i++) {
 		mctp_prdebug("0x%x ", static_endpoints[which_endpoint].udid[i]);
+	}
+
+	return EXIT_SUCCESS;
+}
+
+int find_and_set_pool_of_endpoints(struct mctp_binding_smbus *smbus)
+{
+	uint8_t inbuf[20];
+	uint8_t inbuf_len = 18;
+	uint8_t quantity_of_udid = 1; //at the moment only one CX7 card
+	uint8_t i, slave_address;
+
+	// TODO: Improve this function to get more UDID
+	//       from other devices if are will be available
+	send_get_udid_command(smbus, inbuf, inbuf_len);
+	// Get slave address from UDID
+	slave_address = inbuf[17];
+	slave_address = slave_address >> 1;
+
+	for (i = 0; i < quantity_of_udid; i++) {
+		printf("%d\n", i);
+		static_endpoints[i].slave_address = slave_address;
+		check_mctp_get_ver_support(smbus, i, inbuf, inbuf_len);
 	}
 
 	return EXIT_SUCCESS;
