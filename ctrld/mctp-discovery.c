@@ -46,14 +46,25 @@ mctp_prepare_ep_discovery_send_request(int sock_fd, mctp_binding_ids_t bind_id)
 	struct mctp_ctrl_req ep_discovery_req;
 	size_t msg_len;
 	mctp_eid_t dest_eid;
-	struct mctp_astpcie_pkt_private pvt_binding;
+	void *pvt_binding = NULL;
+	struct mctp_astpcie_pkt_private pvt_binding_pcie;
+	struct mctp_astspi_pkt_private pvt_binding_spi;
+	size_t binding_size = 0;
 
 	/* Set destination EID as broadcast */
 	dest_eid = MCTP_EID_BROADCAST;
 
 	/* Set private binding */
-	pvt_binding.routing = PCIE_BROADCAST_FROM_RC;
-	pvt_binding.remote_id = g_target_bdf;
+	if (MCTP_BINDING_PCIE == bind_id) {
+		pvt_binding_pcie.routing = PCIE_BROADCAST_FROM_RC;
+		pvt_binding_pcie.remote_id = g_target_bdf;
+		pvt_binding = &pvt_binding_pcie;
+		binding_size = sizeof(pvt_binding_pcie);
+	} else if (MCTP_BINDING_SPI == bind_id) {
+		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
+		pvt_binding = &pvt_binding_spi;
+		binding_size = sizeof(pvt_binding_spi);
+	}
 
 	/* Prepare the endpoint discovery message */
 	req_ret = mctp_encode_ctrl_cmd_prepare_ep_discovery(&prep_ep_discovery);
@@ -83,7 +94,7 @@ mctp_prepare_ep_discovery_send_request(int sock_fd, mctp_binding_ids_t bind_id)
 	mctp_ret = mctp_client_with_binding_send(
 		dest_eid, sock_fd, (const uint8_t *)&ep_discovery_req,
 		sizeof(struct mctp_ctrl_cmd_prepare_ep_discovery), &bind_id,
-		(void *)&pvt_binding, sizeof(pvt_binding));
+		pvt_binding, binding_size);
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
@@ -128,14 +139,25 @@ mctp_ret_codes_t mctp_ep_discovery_send_request(int sock_fd,
 	struct mctp_ctrl_req ep_req;
 	size_t msg_len;
 	mctp_eid_t dest_eid;
-	struct mctp_astpcie_pkt_private pvt_binding;
+	void *pvt_binding = NULL;
+	struct mctp_astpcie_pkt_private pvt_binding_pcie;
+	struct mctp_astspi_pkt_private pvt_binding_spi;
+	size_t binding_size = 0;
 
 	/* Set destination EID as broadcast */
 	dest_eid = MCTP_EID_BROADCAST;
 
 	/* Set private binding */
-	pvt_binding.routing = PCIE_BROADCAST_FROM_RC;
-	pvt_binding.remote_id = g_target_bdf;
+	if (MCTP_BINDING_PCIE == bind_id) {
+		pvt_binding_pcie.routing = PCIE_BROADCAST_FROM_RC;
+		pvt_binding_pcie.remote_id = g_target_bdf;
+		pvt_binding = &pvt_binding_pcie;
+		binding_size = sizeof(pvt_binding_pcie);
+	} else if (MCTP_BINDING_SPI == bind_id) {
+		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
+		pvt_binding = &pvt_binding_spi;
+		binding_size = sizeof(pvt_binding_spi);
+	}
 
 	/* Prepare the endpoint discovery message */
 	req_ret = mctp_encode_ctrl_cmd_ep_discovery(&ep_discovery);
@@ -161,7 +183,7 @@ mctp_ret_codes_t mctp_ep_discovery_send_request(int sock_fd,
 	mctp_ret = mctp_client_with_binding_send(
 		dest_eid, sock_fd, (const uint8_t *)&ep_req,
 		sizeof(struct mctp_ctrl_cmd_ep_discovery), &bind_id,
-		(void *)&pvt_binding, sizeof(pvt_binding));
+		pvt_binding, binding_size);
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
@@ -207,14 +229,25 @@ mctp_ret_codes_t mctp_set_eid_send_request(int sock_fd,
 	struct mctp_ctrl_req ep_req;
 	size_t msg_len;
 	mctp_eid_t dest_eid;
-	struct mctp_astpcie_pkt_private pvt_binding;
+	void *pvt_binding = NULL;
+	struct mctp_astpcie_pkt_private pvt_binding_pcie;
+	struct mctp_astspi_pkt_private pvt_binding_spi;
+	size_t binding_size = 0;
 
 	/* Set destination EID as NULL */
 	dest_eid = MCTP_EID_NULL;
 
 	/* Set private binding */
-	pvt_binding.routing = PCIE_ROUTE_BY_ID;
-	pvt_binding.remote_id = g_target_bdf;
+	if (MCTP_BINDING_PCIE == bind_id) {
+		pvt_binding_pcie.routing = PCIE_ROUTE_BY_ID;
+		pvt_binding_pcie.remote_id = g_target_bdf;
+		pvt_binding = &pvt_binding_pcie;
+		binding_size = sizeof(pvt_binding_pcie);
+	} else if (MCTP_BINDING_SPI == bind_id) {
+		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
+		pvt_binding = &pvt_binding_spi;
+		binding_size = sizeof(pvt_binding_spi);
+	}
 
 	/* Encode Set Endpoint ID message */
 	req_ret = mctp_encode_ctrl_cmd_set_eid(&set_eid_req, op, eid);
@@ -241,8 +274,8 @@ mctp_ret_codes_t mctp_set_eid_send_request(int sock_fd,
 	/* Send the request message over socket */
 	mctp_ret = mctp_client_with_binding_send(
 		dest_eid, sock_fd, (const uint8_t *)&ep_req,
-		sizeof(struct mctp_ctrl_cmd_set_eid), &bind_id,
-		(void *)&pvt_binding, sizeof(pvt_binding));
+		sizeof(struct mctp_ctrl_cmd_set_eid), &bind_id, pvt_binding,
+		binding_size);
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
@@ -334,14 +367,25 @@ mctp_ret_codes_t mctp_alloc_eid_send_request(
 	struct mctp_ctrl_req ep_req;
 	size_t msg_len;
 	mctp_eid_t dest_eid;
-	struct mctp_astpcie_pkt_private pvt_binding;
+	void *pvt_binding = NULL;
+	struct mctp_astpcie_pkt_private pvt_binding_pcie;
+	struct mctp_astspi_pkt_private pvt_binding_spi;
+	size_t binding_size = 0;
 
 	/* Set destination EID as NULL */
 	dest_eid = assigned_eid;
 
 	/* Set private binding */
-	pvt_binding.routing = PCIE_ROUTE_BY_ID;
-	pvt_binding.remote_id = g_target_bdf;
+	if (MCTP_BINDING_PCIE == bind_id) {
+		pvt_binding_pcie.routing = PCIE_ROUTE_BY_ID;
+		pvt_binding_pcie.remote_id = g_target_bdf;
+		pvt_binding = &pvt_binding_pcie;
+		binding_size = sizeof(pvt_binding_pcie);
+	} else if (MCTP_BINDING_SPI == bind_id) {
+		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
+		pvt_binding = &pvt_binding_spi;
+		binding_size = sizeof(pvt_binding_spi);
+	}
 
 	/* Allocate Endpoint ID's message */
 	req_ret = mctp_encode_ctrl_cmd_alloc_eid(&set_eid_req, op, eid_count,
@@ -369,8 +413,8 @@ mctp_ret_codes_t mctp_alloc_eid_send_request(
 	/* Send the request message over socket */
 	mctp_ret = mctp_client_with_binding_send(
 		dest_eid, sock_fd, (const uint8_t *)&ep_req,
-		sizeof(struct mctp_ctrl_cmd_alloc_eid), &bind_id,
-		(void *)&pvt_binding, sizeof(pvt_binding));
+		sizeof(struct mctp_ctrl_cmd_alloc_eid), &bind_id, pvt_binding,
+		binding_size);
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
@@ -430,15 +474,26 @@ mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd,
 	struct mctp_ctrl_req ep_req;
 	size_t msg_len;
 	mctp_eid_t dest_eid;
-	struct mctp_astpcie_pkt_private pvt_binding;
+	void *pvt_binding = NULL;
+	struct mctp_astpcie_pkt_private pvt_binding_pcie;
+	struct mctp_astspi_pkt_private pvt_binding_spi;
+	size_t binding_size = 0;
 	static int entry_count = 0;
 
 	/* Set destination EID as NULL */
 	dest_eid = MCTP_EID_NULL;
 
 	/* Set private binding */
-	pvt_binding.routing = PCIE_ROUTE_BY_ID;
-	pvt_binding.remote_id = g_target_bdf;
+	if (MCTP_BINDING_PCIE == bind_id) {
+		pvt_binding_pcie.routing = PCIE_ROUTE_BY_ID;
+		pvt_binding_pcie.remote_id = g_target_bdf;
+		pvt_binding = &pvt_binding_pcie;
+		binding_size = sizeof(pvt_binding_pcie);
+	} else if (MCTP_BINDING_SPI == bind_id) {
+		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
+		pvt_binding = &pvt_binding_spi;
+		binding_size = sizeof(pvt_binding_spi);
+	}
 
 	/* Get routing table request message */
 	req_ret = mctp_encode_ctrl_cmd_get_routing_table(
@@ -469,7 +524,7 @@ mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd,
 	mctp_ret = mctp_client_with_binding_send(
 		dest_eid, sock_fd, (const uint8_t *)&ep_req,
 		sizeof(struct mctp_ctrl_cmd_get_routing_table), &bind_id,
-		(void *)&pvt_binding, sizeof(pvt_binding));
+		pvt_binding, binding_size);
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
@@ -604,14 +659,25 @@ mctp_ret_codes_t mctp_get_endpoint_uuid_send_request(int sock_fd,
 	struct mctp_ctrl_req ep_req;
 	size_t msg_len;
 	mctp_eid_t dest_eid;
-	struct mctp_astpcie_pkt_private pvt_binding;
+	void *pvt_binding = NULL;
+	struct mctp_astpcie_pkt_private pvt_binding_pcie;
+	struct mctp_astspi_pkt_private pvt_binding_spi;
+	size_t binding_size = 0;
 
 	/* Set destination EID */
 	dest_eid = eid;
 
 	/* Set private binding */
-	pvt_binding.routing = PCIE_ROUTE_BY_ID;
-	pvt_binding.remote_id = g_target_bdf;
+	if (MCTP_BINDING_PCIE == bind_id) {
+		pvt_binding_pcie.routing = PCIE_ROUTE_BY_ID;
+		pvt_binding_pcie.remote_id = g_target_bdf;
+		pvt_binding = &pvt_binding_pcie;
+		binding_size = sizeof(pvt_binding_pcie);
+	} else if (MCTP_BINDING_SPI == bind_id) {
+		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
+		pvt_binding = &pvt_binding_spi;
+		binding_size = sizeof(pvt_binding_spi);
+	}
 
 	/* Encode for Get Endpoint UUID message */
 	req_ret = mctp_encode_ctrl_cmd_get_uuid(&uuid_req);
@@ -635,8 +701,8 @@ mctp_ret_codes_t mctp_get_endpoint_uuid_send_request(int sock_fd,
 	/* Send the request message over socket */
 	mctp_ret = mctp_client_with_binding_send(
 		dest_eid, sock_fd, (const uint8_t *)&ep_req,
-		sizeof(struct mctp_ctrl_cmd_get_uuid), &bind_id,
-		(void *)&pvt_binding, sizeof(pvt_binding));
+		sizeof(struct mctp_ctrl_cmd_get_uuid), &bind_id, pvt_binding,
+		binding_size);
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
@@ -698,14 +764,25 @@ mctp_ret_codes_t mctp_get_msg_type_request(int sock_fd,
 	struct mctp_ctrl_req ep_req;
 	size_t msg_len;
 	mctp_eid_t dest_eid;
-	struct mctp_astpcie_pkt_private pvt_binding;
+	void *pvt_binding = NULL;
+	struct mctp_astpcie_pkt_private pvt_binding_pcie;
+	struct mctp_astspi_pkt_private pvt_binding_spi;
+	size_t binding_size = 0;
 
 	/* Set destination EID */
 	dest_eid = eid;
 
 	/* Set private binding */
-	pvt_binding.routing = PCIE_ROUTE_BY_ID;
-	pvt_binding.remote_id = g_target_bdf;
+	if (MCTP_BINDING_PCIE == bind_id) {
+		pvt_binding_pcie.routing = PCIE_ROUTE_BY_ID;
+		pvt_binding_pcie.remote_id = g_target_bdf;
+		pvt_binding = &pvt_binding_pcie;
+		binding_size = sizeof(pvt_binding_pcie);
+	} else if (MCTP_BINDING_SPI == bind_id) {
+		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
+		pvt_binding = &pvt_binding_spi;
+		binding_size = sizeof(pvt_binding_spi);
+	}
 
 	/* Encode for Get Endpoint UUID message */
 	req_ret = mctp_encode_ctrl_cmd_get_msg_type_support(&msg_type_req);
@@ -732,7 +809,7 @@ mctp_ret_codes_t mctp_get_msg_type_request(int sock_fd,
 	mctp_ret = mctp_client_with_binding_send(
 		dest_eid, sock_fd, (const uint8_t *)&ep_req,
 		sizeof(struct mctp_ctrl_cmd_get_msg_type_support), &bind_id,
-		(void *)&pvt_binding, sizeof(pvt_binding));
+		pvt_binding, binding_size);
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
