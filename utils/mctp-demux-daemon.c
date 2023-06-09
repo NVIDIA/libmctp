@@ -936,6 +936,11 @@ static int client_process_recv(struct ctx *ctx, int idx)
 
 	eid = *(uint8_t *)ctx->buf;
 
+	/* Set correct dest slave addres from pool bese on EID */
+	if (chosen_eid_type == EID_TYPE_POOL) {
+		i2c_dest_slave_addr = set_global_dest_slave_addr_from_pool(eid);
+	}
+
 	if (ctx->verbose)
 		fprintf(stderr, "client[%d] sent message: dest 0x%02x len %d\n",
 			idx, eid, rc - 1);
