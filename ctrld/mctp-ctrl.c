@@ -626,6 +626,15 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	mctp_ret_codes_t mctp_err_ret;
 	pthread_t keepalive_thread;
 
+	/* Create D-Bus for loging event and handling D-Bus request*/
+	rc = sd_bus_default_system(&mctp_ctrl->bus);
+	if (rc < 0) {
+		MCTP_CTRL_ERR("D-Bus failed to create\n");
+		close(g_signal_fd);
+		return EXIT_FAILURE;
+	}
+	g_sdbus = mctp_ctrl->bus;
+
 	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		MCTP_CTRL_INFO("%s: Binding type: PCIe\n", __func__);
 		if(use_config_json_file_mc == false)
@@ -678,6 +687,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		MCTP_CTRL_ERR("Failed to open mctp socket\n");
 
 		close(g_signal_fd);
+		sd_bus_unref(mctp_ctrl->bus);
 		return EXIT_FAILURE;
 	}
 
@@ -693,6 +703,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 			MCTP_CTRL_ERR("pthread_cond_init(3) failed.\n");
 			close(g_socket_fd);
 			close(g_signal_fd);
+			sd_bus_unref(mctp_ctrl->bus);
 			return EXIT_FAILURE;
 		}
 
@@ -701,19 +712,10 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 			MCTP_CTRL_ERR("pthread_mutex_init(3) failed.\n");
 			close(g_socket_fd);
 			close(g_signal_fd);
+			sd_bus_unref(mctp_ctrl->bus);
 			return EXIT_FAILURE;
 		}
 	}
-
-	/* Create D-Bus for loging event and handling D-Bus request*/
-	rc = sd_bus_default_system(&mctp_ctrl->bus);
-	if (rc < 0) {
-		MCTP_CTRL_ERR("D-Bus failed to create\n");
-		close(g_socket_fd);
-		close(g_signal_fd);
-		return EXIT_FAILURE;
-	}
-	g_sdbus = mctp_ctrl->bus;
 
 	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		/* Make sure all PCIe EID options are available from commandline */

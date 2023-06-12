@@ -45,8 +45,7 @@
 #define MCTP_PCIE_MSG_OFFSET MCTP_PCIE_EID_OFFSET + (sizeof(uint8_t))
 #define MCTP_SPI_EID_OFFSET                                                    \
 	(MCTP_BIND_INFO_OFFSET + sizeof(struct mctp_astspi_pkt_private))
-#define MCTP_SPI_MSG_OFFSET                                                    \
-	MCTP_BIND_INFO_OFFSET + sizeof(struct mctp_astspi_pkt_private)
+#define MCTP_SPI_MSG_OFFSET (MCTP_SPI_EID_OFFSET + sizeof(uint8_t))
 #define MCTP_SMBUS_EID_OFFSET                                                  \
 	MCTP_BIND_INFO_OFFSET + sizeof(struct mctp_smbus_pkt_private)
 #define MCTP_SMBUS_MSG_OFFSET MCTP_SMBUS_EID_OFFSET + (sizeof(uint8_t))
