@@ -293,7 +293,7 @@ int mctp_smbus_poll(struct mctp_binding_smbus *smbus, int timeout)
 	int rc;
 
 	fds[0].fd = smbus->in_fd;
-	fds[0].events = POLLIN;
+	fds[0].events = POLLPRI;
 
 	rc = poll(fds, 1, timeout);
 
