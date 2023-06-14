@@ -457,7 +457,8 @@ int mctp_ctrl_sdbus_dispatch(mctp_sdbus_context_t *context)
 	return SDBUS_PROCESS_EVENT;
 }
 
-static mctp_sdbus_context_t *mctp_ctrl_sdbus_create_context(sd_bus *bus)
+static mctp_sdbus_context_t *
+mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
 {
 	mctp_sdbus_context_t *context = NULL;
 	int r;
@@ -480,8 +481,14 @@ static mctp_sdbus_context_t *mctp_ctrl_sdbus_create_context(sd_bus *bus)
 		goto finish;
 	}
 
-	snprintf(mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE, "%s.%s",
-		 MCTP_CTRL_DBUS_NAME, mctp_medium_type);
+	if (MCTP_BINDING_SMBUS == cmdline->binding_type) {
+		snprintf(mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE,
+			 "%s.%s%d", MCTP_CTRL_DBUS_NAME, mctp_medium_type,
+			 cmdline->i2c.bus_num);
+	} else {
+		snprintf(mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE, "%s.%s",
+			 MCTP_CTRL_DBUS_NAME, mctp_medium_type);
+	}
 	MCTP_CTRL_TRACE("Requesting D-Bus name: %s\n", mctp_ctrl_busname);
 	r = sd_bus_request_name(context->bus, mctp_ctrl_busname,
 				SD_BUS_NAME_ALLOW_REPLACEMENT |
@@ -587,12 +594,13 @@ void mctp_ctrl_sdbus_stop(void)
 }
 
 /* MCTP ctrl D-Bus initialization */
-int mctp_ctrl_sdbus_init(sd_bus *bus, int signal_fd)
+int mctp_ctrl_sdbus_init(sd_bus *bus, int signal_fd,
+			 const mctp_cmdline_args_t *cmdline)
 {
 	int r = 0;
 	mctp_sdbus_context_t *context = NULL;
 
-	context = mctp_ctrl_sdbus_create_context(bus);
+	context = mctp_ctrl_sdbus_create_context(bus, cmdline);
 	if (!context) {
 		return -1;
 	}

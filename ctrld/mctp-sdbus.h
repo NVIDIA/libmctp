@@ -57,10 +57,12 @@ enum { SDBUS_POLLING_TIMEOUT = 1, SDBUS_PROCESS_EVENT };
  *
  * @param[in] bus - destination MCTP eid
  * @param[in] signalfd - the signal fd to terminate threads,
+ * @param[in] cmdline - the command line structure
  *
  * @return int (errno may be set). failure is returned.
  */
-int mctp_ctrl_sdbus_init(sd_bus *bus, int signalfd);
+int mctp_ctrl_sdbus_init(sd_bus *bus, int signalfd,
+			 const mctp_cmdline_args_t *cmdline);
 
 /**
  * @brief stop serving the D-Bus requests

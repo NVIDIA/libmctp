@@ -165,7 +165,6 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 	int rc;
 
 	mctp_trace_tx(smbus->txbuf, len);
-	print_hex(smbus->txbuf, len);
 
 	rc = ioctl(smbus->out_fd, I2C_RDWR, &msgrdwr);
 	MCTP_ASSERT_RET(rc >= 0, rc, "Invalid ioctl ret val: %d (%s)", errno,
@@ -574,7 +573,6 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 	}
 
 	mctp_trace_rx(smbus->rxbuf, len);
-	print_hex(smbus->rxbuf, len);
 
 	mctp_bus_rx(&smbus->binding, smbus->rx_pkt);
 	smbus->rx_pkt = NULL;

@@ -871,7 +871,9 @@ static void parse_command_line(int argc, char *const *argv,
 			}
 			break;
 		case 'n':
-			cmdline->i2c.bus_num = (uint8_t)atoi(optarg);
+			if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
+				cmdline->i2c.bus_num = (uint8_t)atoi(optarg);
+			}
 			break;
 		case 'j':
 			if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
@@ -891,16 +893,14 @@ static void parse_command_line(int argc, char *const *argv,
 		case 'i':
 			if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 				own_eid = (uint8_t)atoi(optarg);
-			}
-			else if (cmdline->binding_type == MCTP_BINDING_SPI) {
+			} else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 				vdm_ops = atoi(optarg);
 			}
 			break;
 		case 'x':
 			if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 				bridge_pool = (uint8_t)atoi(optarg);
-			}
-			else if (cmdline->binding_type == MCTP_BINDING_SPI) {
+			} else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 				command_mode = atoi(optarg);
 			}
 			break;
@@ -911,16 +911,13 @@ static void parse_command_line(int argc, char *const *argv,
 				if (!strcmp(optarg, "pcie")) {
 					usage_common();
 					usage_pcie();
-				}
-				else if (!strcmp(optarg, "spi")) {
+				} else if (!strcmp(optarg, "spi")) {
 					usage_common();
 					usage_spi();
-				}
-				else if (!strcmp(optarg, "smbus")) {
+				} else if (!strcmp(optarg, "smbus")) {
 					usage_common();
 					usage_i2c();
-				}
-				else
+				} else
 					printf("Wrong binding\n");
 			}
 			exit(EXIT_SUCCESS);
@@ -1062,7 +1059,8 @@ int main(int argc, char *const *argv)
 		}
 
 		/* Start D-Bus initialization and monitoring */
-		rc = mctp_ctrl_sdbus_init(mctp_ctrl->bus, g_signal_fd);
+		rc = mctp_ctrl_sdbus_init(mctp_ctrl->bus, g_signal_fd,
+					  &cmdline);
 
 		if (rc < 0) {
 			/* Pass the signal to threads and notify we are going to exit */
