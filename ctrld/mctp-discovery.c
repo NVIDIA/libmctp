@@ -541,7 +541,8 @@ mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd,
 /* Receive function for Get routing table */
 int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
 					uint8_t *mctp_resp_msg,
-					size_t resp_msg_len)
+					size_t resp_msg_len,
+					bool remove_duplicates)
 {
 	bool req_ret;
 	struct mctp_ctrl_resp_get_routing_table *routing_table;
@@ -650,6 +651,32 @@ int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
 					routing_table->next_entry_handle);
 		}
 	}
+
+	// Remove any duplicate EIDs
+	if (remove_duplicates) {
+		MCTP_CTRL_DEBUG("Checking Routing Table...\n");
+		mctp_routing_table_t *routing_entry = g_routing_table_entries;
+		while (routing_entry != NULL) {
+			uint8_t current_eid = routing_entry->routing_table.starting_eid;
+			mctp_routing_table_t *walker = routing_entry->next;
+			mctp_routing_table_t *walkedFrom = routing_entry;
+			while (walker != NULL){
+				if (walker->routing_table.starting_eid == current_eid) {
+						MCTP_CTRL_DEBUG("WARNING: EID %d was duplicated in routing table. Removing duplicate entry.\n", current_eid);
+						mctp_routing_table_t *dup_entry = walker;
+						walkedFrom->next = walker->next;
+						walker = walker->next;
+						free(dup_entry);
+				}
+				else {
+					walkedFrom = walker;
+					walker = walker->next;
+				}
+			}
+			routing_entry = routing_entry->next;
+		}
+	}
+
 
 	return MCTP_RET_REQUEST_SUCCESS;
 }
@@ -1267,7 +1294,8 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 
 			/* Process the MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE */
 			mctp_ret = mctp_get_routing_table_get_response(
-				ctrl, eid, mctp_resp_msg, resp_msg_len);
+				ctrl, eid, mctp_resp_msg, resp_msg_len,
+				cmd->pcie.remove_duplicates);
 
 			/* Free Rx packet */
 			free(mctp_resp_msg);
@@ -1333,7 +1361,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			/* Send the MCTP_GET_EP_UUID_REQUEST */
 			if (routing_entry) {
 				/* Set the Start of EID */
-				eid_start = routing_entry->routing_table
+					eid_start = routing_entry->routing_table
 						    .starting_eid;
 
 				MCTP_CTRL_DEBUG(

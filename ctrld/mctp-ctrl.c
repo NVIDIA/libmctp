@@ -151,6 +151,7 @@ mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_fd,
 
 static const struct option g_options[] = {
 	{ "verbose", no_argument, 0, 'v' },
+	{ "remove_duplicates", no_argument, 0, 'c' },
 	{ "eid", required_argument, 0, 'e' },
 	{ "mode", required_argument, 0, 'm' },
 	{ "type", required_argument, 0, 't' },
@@ -158,8 +159,8 @@ static const struct option g_options[] = {
 	{ "tx", required_argument, 0, 's' },
 	{ "rx", required_argument, 0, 'r' },
 	{ "bindinfo", required_argument, 0, 'b' },
-	{ "cfg_file_path", required_argument, 0, 'f'},
-	{ "bus_num", required_argument, 0, 'n'},
+	{ "cfg_file_path", required_argument, 0, 'f' },
+	{ "bus_num", required_argument, 0, 'n' },
 
 	/* EID options */
 	{ "pci_own_eid", required_argument, 0, 'i' },
@@ -177,7 +178,8 @@ static const struct option g_options[] = {
 	{ 0 },
 };
 
-static const char *const short_options = "ve:m:t:d:s:r:b:f:n:i:j:p:q:x:y:h::";
+static const char *const short_options =
+	"v:c:e:m:t:d:s:r:b:f:n:i:j:p:q:x:y:h::";
 
 static void usage(void)
 {
@@ -210,6 +212,7 @@ static void usage_pcie(void)
 		"\t-i\t pci own eid\n"
 		"\t-p\t pci bridge eid\n"
 		"\t-x\t pci bridge pool start eid\n"
+		"\t-c\t option to remove duplicate EID entries from the routing table\n"
 		"To send MCTP message for PCIe binding type\n"
 		"Eg: Prepare for Endpoint Discovery\n"
 		"\t mctp-ctrl -s \"00 80 0b\" -b \"03 00 00 00 00 00\" -e 255 -i 9 -p 12 -x 13 -m 0 -t 2 -v\n"
@@ -737,43 +740,49 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		}
 
 		/* Discover endpoints via PCIe*/
-		MCTP_CTRL_INFO("%s: Start MCTP-over-PCIe Discovery\n", __func__);
+		MCTP_CTRL_INFO("%s: Start MCTP-over-PCIe Discovery\n",
+			       __func__);
 		mctp_err_ret = mctp_discover_endpoints(cmdline, mctp_ctrl);
 		if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
 			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
+			mctp_ctrl_clean_up();
+			return EXIT_FAILURE;
 		}
-	}
-	else if (cmdline->binding_type == MCTP_BINDING_SPI) {
+	} else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 		/* Create pthread for sening keepalive messages */
-		pthread_create(&keepalive_thread, NULL, &mctp_spi_keepalive_event,
-				(void *)mctp_ctrl);
+		pthread_create(&keepalive_thread, NULL,
+			       &mctp_spi_keepalive_event, (void *)mctp_ctrl);
 
 		g_keepalive_thread = keepalive_thread;
 
 		/* Wait until we can populate Dbus objects. */
-		pthread_cond_wait(&mctp_ctrl->worker_cv, &mctp_ctrl->worker_mtx);
-	}
-	else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
-		switch (chosen_eid_type)
-		{
+		pthread_cond_wait(&mctp_ctrl->worker_cv,
+				  &mctp_ctrl->worker_mtx);
+	} else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
+		switch (chosen_eid_type) {
 		case EID_TYPE_BRIDGE:
 			/* Make sure all SMBus EID options are available from commandline */
-			rc = mctp_i2c_eids_sanity_check(cmdline->i2c.own_eid,
-							cmdline->i2c.bridge_eid,
-							cmdline->i2c.bridge_pool_start);
+			rc = mctp_i2c_eids_sanity_check(
+				cmdline->i2c.own_eid, cmdline->i2c.bridge_eid,
+				cmdline->i2c.bridge_pool_start);
 			if (rc < 0) {
 				close(g_socket_fd);
 				close(g_signal_fd);
 				sd_bus_unref(mctp_ctrl->bus);
-				MCTP_CTRL_ERR("MCTP-Ctrl sanity check unsuccessful\n");
+				MCTP_CTRL_ERR(
+					"MCTP-Ctrl sanity check unsuccessful\n");
 				return EXIT_FAILURE;
 			}
 
 			/* Discover endpoints connected to FPGA via SMBus*/
-			MCTP_CTRL_INFO("%s: Start MCTP-over-SMBus Discovery via Bridge\n", __func__);
-			mctp_err_ret = mctp_i2c_discover_endpoints(cmdline, mctp_ctrl);
+			MCTP_CTRL_INFO(
+				"%s: Start MCTP-over-SMBus Discovery via Bridge\n",
+				__func__);
+			mctp_err_ret =
+				mctp_i2c_discover_endpoints(cmdline, mctp_ctrl);
 			if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
-				MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
+				MCTP_CTRL_ERR(
+					"MCTP-Ctrl discovery unsuccessful\n");
 			}
 
 			break;
@@ -781,13 +790,19 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		case EID_TYPE_POOL:
 			/* Discover static/pool endpoint via SMBus*/
 			if (cmdline->dest_eid_tab_len == 1) {
-				MCTP_CTRL_INFO("%s: Start MCTP-over-SMBus Discovery as static endpoint\n", __func__);
+				MCTP_CTRL_INFO(
+					"%s: Start MCTP-over-SMBus Discovery as static endpoint\n",
+					__func__);
 			} else {
-				MCTP_CTRL_INFO("%s: Start MCTP-over-SMBus Discovery as pool endpoint\n", __func__);
+				MCTP_CTRL_INFO(
+					"%s: Start MCTP-over-SMBus Discovery as pool endpoint\n",
+					__func__);
 			}
-			mctp_err_ret = mctp_i2c_discover_static_pool_endpoint(cmdline, mctp_ctrl);
+			mctp_err_ret = mctp_i2c_discover_static_pool_endpoint(
+				cmdline, mctp_ctrl);
 			if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
-				MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
+				MCTP_CTRL_ERR(
+					"MCTP-Ctrl discovery unsuccessful\n");
 			}
 
 			break;
@@ -795,7 +810,6 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		default:
 			break;
 		}
-
 	}
 
 	return EXIT_SUCCESS;
@@ -815,6 +829,7 @@ static void parse_command_line(int argc, char *const *argv,
 	memset(&cmdline->rx_data, 0, MCTP_READ_DATA_BUFF_SIZE);
 	uint8_t own_eid = 0, bridge_eid = 0, bridge_pool = 0;
 	int vdm_ops = 0, command_mode = 0;
+	bool remove_duplicates = false;
 
 	/* Get the binding type parameter first,
 	then assign the parameters accordingly for chosen PCIe, SPI or SMBus */
@@ -841,6 +856,9 @@ static void parse_command_line(int argc, char *const *argv,
 			MCTP_CTRL_DEBUG("%s: Verbose level:%d\n", __func__,
 					cmdline->verbose);
 			g_verbose_level = cmdline->verbose;
+			break;
+		case 'c':
+			remove_duplicates = true;
 			break;
 		case 'e':
 			cmdline->dest_eid = (uint8_t)atoi(optarg);
@@ -941,6 +959,7 @@ static void parse_command_line(int argc, char *const *argv,
 		cmdline->pcie.bridge_eid = bridge_eid;
 		cmdline->pcie.bridge_pool_start = bridge_pool;
 		cmdline->pcie.own_eid = own_eid;
+		cmdline->pcie.remove_duplicates = remove_duplicates;
 		break;
 	case MCTP_BINDING_SPI:
 		cmdline->spi.vdm_ops = vdm_ops;

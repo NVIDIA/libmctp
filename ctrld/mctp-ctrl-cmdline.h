@@ -51,6 +51,7 @@ struct mctp_cmdline_pcie {
 	uint8_t own_eid;
 	uint8_t bridge_eid;
 	uint8_t bridge_pool_start;
+	bool remove_duplicates;
 };
 
 /* SPI operations */

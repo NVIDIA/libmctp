@@ -46,7 +46,8 @@ mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd,
 						     uint8_t entry_handle);
 int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
 					uint8_t *mctp_resp_msg,
-					size_t resp_msg_len);
+					size_t resp_msg_len,
+					bool remove_duplicates);
 
 mctp_ret_codes_t mctp_get_endpoint_uuid_send_request(int sock_fd,
 						     mctp_binding_ids_t bind_id,
