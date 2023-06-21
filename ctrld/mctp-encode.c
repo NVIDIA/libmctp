@@ -228,7 +228,7 @@ bool mctp_decode_resp_get_uuid(struct mctp_ctrl_resp_get_uuid *get_uuid_resp)
 	if (get_uuid_resp->completion_code != MCTP_CTRL_CC_SUCCESS)
 		return false;
 
-	MCTP_CTRL_DEBUG("%s: sizeof uuid: %u\n", __func__,
+	MCTP_CTRL_DEBUG("%s: sizeof uuid: %lu\n", __func__,
 			sizeof(get_uuid_resp->uuid.raw));
 
 	return true;
@@ -256,10 +256,10 @@ bool mctp_decode_resp_get_ver_support(
 	
 	if (mctp_ver_support_resp->completion_code != MCTP_CTRL_CC_SUCCESS)
 		return false;
-	
-	MCTP_CTRL_DEBUG("%s: number of entries: %d\n", __func__,
+
+	MCTP_CTRL_DEBUG("%s: number of entries: %zu\n", __func__,
 			sizeof(mctp_ver_support_resp->number_of_entries));
-	
+
 	return true;
 }
 

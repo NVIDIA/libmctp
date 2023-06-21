@@ -681,6 +681,12 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		/* Open the user socket file-descriptor */
 		rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_CTRL_MSG_TYPE,
 					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
+	} else {
+		MCTP_CTRL_ERR("Unknown binding type: %d\n",
+			      cmdline->binding_type);
+		close(g_signal_fd);
+		sd_bus_unref(mctp_ctrl->bus);
+		return EXIT_FAILURE;
 	}
 
 	if (rc != MCTP_REQUESTER_SUCCESS) {
@@ -861,9 +867,13 @@ static void parse_command_line(int argc, char *const *argv,
 				optarg, cmdline->tx_data, strlen(optarg));
 			break;
 		case 'f':
-			config_json_file_path = malloc(strlen(optarg) + 1);
-			memcpy(config_json_file_path, optarg, (strlen(optarg) + 1));
-			use_config_json_file_mc = true;
+			if (config_json_file_path == NULL) {
+				config_json_file_path =
+					malloc(strlen(optarg) + 1);
+				memcpy(config_json_file_path, optarg,
+				       (strlen(optarg) + 1));
+				use_config_json_file_mc = true;
+			}
 			break;
 		case 'p':
 			if (cmdline->binding_type == MCTP_BINDING_PCIE) {

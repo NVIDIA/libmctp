@@ -344,7 +344,7 @@ static void mctp_spi_hexdump(const char *prefix, int len, void *buf)
 	int ii = 0;
 
 	printf("%s> ", prefix);
-	printf("SPI HDR (%u bytes): ", sizeof(struct mctp_spi_header));
+	printf("SPI HDR (%zu bytes): ", sizeof(struct mctp_spi_header));
 	for (ii = 0; ii < sizeof(struct mctp_spi_header); ii++) {
 		printf("%02x ", data[ii]);
 	}

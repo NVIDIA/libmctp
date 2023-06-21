@@ -100,7 +100,7 @@ static void print_hex(const void *buffer, size_t len)
 	size_t ii;
 	const uint8_t *addr = (const uint8_t *)buffer;
 
-	printf("Len: %d\n", len);
+	printf("Len: %zu\n", len);
 
 	for (ii = 0; ii < len; ii++)
 		fprintf(stderr, "%02hhx%c", addr[ii], ii % 8 == 7 ? '\n' : ' ');
@@ -255,7 +255,7 @@ int mctp_smbus_open_in_bus(struct mctp_binding_smbus *smbus, int in_bus,
 
 	mqueue_size = sizeof(slave_mqueue);
 
-	mctp_prdebug("%s: mqueue_size: %d\n", __func__, mqueue_size);
+	mctp_prdebug("%s: mqueue_size: %zu\n", __func__, mqueue_size);
 
 	snprintf(slave_mqueue, mqueue_size, "slave-mqueue %#04x",
 		 SMBUS_ADDR_OFFSET_SLAVE | address_7_bit);
@@ -344,8 +344,8 @@ int send_get_udid_command(struct mctp_binding_smbus *smbus, uint8_t *inbuf, uint
 
 	rc = ioctl(smbus->out_fd, I2C_RDWR, &msgset);
 	if (rc < 0) {
-		MCTP_ASSERT_RET(rc >= 0, rc, "Invalid ioctl ret val: %d (%s)",
-				errno, strerror(errno));
+		MCTP_ERR("Invalid ioctl ret val: %d (%s)", errno,
+			 strerror(errno));
 		return EXIT_FAILURE;
 	}
 
@@ -376,8 +376,8 @@ int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus, uint8_t 
 
 	rc = ioctl(smbus->out_fd, I2C_RDWR, &msgset);
 	if (rc < 0) {
-		MCTP_ASSERT_RET(rc >= 0, rc, "Invalid ioctl ret val: %d (%s)",
-				errno, strerror(errno));
+		MCTP_ERR("Invalid ioctl ret val: %d (%s)", errno,
+			 strerror(errno));
 		return EXIT_FAILURE;
 	}
 
@@ -636,7 +636,7 @@ static int mctp_smbus_start(struct mctp_binding *b)
 
 	MCTP_ASSERT_RET(smbus != NULL, -1, "Invalid binding private data.");
 
-	mctp_prdebug("%s: Set param: %d, %d, %d", __func__, smbus->bus_id,
+	mctp_prdebug("%s: Set param: %zu, %d, %d", __func__, smbus->bus_id,
 		     smbus->bus_num, smbus->dest_slave_addr);
 
 	/* Open I2C out node */

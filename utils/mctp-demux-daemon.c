@@ -228,7 +228,7 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 					      (void *)&pvt_binding.i2c);
 
 		if (ctx->verbose) {
-			printf("%s: SMBUS EID: %d, Bus: %d, src-slave-addr: 0x%x, dest-slave-addr: 0x%x, len: %d\n",
+			printf("%s: SMBUS EID: %d, Bus: %d, src-slave-addr: 0x%x, dest-slave-addr: 0x%x, len: %zu\n",
 			       __func__, eid, pvt_binding.i2c.i2c_bus,
 			       pvt_binding.i2c.src_slave_addr,
 			       pvt_binding.i2c.dest_slave_addr, len);
@@ -608,12 +608,15 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 					char *arg = strstr(params[ii], "=") + 1;	// Get string after "="
 
 					/* Check if path or values are given */
-					if (strncmp(params[ii], options[1].prefix, strlen(options[1].prefix)) == 0) {
+					if ((config_json_file_path == NULL) &&
+					    strncmp(params[ii],
+						    options[1].prefix,
+						    strlen(options[1].prefix)) ==
+						    0) {
 						config_json_file_path = malloc(strlen(arg) + 1);
 						memcpy(config_json_file_path, arg, (strlen(arg) + 1));
 						use_config_json_file = true;
-					}
-					else {
+					} else {
 						/* Check if a value is given in 'hex' or 'dec' */
 						if (strncmp(arg, "0x", 2) == 0)
 							val = strtoul(arg, NULL, 16);
@@ -726,6 +729,7 @@ static int binding_smbus_process(struct binding *binding)
 		rc = mctp_smbus_read(binding->data);
 		MCTP_ASSERT(rc == 0, "mctp_smbus_read failed: %d", rc);
 	}
+	return 0;
 }
 
 struct binding bindings[] = { {

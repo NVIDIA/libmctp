@@ -77,7 +77,7 @@ mctp_prepare_ep_discovery_send_request(int sock_fd, mctp_binding_ids_t bind_id)
 	msg_len = sizeof(struct mctp_ctrl_cmd_prepare_ep_discovery) -
 		  sizeof(struct mctp_ctrl_cmd_msg_hdr);
 
-	MCTP_CTRL_DEBUG("%s: message length: %u\n", __func__, msg_len);
+	MCTP_CTRL_DEBUG("%s: message length: %zu\n", __func__, msg_len);
 
 	/* Initialize the buffers */
 	memset(&ep_discovery_req, 0, sizeof(ep_discovery_req));
@@ -170,7 +170,7 @@ mctp_ret_codes_t mctp_ep_discovery_send_request(int sock_fd,
 	msg_len = sizeof(struct mctp_ctrl_cmd_ep_discovery) -
 		  sizeof(struct mctp_ctrl_cmd_msg_hdr);
 
-	MCTP_CTRL_DEBUG("%s: message length: %u\n", __func__, msg_len);
+	MCTP_CTRL_DEBUG("%s: message length: %zu\n", __func__, msg_len);
 
 	/* Initialize the buffers */
 	memset(&ep_req, 0, sizeof(ep_req));

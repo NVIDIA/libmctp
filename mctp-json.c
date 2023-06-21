@@ -87,7 +87,9 @@ int mctp_json_get_tokener_parse(const char *path)
 	return EXIT_SUCCESS;
 
 err_close:
-	fclose(fp);
+	if (fp) {
+		fclose(fp);
+	}
 	return EXIT_FAILURE;
 }
 
