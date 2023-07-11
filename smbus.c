@@ -614,7 +614,7 @@ int mctp_smbus_init_pollfd(struct mctp_binding_smbus *smbus,
 			   struct pollfd *pollfd)
 {
 	pollfd->fd = smbus->in_fd;
-	pollfd->events = POLLIN;
+	pollfd->events = POLLPRI;
 
 	return 0;
 }

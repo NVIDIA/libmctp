@@ -781,7 +781,7 @@ struct binding bindings[] = { {
 				      .init_pollfd = binding_smbus_init_pollfd,
 				      .process = binding_smbus_process,
 				      .sockname = "\0mctp-i2c-mux",
-				      .events = POLLIN,
+				      .events = POLLPRI,
 			      } };
 
 struct binding *binding_lookup(const char *name)
