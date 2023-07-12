@@ -88,11 +88,6 @@ struct binding {
 	int (*process)(struct binding *binding);
 	void *data;
 	char *sockname;
-	/*
-	 * Events to monitor. Some bindings, e.g. SPI,
-	 * requires to monitor POLLPRI, not POLLIN.
-	 */
-	short events;
 };
 
 struct client {
@@ -743,7 +738,6 @@ struct binding bindings[] = { {
 				      .init_pollfd = binding_serial_init_pollfd,
 				      .process = binding_serial_process,
 				      .sockname = "\0mctp-serial-mux",
-				      .events = POLLIN,
 			      },
 			      {
 				      .name = "astlpc",
@@ -753,7 +747,6 @@ struct binding bindings[] = { {
 				      .init_pollfd = binding_astlpc_init_pollfd,
 				      .process = binding_astlpc_process,
 				      .sockname = "\0mctp-lpc-mux",
-				      .events = POLLIN,
 			      },
 			      {
 				      .name = "astpcie",
@@ -763,7 +756,6 @@ struct binding bindings[] = { {
 					      binding_astpcie_init_pollfd,
 				      .process = binding_astpcie_process,
 				      .sockname = "\0mctp-pcie-mux",
-				      .events = POLLIN,
 			      },
 			      {
 				      .name = "astspi",
@@ -772,7 +764,6 @@ struct binding bindings[] = { {
 				      .init_pollfd = binding_astspi_init_pollfd,
 				      .process = binding_astspi_process,
 				      .sockname = "\0mctp-spi-mux",
-				      .events = POLLPRI,
 			      },
 			      {
 				      .name = "smbus",
@@ -781,7 +772,6 @@ struct binding bindings[] = { {
 				      .init_pollfd = binding_smbus_init_pollfd,
 				      .process = binding_smbus_process,
 				      .sockname = "\0mctp-i2c-mux",
-				      .events = POLLPRI,
 			      } };
 
 struct binding *binding_lookup(const char *name)
@@ -1059,7 +1049,6 @@ static int run_daemon(struct ctx *ctx)
 		if (ctx->binding->init_pollfd) {
 			ctx->binding->init_pollfd(ctx->binding,
 						  &ctx->pollfds[FD_BINDING]);
-			ctx->pollfds[FD_BINDING].events = ctx->binding->events;
 		}
 		rc = poll(ctx->pollfds, ctx->n_clients + FD_NR, -1);
 		if (rc < 0) {
