@@ -43,6 +43,10 @@ struct mctp_binding_smbus {
 	uint8_t src_slave_addr;
 };
 
+#ifndef I2C_M_HOLD
+#define I2C_M_HOLD	0x0100
+#endif
+
 #ifndef container_of
 #define container_of(ptr, type, member)                                        \
 	(type *)((char *)(ptr) - (char *)&((type *)0)->member)
@@ -157,13 +161,22 @@ static uint8_t calculate_pec_byte(uint8_t *buf, size_t len, uint8_t address,
  */
 static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 {
-	struct i2c_msg msg = {
-		.addr = g_mctp_smbus_dest_slave_address, /* 7-bit address */
-		.flags = 0,
-		.len = len,
-		.buf = (__uint8_t *)smbus->txbuf,
+	uint16_t hold_timeout = 1000; /* ms */
+	struct i2c_msg msgs[2] = {
+		{
+			.addr = g_mctp_smbus_dest_slave_address, /* 7-bit address */
+			.flags = 0,
+			.len = len,
+			.buf = (__uint8_t *)smbus->txbuf,
+		},
+		{
+			.addr = 0,
+			.flags = I2C_M_HOLD,
+			.len = sizeof(hold_timeout),
+			.buf = (uint8_t *)&hold_timeout,
+		},
 	};
-	struct i2c_rdwr_ioctl_data msgrdwr = { &msg, 1 };
+	struct i2c_rdwr_ioctl_data msgrdwr = { &msgs, 2 };
 	int rc;
 	int retry = 7;
 
@@ -303,6 +316,25 @@ int mctp_smbus_open_out_bus(struct mctp_binding_smbus *smbus, int out_bus)
 
 	mctp_prdebug("%s: open file: %s\n", __func__, filename);
 	return open(filename, O_RDWR | O_NONBLOCK);
+}
+
+int mctp_smbus_close_mux(struct mctp_binding_smbus *smbus)
+{
+	uint16_t hold_timeout = 0; /* ms */
+	struct i2c_msg msg = {
+		.addr = 0,
+		.flags = I2C_M_HOLD,
+		.len = sizeof(hold_timeout),
+		.buf = (uint8_t *)&hold_timeout,
+	};
+	struct i2c_rdwr_ioctl_data msgrdwr = { &msg, 1 };
+	int rc;
+
+	rc = ioctl(smbus->out_fd, I2C_RDWR, &msgrdwr);
+	MCTP_ASSERT_RET(rc >= 0, rc, "Invalid ioctl ret val: %d (%s)", errno,
+			strerror(errno));
+
+	return rc;
 }
 
 /*
@@ -588,6 +620,8 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 		mctp_prerr("Can't read from smbus device.");
 		return -1;
 	}
+
+	mctp_smbus_close_mux(smbus);
 
 	smbus->rx_pkt = mctp_pktbuf_alloc(&smbus->binding, 0);
 	MCTP_ASSERT(smbus->rx_pkt != NULL, "Could not allocate pktbuf.");
