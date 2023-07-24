@@ -578,6 +578,8 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 {
 	ssize_t len = 0;
 	struct mctp_smbus_header_rx *hdr;
+	struct mctp_hdr *mctp_hdr;
+	bool eom;
 	int ret = 0;
 
 	ret = lseek(smbus->in_fd, 0, SEEK_SET);
@@ -621,8 +623,6 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 		return -1;
 	}
 
-	mctp_smbus_close_mux(smbus);
-
 	smbus->rx_pkt = mctp_pktbuf_alloc(&smbus->binding, 0);
 	MCTP_ASSERT(smbus->rx_pkt != NULL, "Could not allocate pktbuf.");
 
@@ -630,6 +630,12 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 			     len - sizeof(*hdr) - SMBUS_PEC_BYTE_SIZE) != 0) {
 		mctp_prerr("Can't push tok pktbuf.");
 		return -1;
+	}
+
+	mctp_hdr = mctp_pktbuf_hdr(smbus->rx_pkt);
+	eom = (mctp_hdr->flags_seq_tag & MCTP_HDR_FLAG_EOM) != 0;
+	if (eom) {
+		mctp_smbus_close_mux(smbus);
 	}
 
 	mctp_trace_rx(smbus->rxbuf, len);
