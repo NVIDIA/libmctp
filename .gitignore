@@ -28,6 +28,7 @@ missing
 *.o
 stamp-h1
 *.swp
+tags
 test-driver
 *.trs
 .libs
