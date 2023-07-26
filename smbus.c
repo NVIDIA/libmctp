@@ -163,12 +163,26 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 	};
 	struct i2c_rdwr_ioctl_data msgrdwr = { &msg, 1 };
 	int rc;
+	int retry = 7;
 
 	mctp_trace_tx(smbus->txbuf, len);
 
-	rc = ioctl(smbus->out_fd, I2C_RDWR, &msgrdwr);
-	MCTP_ASSERT_RET(rc >= 0, rc, "Invalid ioctl ret val: %d (%s)", errno,
-			strerror(errno));
+	do {
+		rc = ioctl(smbus->out_fd, I2C_RDWR, &msgrdwr);
+		if (rc < 0) {
+			if ((errno == EAGAIN || errno == EPROTO ||
+			     errno == ETIMEDOUT || errno == ENXIO ||
+			     errno == EIO)) {
+				MCTP_ERR("Invalid ioctl ret val: %d (%s)",
+					 errno, strerror(errno));
+				usleep(100000);
+			} else {
+				MCTP_ERR("Invalid ioctl ret val: %d (%s)",
+					 errno, strerror(errno));
+				return rc;
+			}
+		}
+	} while ((rc < 0) && (retry--));
 	return rc;
 }
 
