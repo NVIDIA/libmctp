@@ -161,7 +161,7 @@ static uint8_t calculate_pec_byte(uint8_t *buf, size_t len, uint8_t address,
  */
 static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 {
-	uint16_t hold_timeout = 1000; /* ms */
+	uint16_t hold_timeout = 10; /* ms */
 	struct i2c_msg msgs[2] = {
 		{
 			.addr = g_mctp_smbus_dest_slave_address, /* 7-bit address */
@@ -176,9 +176,15 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 			.buf = (uint8_t *)&hold_timeout,
 		},
 	};
-	struct i2c_rdwr_ioctl_data msgrdwr = { &msgs, 2 };
+	struct i2c_rdwr_ioctl_data msgrdwr = { &msgs, 1 };
 	int rc;
 	int retry = 7;
+
+	struct mctp_hdr *hdr = (void *)(smbus->txbuf +
+			sizeof(struct mctp_smbus_header_tx));
+	if (hdr->flags_seq_tag & MCTP_HDR_FLAG_EOM) {
+		msgrdwr.nmsgs = 2;
+	}
 
 	mctp_trace_tx(smbus->txbuf, len);
 
