@@ -19,6 +19,7 @@
 
 #include <sys/signalfd.h>
 #include <sys/socket.h>
+#include <sys/timerfd.h>
 #include <sys/un.h>
 
 #include <json-c/json.h>
@@ -974,16 +975,19 @@ static void binding_destroy(struct ctx *ctx)
 		ctx->binding->destroy(ctx->mctp, ctx->binding);
 }
 
-enum { FD_BINDING = 0,
-       FD_SOCKET,
-       FD_SIGNAL,
-       FD_NR,
+enum {
+	FD_BINDING = 0,
+	FD_SOCKET,
+	FD_SIGNAL,
+	FD_TIMER,
+	FD_NR,
 };
 
 static int run_daemon(struct ctx *ctx)
 {
 	sigset_t mask;
 	int rc, i;
+	struct itimerspec timer;
 
 	ctx->pollfds = malloc(FD_NR * sizeof(struct pollfd));
 
@@ -1004,6 +1008,19 @@ static int run_daemon(struct ctx *ctx)
 
 	ctx->pollfds[FD_SIGNAL].fd = signalfd(-1, &mask, 0);
 	ctx->pollfds[FD_SIGNAL].events = POLLIN;
+
+	ctx->pollfds[FD_TIMER].fd = timerfd_create(CLOCK_MONOTONIC, 0);
+	ctx->pollfds[FD_TIMER].events = POLLIN;
+
+	timer.it_value.tv_sec = 5;
+	timer.it_value.tv_nsec = 0;
+	timer.it_interval.tv_sec = 5;
+	timer.it_interval.tv_nsec = 0;
+
+	if (timerfd_settime(ctx->pollfds[FD_TIMER].fd, 0, &timer, NULL) == -1) {
+		warn("Failed to set time on watchdog timer FD!");
+		return -1;
+	}
 
 	ctx->pollfds[FD_SOCKET].fd = ctx->sock;
 	ctx->pollfds[FD_SOCKET].events = POLLIN;
@@ -1076,6 +1093,16 @@ static int run_daemon(struct ctx *ctx)
 				rc = -1;
 				break;
 			}
+		}
+
+		if (ctx->pollfds[FD_TIMER].revents) {
+			uint64_t ign = 0;
+			if (sizeof(ign) != read(ctx->pollfds[FD_TIMER].fd, &ign,
+						sizeof(ign))) {
+				warnx("Bad size read from timer FD!");
+				/* No need to quit here */
+			}
+			sd_notify(0, "WATCHDOG=1");
 		}
 
 		if (ctx->pollfds[FD_BINDING].revents) {
