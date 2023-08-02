@@ -375,15 +375,18 @@ int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus, uint8_t 
 	int rc;
 	int i = 0;
 	// MCTP frame - Get MCTP version support
-	uint8_t outbuf_mctp[] = { 0x0f, 0x0a, 0x31, 0x01, 0x00, 0x08, 0xc8,
-				    0x00, 0x80, 0x04, 0x00, 0x00, 0x94 };
+	uint8_t outbuf_mctp[13] = { 0x0f, 0x0a, 0x31, 0x01, 0x00, 0x08, 0xc8,
+				    0x00, 0x80, 0x04, 0x00, 0x00, 0x00 /* PEC to calculate */ };
 	struct i2c_msg msgs[1];
 	struct i2c_rdwr_ioctl_data msgset[1];
+	const uint8_t addr = static_endpoints[which_endpoint].slave_address;
 
-	msgs[0].addr = static_endpoints[which_endpoint].slave_address;
+	msgs[0].addr = addr;
 	msgs[0].flags = 0;
 	msgs[0].len = total_tab_elements(outbuf_mctp);
 	msgs[0].buf = outbuf_mctp;
+
+	outbuf_mctp[12] = calculate_pec_byte(outbuf_mctp, sizeof(outbuf_mctp) - 1, addr, 0);
 
 	msgset[0].msgs = msgs;
 	msgset[0].nmsgs = 1;
