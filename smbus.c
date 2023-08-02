@@ -498,8 +498,8 @@ int find_and_set_pool_of_endpoints(struct mctp_binding_smbus *smbus)
 
 int check_device_supports_mctp(struct mctp_binding_smbus *smbus)
 {
-	uint8_t inbuf[18];
-	uint8_t inbuf_len = total_tab_elements(inbuf);
+	uint8_t inbuf[19];
+	uint8_t inbuf_len = 19;
 
 	send_get_udid_command(smbus, inbuf, inbuf_len);
 	check_mctp_get_ver_support(smbus, 0, inbuf, inbuf_len);
