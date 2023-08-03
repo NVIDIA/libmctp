@@ -479,7 +479,7 @@ int check_mctp_get_ver_support(struct mctp_binding_smbus *smbus, uint8_t which_e
 int find_and_set_pool_of_endpoints(struct mctp_binding_smbus *smbus)
 {
 	uint8_t inbuf[20];
-	uint8_t inbuf_len = 18;
+	uint8_t inbuf_len = 19;
 	uint8_t quantity_of_udid = 1; //at the moment only one CX7 card
 	uint8_t i, slave_address;
 
