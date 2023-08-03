@@ -105,8 +105,6 @@ static void print_hex(const void *buffer, size_t len)
 	size_t ii;
 	const uint8_t *addr = (const uint8_t *)buffer;
 
-	printf("Len: %zu\n", len);
-
 	for (ii = 0; ii < len; ii++)
 		fprintf(stderr, "%02hhx%c", addr[ii], ii % 8 == 7 ? '\n' : ' ');
 	if (len % 8 != 0)
@@ -161,7 +159,7 @@ static uint8_t calculate_pec_byte(uint8_t *buf, size_t len, uint8_t address,
  */
 static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 {
-	uint16_t hold_timeout = 10; /* ms */
+	uint16_t hold_timeout = 5000; /* ms */
 	struct i2c_msg msgs[2] = {
 		{
 			.addr = g_mctp_smbus_dest_slave_address, /* 7-bit address */
@@ -180,13 +178,25 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 	int rc;
 	int retry = 7;
 
-	struct mctp_hdr *hdr = (void *)(smbus->txbuf +
-			sizeof(struct mctp_smbus_header_tx));
-	if (hdr->flags_seq_tag & MCTP_HDR_FLAG_EOM) {
-		msgrdwr.nmsgs = 2;
-	}
+	struct mctp_hdr *hdr =
+		(void *)(smbus->txbuf + sizeof(struct mctp_smbus_header_tx));
 
 	mctp_trace_tx(smbus->txbuf, len);
+
+	if (hdr->flags_seq_tag & MCTP_HDR_FLAG_EOM) {
+		uint8_t *mctp_data =
+			(uint8_t *)(smbus->txbuf +
+				    sizeof(struct mctp_smbus_header_tx) +
+				    sizeof(struct mctp_hdr));
+		if (mctp_data[0] == 0x01 && mctp_data[2] == 0x05 &&
+		    mctp_data[3] == 0x18) {
+			mctp_prdebug(
+				"Skip grabbing mux, another Tx is needed.\n");
+		} else {
+			mctp_prdebug("Mux will be grabbed.\n");
+			msgrdwr.nmsgs = 2;
+		}
+	}
 
 	do {
 		rc = ioctl(smbus->out_fd, I2C_RDWR, &msgrdwr);
@@ -204,6 +214,11 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 			}
 		}
 	} while ((rc < 0) && (retry--));
+
+	if (msgrdwr.nmsgs == 2) {
+		mctp_prdebug("Mux grabbed\n");
+		mctp_binding_set_tx_enabled(&smbus->binding, false);
+	}
 	return rc;
 }
 
@@ -641,7 +656,16 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 	mctp_hdr = mctp_pktbuf_hdr(smbus->rx_pkt);
 	eom = (mctp_hdr->flags_seq_tag & MCTP_HDR_FLAG_EOM) != 0;
 	if (eom) {
-		mctp_smbus_close_mux(smbus);
+		uint8_t *mctp_data = (uint8_t *)mctp_pktbuf_data(smbus->rx_pkt);
+		if (mctp_data[0] == 0x01 && mctp_data[2] == 0x05 &&
+		    mctp_data[3] == 0x14) {
+			mctp_prdebug(
+				"Skip releasing mux, another Rx expected.\n");
+		} else {
+			mctp_smbus_close_mux(smbus);
+			mctp_prdebug("Mux released\n");
+			mctp_binding_set_tx_enabled(&smbus->binding, true);
+		}
 	}
 
 	mctp_trace_rx(smbus->rxbuf, len);
