@@ -41,6 +41,10 @@ static const char *lpc_path = "/dev/aspeed-lpc-ctrl";
 
 #endif
 
+#ifndef __unused
+#define __unused __attribute__((unused))
+#endif
+
 enum mctp_astlpc_buffer_state {
 	/*
 	 * Prior to "Channel Ready" we mark the buffers as "idle" to catch illegal accesses. In this
