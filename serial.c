@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later */
 
+#include <sys/types.h>
+
 #include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
