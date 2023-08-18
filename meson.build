@@ -32,3 +32,4 @@ libmctp = library('libmctp',
 
 subdir('utils')
 subdir('ctrld')
+subdir('vdm/nvidia')
