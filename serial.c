@@ -11,16 +11,9 @@
 #include "config.h"
 #endif
 
-#ifdef MCTP_HAVE_FILEIO
 #include <fcntl.h>
 #include <poll.h>
 #include <unistd.h>
-#else
-static const size_t write(int fd, void *buf, size_t len)
-{
-	return -1;
-}
-#endif
 
 #define pr_fmt(x) "serial: " x
 
@@ -268,7 +261,6 @@ static void mctp_rx_consume(struct mctp_binding_serial *serial, const void *buf,
 		mctp_rx_consume_one(serial, *((uint8_t*)buf + i));
 }
 
-#ifdef MCTP_HAVE_FILEIO
 int mctp_serial_read(struct mctp_binding_serial *serial)
 {
 	ssize_t len;
@@ -310,7 +302,6 @@ void mctp_serial_open_fd(struct mctp_binding_serial *serial, int fd)
 {
 	serial->fd = fd;
 }
-#endif
 
 void mctp_serial_set_tx_fn(struct mctp_binding_serial *serial,
 			   mctp_serial_tx_fn fn, void *data)

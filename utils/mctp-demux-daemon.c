@@ -2,8 +2,6 @@
 
 #define _GNU_SOURCE
 
-#include "config.h"
-
 #include <assert.h>
 #include <dirent.h>
 #include <err.h>
@@ -63,14 +61,7 @@
 #define MCTP_SMBUS_SRC_SLAVE_ADDR                                              \
 	0x18 //Src_Slave_Addr:	0x51(BMC), 0x18(HMC) [7-bit]
 
-#if HAVE_SYSTEMD_SD_DAEMON_H
 #include <systemd/sd-daemon.h>
-#else
-static inline int sd_listen_fds(int i __unused)
-{
-	return -1;
-}
-#endif
 
 uint8_t i2c_bus_num = MCTP_SMBUS_BUS_NUM;
 uint8_t i2c_bus_num_smq = MCTP_SMBUS_BUS_NUM;
