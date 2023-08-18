@@ -1,22 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later */
 
 #include <stdarg.h>
+#include <stdio.h>
 #include <time.h>
 
 #include "libmctp.h"
 #include "libmctp-log.h"
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
-#ifdef MCTP_HAVE_STDIO
-#include <stdio.h>
-#endif
-
-#ifdef MCTP_HAVE_SYSLOG
 #include <syslog.h>
-#endif
 
 enum { MCTP_LOG_NONE,
        MCTP_LOG_STDIO,
@@ -44,7 +35,6 @@ void mctp_prlog(int level, const char *fmt, ...)
 	case MCTP_LOG_NONE:
 		break;
 	case MCTP_LOG_STDIO:
-#ifdef MCTP_HAVE_STDIO
 		if (level <= log_stdio_level) {
 			clock_gettime(CLOCK_REALTIME, &ts);
 			fprintf (stderr, "%ld-%llu ", ts.tv_sec ,ts.tv_nsec / 1000000ULL);
@@ -53,12 +43,9 @@ void mctp_prlog(int level, const char *fmt, ...)
 			fputs("\n", stderr);
 			fflush(stderr);
 		}
-#endif
 		break;
 	case MCTP_LOG_SYSLOG:
-#ifdef MCTP_HAVE_SYSLOG
 		vsyslog(level, fmt, ap);
-#endif
 		break;
 	case MCTP_LOG_CUSTOM:
 		log_custom_fn(level, fmt, ap);
