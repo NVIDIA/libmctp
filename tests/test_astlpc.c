@@ -1,9 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #define ASTLPC_VER_CUR 3
 #include "astlpc.c"
 
@@ -12,7 +8,6 @@
 #define pr_fmt(x) "test: " x
 #endif
 
-#include "compiler.h"
 #include "container_of.h"
 #include "libmctp-astlpc.h"
 #include "libmctp-log.h"
@@ -23,6 +18,7 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <poll.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
