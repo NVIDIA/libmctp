@@ -83,3 +83,5 @@ configure_file(
 subdir('utils')
 subdir('ctrld')
 subdir('vdm/nvidia')
+
+subdir('tests')
