@@ -21,6 +21,15 @@ sources = [
   'smbus.c'
 ]
 
+conf_data = configuration_data()
+conf_data.set('WITH_PCAP', get_option('capture').enabled())
+
+configure_file(
+  input: 'config.h.in',
+  output: 'config.h',
+  configuration: conf_data,
+)
+
 libmctp = library('libmctp',
   sources,
   version: meson.project_version(),
