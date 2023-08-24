@@ -1,1 +1,3 @@
 option('oe-sdk', type: 'feature', description: 'Enable OE SDK')
+option('capture', type: 'feature', description: 'Enable PCAP capture', value: 'enabled')
+option('tests', type: 'feature', description: 'Build tests', value: 'enabled')

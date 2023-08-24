@@ -8,6 +8,7 @@ tests = [
   'test_serial'
 ]
 
+if get_option('tests').enabled()
 foreach t : tests
   test(t, executable(t.underscorify(), ['test-utils.c', t + '.c'],
                      implicit_include_directories: false,
@@ -16,3 +17,4 @@ foreach t : tests
 		     include_directories: include_directories(['.', '..']),
 		     ))
 endforeach
+endif
