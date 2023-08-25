@@ -22,7 +22,7 @@ sources = [
 ]
 
 conf_data = configuration_data()
-conf_data.set('WITH_PCAP', get_option('capture').enabled())
+conf_data.set('HAVE_PCAP', get_option('capture').enabled() ? 1 : 0)
 
 configure_file(
   input: 'config.h.in',
