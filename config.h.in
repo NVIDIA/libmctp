@@ -1,0 +1,6 @@
+#ifndef _CONFIG_H
+#define _CONFIG_H
+
+#mesondefine HAVE_PCAP
+
+#endif

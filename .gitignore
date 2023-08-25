@@ -15,7 +15,6 @@ depcomp
 .dirstamp
 *.gcda
 *.gcno
-*.in
 install-sh
 *.la
 libtool
