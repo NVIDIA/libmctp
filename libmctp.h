@@ -15,8 +15,8 @@ extern "C" {
 typedef uint8_t mctp_eid_t;
 
 /* Special Endpoint ID values */
-#define MCTP_EID_NULL 0
-#define MCTP_EID_BROADCAST 0xff
+#define MCTP_EID_NULL		0
+#define MCTP_EID_BROADCAST	0xff
 
 /* MCTP packet definitions */
 struct mctp_hdr {
