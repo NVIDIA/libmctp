@@ -24,7 +24,7 @@ static const size_t write(int fd, void *buf, size_t len)
 
 /* Post-condition: All bytes written or an error has occurred */
 #define mctp_write_all(fn, dst, src, len)                                      \
-	({                                                                     \
+	do {                                                                   \
 		ssize_t wrote;                                                 \
 		while (len) {                                                  \
 			wrote = fn(dst, src, len);                             \
@@ -32,8 +32,8 @@ static const size_t write(int fd, void *buf, size_t len)
 				break;                                         \
 			len -= wrote;                                          \
 		}                                                              \
-		len ? -1 : 0;                                                  \
-	})
+		return len ? -1 : 0;                                           \
+	} while(0)
 
 #include "libmctp.h"
 #include "libmctp-alloc.h"
@@ -149,9 +149,9 @@ static int mctp_binding_serial_tx(struct mctp_binding *b,
 	len += sizeof(*hdr) + sizeof(*tlr);
 
 	if (!serial->tx_fn)
-		return mctp_write_all(write, serial->fd, serial->txbuf, len);
+		mctp_write_all(write, serial->fd, serial->txbuf, len);
 
-	return mctp_write_all(serial->tx_fn, serial->tx_fn_data, serial->txbuf,
+	mctp_write_all(serial->tx_fn, serial->tx_fn_data, serial->txbuf,
 			      len);
 }
 
@@ -263,7 +263,7 @@ static void mctp_rx_consume(struct mctp_binding_serial *serial, const void *buf,
 	size_t i;
 
 	for (i = 0; i < len; i++)
-		mctp_rx_consume_one(serial, *(uint8_t *)(buf + i));
+		mctp_rx_consume_one(serial, *((uint8_t*)buf + i));
 }
 
 #ifdef MCTP_HAVE_FILEIO
@@ -276,7 +276,7 @@ int mctp_serial_read(struct mctp_binding_serial *serial)
 		return -1;
 
 	if (len < 0) {
-		mctp_prerr("can't read from serial device: %m");
+		mctp_prerr("can't read from serial device");
 		return -1;
 	}
 
@@ -299,7 +299,7 @@ int mctp_serial_open_path(struct mctp_binding_serial *serial,
 {
 	serial->fd = open(device, O_RDWR);
 	if (serial->fd < 0)
-		mctp_prerr("can't open device %s: %m", device);
+		mctp_prerr("can't open device %s", device);
 
 	return 0;
 }

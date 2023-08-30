@@ -125,7 +125,7 @@ extern uint8_t static_endpoints_len;
 
 static void mctp_print_hex(uint8_t *data, size_t length)
 {
-	for (int i = 0; i < length; ++i) {
+	for (size_t i = 0; i < length; ++i) {
 		printf("%02X ", data[i]);
 	}
 	printf("\n");
@@ -149,7 +149,7 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 	switch (bind_id) {
 	case MCTP_BINDING_PCIE:
 		/* Copy the binding information */
-		memcpy(&pvt_binding.pcie, (msg + MCTP_BIND_INFO_OFFSET),
+		memcpy(&pvt_binding.pcie, ((uint8_t *)msg + MCTP_BIND_INFO_OFFSET),
 		       sizeof(struct mctp_astpcie_pkt_private));
 
 		/* Get target EID */
@@ -159,7 +159,7 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		len = len - (MCTP_PCIE_MSG_OFFSET)-1;
 		mctp_print_hex((uint8_t *)msg + MCTP_PCIE_MSG_OFFSET, len);
 		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, MCTP_MESSAGE_TO_SRC, 0,
-					      msg + MCTP_PCIE_MSG_OFFSET, len,
+					      (uint8_t *)msg + MCTP_PCIE_MSG_OFFSET, len,
 					      (void *)&pvt_binding.pcie);
 
 		if (ctx->verbose) {
@@ -174,7 +174,7 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		}
 		break;
 	case MCTP_BINDING_SPI:
-		memcpy(&pvt_binding.spi, (msg + MCTP_BIND_INFO_OFFSET),
+		memcpy(&pvt_binding.spi, ((uint8_t *)msg + MCTP_BIND_INFO_OFFSET),
 		       sizeof(struct mctp_astspi_pkt_private));
 
 		eid = *((uint8_t *)msg + MCTP_SPI_EID_OFFSET);
@@ -183,13 +183,13 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		mctp_print_hex((uint8_t *)msg + MCTP_SPI_MSG_OFFSET, len);
 		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid,
 					      MCTP_MESSAGE_TO_SRC, 0,
-					      msg + MCTP_SPI_MSG_OFFSET, len,
+					      (uint8_t *)msg + MCTP_SPI_MSG_OFFSET, len,
 					      NULL);
 
 		break;
 	case MCTP_BINDING_SMBUS:
 		/* Copy the binding information */
-		memcpy(&pvt_binding.i2c, (msg + MCTP_BIND_INFO_OFFSET),
+		memcpy(&pvt_binding.i2c, ((uint8_t *)msg + MCTP_BIND_INFO_OFFSET),
 		       sizeof(struct mctp_smbus_pkt_private));
 
 		/* Get target EID */
@@ -220,7 +220,7 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		pvt_binding.i2c.src_slave_addr = i2c_src_slave_addr;
 
 		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, MCTP_MESSAGE_TO_SRC, 0,
-					      msg + MCTP_SMBUS_MSG_OFFSET, len,
+					      (uint8_t *)msg + MCTP_SMBUS_MSG_OFFSET, len,
 					      (void *)&pvt_binding.i2c);
 
 		if (ctx->verbose) {
@@ -743,7 +743,6 @@ struct binding bindings[] = { {
 			      {
 				      .name = "astlpc",
 				      .init = binding_astlpc_init,
-				      .destroy = NULL,
 				      .destroy = binding_astlpc_destroy,
 				      .init_pollfd = binding_astlpc_init_pollfd,
 				      .process = binding_astlpc_process,
@@ -941,10 +940,10 @@ static int client_process_recv(struct ctx *ctx, int idx)
 			idx, eid, rc - 1);
 
 	if (eid == ctx->local_eid)
-		rx_message(eid, MCTP_MESSAGE_TO_DST, 0, ctx, ctx->buf + 1,
+		rx_message(eid, MCTP_MESSAGE_TO_DST, 0, ctx, (uint8_t *)ctx->buf + 1,
 			   rc - 1);
 	else
-		tx_message(ctx, eid, ctx->buf + 1, rc - 1);
+		tx_message(ctx, eid, (uint8_t *)ctx->buf + 1, rc - 1);
 
 	return 0;
 
@@ -1322,7 +1321,7 @@ int main(int argc, char *const *argv)
 cleanup_binding:
 	binding_destroy(ctx);
 
-cleanup_pcap_socket:
+/* KSJXXX: Unused label? cleanup_pcap_socket: */
 	if (ctx->pcap.socket.path)
 		capture_close(&ctx->pcap.socket);
 

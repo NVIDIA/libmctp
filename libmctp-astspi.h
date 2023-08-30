@@ -16,6 +16,7 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include <poll.h>
 #include "libmctp.h"
 
 #define MCTP_HEADER_SIZE	  4

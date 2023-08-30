@@ -94,7 +94,7 @@ static const char *mailbox_str(uint32_t mb)
 		sprintf(str, "UNKNOWN MAILBOX: %08x", mb);
 	}
 	return str;
-};
+}
 
 static inline uint32_t buf2dw(uint8_t *x)
 {
@@ -208,13 +208,13 @@ uint16_t mailbox_write(SpbAp *ap, uint32_t v)
 static inline uint32_t clear_memory_write_done(SpbAp *ap)
 {
 	// MemoryWriteDone bit 0, write to clear
-	return (sreg_write_8(ap, SPI_STS, 0b0001));
+	return (sreg_write_8(ap, SPI_STS, 0x01));
 }
 
 static inline uint32_t clear_memory_read_done(SpbAp *ap)
 {
 	// MemoryReadDone bit 1, write to clear
-	return (sreg_write_8(ap, SPI_STS, 0b0010));
+	return (sreg_write_8(ap, SPI_STS, 0x02));
 }
 
 // Polling procedures with timeouts
@@ -438,7 +438,7 @@ SpbApStatus spb_ap_set_cfg(SpbAp *ap, bool quad, uint8_t waitCycles)
 {
 	SpbApStatus status = SPB_AP_OK;
 	uint8_t cmd[] = { 0x03, 0x00, waitCycles,
-			  (uint8_t)(quad ? 0b0001 : 0x00) };
+			  (uint8_t)(quad ? 0x01 : 0x00) };
 
 	// send set cfg
 	mailbox_write(ap, AP_REQUEST_WRITE);
@@ -545,7 +545,7 @@ SpbApStatus spb_ap_recv(SpbAp *ap, int len, void *buf)
 	ap->msgs_available--;
 	status = wait_for_length(ap, &bytes);
 	MCTP_ASSERT_RET(status == SPB_AP_OK, status, "wait_for_length failed.");
-	MCTP_ASSERT(bytes <= len, "Data cannot fit into the buffer.");
+	MCTP_ASSERT(bytes <= (uint32_t)len, "Data cannot fit into the buffer.");
 
 	status = posted_read(ap, 0x8000, bytes, (uint8_t *)(buf));
 	MCTP_ASSERT_RET(status == SPB_AP_OK, status, "posted_read failed.");

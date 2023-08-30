@@ -16,6 +16,9 @@
 static int logCallback(sd_bus_message *m, void *userdata,
 		       sd_bus_error *ret_error)
 {
+	(void)userdata;
+	(void)m;
+
 	if (sd_bus_error_is_set(ret_error))
 		fprintf(stderr, "Creating log entry failed: %s: %s\n",
 			ret_error->name, ret_error->message);

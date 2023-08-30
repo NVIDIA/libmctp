@@ -137,7 +137,7 @@ static int iterate_dbus_dict(sd_bus_message *m, const char *type, uint8_t eid,
 		if (rc < 0)
 			fprintf(stderr,
 				"%s: sd_bus_message_exit_container rc = %d\n",
-				__FUNCTION__, rc);
+				__func__, rc);
 	}
 	return found;
 }
@@ -145,11 +145,13 @@ static int iterate_dbus_dict(sd_bus_message *m, const char *type, uint8_t eid,
 static int cb_dbus_properity(sd_bus_message *m, uint8_t eid)
 {
 	int rc;
-	int len;
+	size_t len;
 	char type = 0;
 	const char *contents;
 	const char *name;
 	const void *ptr;
+
+	(void)eid;
 
 	rc = sd_bus_message_read_basic(m, SD_BUS_TYPE_STRING, &name);
 	MCTP_ASSERT_RET(rc >= 0, -1, "sd_bus_message_read_basic fail rc=%d\n",
@@ -389,7 +391,7 @@ int main(int argc, char *const *argv)
 	/* For selftest command, we may need more data as the payload
 	* for which items to be tested.
 	*/
-	for (i = optind, len = 0; i < argc && len < max_len; i++, len++) {
+	for (i = optind, len = 0; i < argc && (unsigned int)len < max_len; i++, len++) {
 		rc = check_hex_number(&argv[i][0]);
 		if (rc == -1) {
 			fprintf(stderr, "Error! we need %u-bytes data.\n\n",
@@ -405,7 +407,7 @@ int main(int argc, char *const *argv)
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "sd_bus_default failed\n");
 
 	found = 0;
-	for (i = 0; i < sizeof(dbus_services) / sizeof(dbus_services[0]); i++) {
+	for (i = 0; (unsigned int)i < sizeof(dbus_services) / sizeof(dbus_services[0]); i++) {
 		found = sock_name_helper(bus, dbus_services[i], teid);
 		if (found == 1)
 			break;

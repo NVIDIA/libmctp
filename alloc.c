@@ -14,11 +14,9 @@ struct {
 	void (*m_free)(void *);
 	void *(*m_realloc)(void *, size_t);
 } alloc_ops = {
-#ifdef MCTP_DEFAULT_ALLOC
 	malloc,
 	free,
 	realloc,
-#endif
 };
 
 /* internal-only allocation functions */

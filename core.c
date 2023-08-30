@@ -72,10 +72,7 @@ struct mctp {
 };
 
 #ifndef BUILD_ASSERT
-#define BUILD_ASSERT(x)                                                        \
-	do {                                                                   \
-		(void)sizeof(char[0 - (!(x))]);                                \
-	} while (0)
+#define BUILD_ASSERT(x, msg) _Static_assert(x, msg)
 #endif
 
 #ifndef ARRAY_SIZE
@@ -321,7 +318,8 @@ void mctp_destroy(struct mctp *mctp)
 	size_t i;
 
 	/* Cleanup message assembly contexts */
-	BUILD_ASSERT(ARRAY_SIZE(mctp->msg_ctxs) < SIZE_MAX);
+	BUILD_ASSERT(ARRAY_SIZE(mctp->msg_ctxs) < SIZE_MAX,
+			"msg_ctxs array is larger than SIZE_MAX");
 	for (i = 0; i < ARRAY_SIZE(mctp->msg_ctxs); i++) {
 		struct mctp_msg_ctx *tmp = &mctp->msg_ctxs[i];
 		if (tmp->buf)
@@ -446,8 +444,7 @@ done:
 
 static inline bool mctp_ctrl_cmd_is_transport(struct mctp_ctrl_msg_hdr *hdr)
 {
-	return ((hdr->command_code >= MCTP_CTRL_CMD_FIRST_TRANSPORT) &&
-		(hdr->command_code <= MCTP_CTRL_CMD_LAST_TRANSPORT));
+	return (hdr->command_code >= MCTP_CTRL_CMD_FIRST_TRANSPORT);
 }
 
 static bool mctp_ctrl_handle_msg(struct mctp_bus *bus, mctp_eid_t src,

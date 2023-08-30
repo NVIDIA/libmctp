@@ -60,21 +60,25 @@ extern int mctp_ctrl_running;
 
 static int mctp_spi_set_endpoint_id(const mctp_cmdline_args_t *cmd)
 {
+	(void)cmd;
 	return 0;
 }
 
 static int mctp_spi_get_endpoint_id(const mctp_cmdline_args_t *cmd)
 {
+	(void)cmd;
 	return 0;
 }
 
 static int mctp_spi_get_endpoint_uuid(const mctp_cmdline_args_t *cmd)
 {
+	(void)cmd;
 	return 0;
 }
 
 static int mctp_spi_get_version_support(const mctp_cmdline_args_t *cmd)
 {
+	(void)cmd;
 	return 0;
 }
 
@@ -82,8 +86,10 @@ static int mctp_spi_get_message_type(int sock, const mctp_cmdline_args_t *cmd)
 {
 	uint8_t *resp = NULL;
 	size_t resp_len = 0;
-	struct mctp_ctrl_cmd_get_msg_type_support *req = { 0 };
+	struct mctp_ctrl_cmd_get_msg_type_support req = { 0 };
 	mctp_requester_rc_t rc = 0;
+
+	(void)cmd;
 
 	mctp_encode_ctrl_cmd_get_msg_type_support(&req);
 	rc = mctp_client_send_recv(MCTP_NULL_ENDPOINT, sock,
@@ -104,6 +110,7 @@ static int mctp_spi_get_message_type(int sock, const mctp_cmdline_args_t *cmd)
 static int mctp_spi_set_endpoint_uuid(const mctp_cmdline_args_t *cmd)
 {
 	/* will implement it */
+	(void)cmd;
 	return 0;
 }
 
@@ -288,7 +295,7 @@ void *mctp_spi_keepalive_event(void *arg)
 void mctp_spi_test_cmd(mctp_ctrl_t *ctrl, const mctp_cmdline_args_t *cmd)
 {
 	int rc = 0;
-	mctp_spi_iana_vdm_ops_t ops = cmd->spi.vdm_ops;
+	mctp_spi_iana_vdm_ops_t ops = (mctp_spi_iana_vdm_ops_t)cmd->spi.vdm_ops;
 
 	/* Check for Raw Read/write access */
 	if (cmd->spi.cmd_mode) {

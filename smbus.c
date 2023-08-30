@@ -95,6 +95,7 @@ uint8_t static_endpoints_len = 0;
  * @param[in] buffer - Buffor of MCTP packet
  * @param[in] len - Byte length of MCTP packet
  */
+#if DEBUG
 static void print_hex(const void *buffer, size_t len)
 {
 	size_t ii;
@@ -107,6 +108,7 @@ static void print_hex(const void *buffer, size_t len)
 	if (len % 8 != 0)
 		fprintf(stderr, "\n");
 }
+#endif
 
 static uint8_t crc8_calculate(uint16_t d)
 {
@@ -126,7 +128,7 @@ static uint8_t crc8_calculate(uint16_t d)
 /* Incremental CRC8 over count bytes in the array pointed to by p */
 static uint8_t pec_calculate(uint8_t crc, uint8_t *p, size_t count)
 {
-	int i;
+	size_t i;
 
 	for (i = 0; i < count; i++) {
 		crc = crc8_calculate((crc ^ p[i]) << 8);
@@ -245,6 +247,8 @@ int mctp_smbus_open_in_bus(struct mctp_binding_smbus *smbus, int in_bus,
 	int address_7_bit = src_slv_addr;
 	int ret = -1;
 
+	(void)smbus;
+
 	snprintf(filename, size,
 		 "/sys/bus/i2c/devices/i2c-%d/%d-%04x/slave-mqueue", in_bus,
 		 in_bus, SMBUS_ADDR_OFFSET_SLAVE | address_7_bit);
@@ -291,6 +295,9 @@ int mctp_smbus_open_out_bus(struct mctp_binding_smbus *smbus, int out_bus)
 {
 	char filename[60];
 	size_t size = sizeof(filename);
+
+	(void)smbus;
+
 	snprintf(filename, size, "/dev/i2c-%d", out_bus);
 	filename[size - 1] = '\0';
 
@@ -449,6 +456,8 @@ int check_mctp_get_ver_support(struct mctp_binding_smbus *smbus, uint8_t which_e
 	uint8_t interface_ASF = 0;
 	uint8_t i;
 
+	(void)len;
+
 	// Check ASF bit from UDID
 	interface_ASF = inbuf[8];
 	interface_ASF = (interface_ASF >> 5) & 0x01;
@@ -524,7 +533,7 @@ int mctp_smbus_read_only(struct mctp_binding_smbus *smbus)
 	len = read(smbus->in_fd, smbus->rxbuf, sizeof(smbus->rxbuf));
 
 	if (len < 0) {
-		mctp_prerr("Can't read from smbus device: %m");
+		mctp_prerr("Can't read from smbus device.");
 		return -1;
 	}
 
@@ -546,7 +555,7 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 	}
 
 	len = read(smbus->in_fd, smbus->rxbuf, sizeof(smbus->rxbuf));
-	if (len < sizeof(*hdr)) {
+	if (len < (ssize_t)sizeof(*hdr)) {
 		// This condition hits from time to time, even with
 		// a properly written poll loop, although it's not clear
 		// why. Return an error so that the upper layer can
@@ -570,13 +579,13 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 
 	if (hdr->byte_count != (len - sizeof(*hdr))) {
 		// Got an incorrectly sized payload
-		mctp_prerr("Got smbus payload sized %d, expecting %lu",
+		mctp_prerr("Got smbus payload sized %d, expecting %zu",
 			   hdr->byte_count, len - sizeof(*hdr));
 		return 0;
 	}
 
 	if (len < 0) {
-		mctp_prerr("Can't read from smbus device: %m");
+		mctp_prerr("Can't read from smbus device.");
 		return -1;
 	}
 
@@ -585,7 +594,7 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 
 	if (mctp_pktbuf_push(smbus->rx_pkt, &smbus->rxbuf[sizeof(*hdr)],
 			     len - sizeof(*hdr) - SMBUS_PEC_BYTE_SIZE) != 0) {
-		mctp_prerr("Can't push tok pktbuf: %m");
+		mctp_prerr("Can't push tok pktbuf.");
 		return -1;
 	}
 
@@ -653,7 +662,7 @@ static int mctp_smbus_start(struct mctp_binding *b)
 
 	MCTP_ASSERT_RET(smbus != NULL, -1, "Invalid binding private data.");
 
-	mctp_prdebug("%s: Set param: %zu, %d, %d", __func__, smbus->bus_id,
+	mctp_prdebug("%s: Set param: %lu, %hhu, %hhu", __func__, smbus->bus_id,
 		     smbus->bus_num, smbus->dest_slave_addr);
 
 	/* Open I2C out node */

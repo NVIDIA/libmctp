@@ -48,7 +48,7 @@ int mctp_ctrl_running = 1;
 char g_mctp_ctrl_supported_buses[MCTP_CTRL_MAX_BUS_TYPES][10] = { "PCIe Bus ",
 								  "SPI Bus ",
 								  "SMBus Bus " };
-
+#if DEBUG
 static int mctp_ctrl_supported_bus_types(sd_bus *bus, const char *path,
 					 const char *interface,
 					 const char *property,
@@ -56,6 +56,13 @@ static int mctp_ctrl_supported_bus_types(sd_bus *bus, const char *path,
 					 sd_bus_error *error)
 {
 	int r, i = 0;
+
+	(void)bus;
+	(void)path;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
 
 	r = sd_bus_message_open_container(reply, 'a', "s");
 	if (r < 0)
@@ -74,6 +81,7 @@ static int mctp_ctrl_supported_bus_types(sd_bus *bus, const char *path,
 
 	return sd_bus_message_close_container(reply);
 }
+#endif
 
 static uint8_t mctp_ctrl_get_eid_from_sdbus_path(const char *path)
 {
@@ -97,6 +105,12 @@ static int mctp_ctrl_sdbus_get_nw_id(sd_bus *bus, const char *path,
 	uint32_t mctp_nw_id = 0;
 	uint8_t eid_req = 0;
 	mctp_msg_type_table_t *entry = g_msg_type_entries;
+
+	(void)bus;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
 
 	eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
 
@@ -124,6 +138,12 @@ static int mctp_ctrl_sdbus_get_endpoint(sd_bus *bus, const char *path,
 	mctp_msg_type_table_t *entry = g_msg_type_entries;
 	uint32_t get_eid = 0;
 
+	(void)bus;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
+
 	eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
 
 	while (entry != NULL) {
@@ -149,6 +169,12 @@ static int mctp_ctrl_sdbus_get_msg_type(sd_bus *bus, const char *path,
 	int r, i = 0;
 	uint8_t eid_req = 0;
 	mctp_msg_type_table_t *entry = g_msg_type_entries;
+
+	(void)bus;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
 
 	eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
 
@@ -191,6 +217,13 @@ static int mctp_ctrl_sdbus_get_sock_type(sd_bus *bus, const char *path,
 {
 	uint32_t type = SOCK_SEQPACKET;
 
+	(void)bus;
+	(void)path;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
+
 	/* append the message */
 	return sd_bus_message_append(reply, "u", type);
 }
@@ -202,6 +235,13 @@ static int mctp_ctrl_sdbus_get_sock_proto(sd_bus *bus, const char *path,
 					  sd_bus_error *error)
 {
 	uint32_t proto = 0;
+
+	(void)bus;
+	(void)path;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
 
 	/* append the message */
 	return sd_bus_message_append(reply, "u", proto);
@@ -215,6 +255,13 @@ static int mctp_ctrl_sdbus_get_sock_name(sd_bus *bus, const char *path,
 {
 	int i;
 	int r = 0, len = 0;
+
+	(void)bus;
+	(void)path;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
 
 	/* increase one for the fist byte NULL-teminated character */
 	len = strlen(&mctp_sock_path[1]) + 1;
@@ -270,6 +317,12 @@ static int mctp_ctrl_sdbus_get_medium_type(sd_bus *bus, const char *path,
 	char str[MCTP_CTRL_SDBUS_NMAE_SIZE] = { 0 };
 	mctp_routing_table_t *entry = NULL;
 
+	(void)bus;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
+
 	eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
 	entry = g_routing_table_entries;
 
@@ -304,6 +357,12 @@ static int mctp_ctrl_sdbus_get_uuid(sd_bus *bus, const char *path,
 	uint8_t eid_req = 0;
 	mctp_uuid_table_t *entry = g_uuid_entries;
 	char uuid_data[MCTP_CTRL_SDBUS_MAX_MSG_SIZE];
+
+	(void)bus;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
 
 	eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
 
@@ -343,6 +402,13 @@ static int mctp_ctrl_sdbus_get_binding_type(sd_bus *bus, const char *path,
 					    void *userdata, sd_bus_error *error)
 {
 	char str[MCTP_CTRL_SDBUS_NMAE_SIZE] = { 0 };
+
+	(void)bus;
+	(void)path;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
 
 	snprintf(str, sizeof(str),
 		 "xyz.openbmc_project.MCTP.Binding.BindingTypes.%s",

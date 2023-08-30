@@ -397,7 +397,7 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 		}
 	}
 
-	printf("Command Done in [%lld] ms\n", (t_end - t_start));
+	printf("Command Done in [%zu] ms\n", (size_t)(t_end - t_start));
 
 	return MCTP_CMD_SUCCESS;
 }

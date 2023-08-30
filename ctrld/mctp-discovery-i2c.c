@@ -48,6 +48,8 @@ mctp_ret_codes_t mctp_i2c_get_mctp_ver_support_request(int sock_fd, uint8_t eid)
 	mctp_binding_ids_t bind_id;
 	struct mctp_smbus_pkt_private pvt_binding;
 
+	(void)eid;
+
 	/* Set destination EID */
 	dest_eid = 0;
 
@@ -167,6 +169,8 @@ int mctp_i2c_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
 	bool req_ret;
 	struct mctp_ctrl_resp_set_eid *set_eid_resp;
 
+	(void)eid;
+
 	mctp_print_resp_msg(
 		(struct mctp_ctrl_resp *)mctp_resp_msg, "MCTP_SET_EP_RESPONSE",
 		resp_msg_len - sizeof(struct mctp_ctrl_cmd_msg_hdr));
@@ -259,8 +263,8 @@ mctp_ret_codes_t mctp_i2c_alloc_eid_send_request(int sock_fd,
 	pvt_binding.src_slave_addr = g_i2c_src_slave_addr;
 
 	/* Allocate Endpoint ID's message */
-	req_ret = mctp_encode_ctrl_cmd_alloc_eid(&set_eid_req, op, eid_count,
-						eid_start);
+	req_ret = mctp_encode_ctrl_cmd_alloc_eid(&set_eid_req,
+			(mctp_ctrl_cmd_alloc_eid_op)op, eid_count, eid_start);
 	if (req_ret == false) {
 		MCTP_CTRL_ERR("%s: Packet preparation failed\n", __func__);
 		return MCTP_RET_ENCODE_FAILED;
@@ -347,6 +351,8 @@ mctp_ret_codes_t mctp_i2c_get_routing_table_send_request(int sock_fd,
 	struct mctp_smbus_pkt_private pvt_binding;
 	static int entry_count = 0;
 
+	(void)eid;
+
 	/* Set destination EID as NULL */
 	dest_eid = MCTP_EID_NULL;
 
@@ -405,6 +411,9 @@ int mctp_i2c_get_routing_table_get_response(int sock_fd, mctp_eid_t eid,
 	bool req_ret;
 	struct mctp_ctrl_resp_get_routing_table *routing_table;
 	int ret;
+
+	(void)sock_fd;
+	(void)eid;
 
 	MCTP_CTRL_TRACE("%s: Get EP reesponse\n", __func__);
 
@@ -869,10 +878,11 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd, mct
 				eid_start = g_i2c_bridge_pool_start;
 
 				/* Send the MCTP_ALLOCATE_EP_ID_REQUEST */
-				mctp_ret = mctp_i2c_alloc_eid_send_request(ctrl->sock, eid,
-									alloc_eid_op,
-									eid_count,
-									eid_start);
+				mctp_ret = mctp_i2c_alloc_eid_send_request(
+						ctrl->sock, eid,
+						(mctp_ctrl_cmd_set_eid_op)alloc_eid_op,
+						eid_count,
+						eid_start);
 				if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 					MCTP_CTRL_ERR(
 						"%s: Failed MCTP_SET_EP_REQUEST\n",

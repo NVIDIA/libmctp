@@ -994,12 +994,6 @@ static void mctp_astlpc_rx_start(struct mctp_binding_astlpc *astlpc)
 		return;
 	}
 
-	/* Suppress Coverity errors
-     * CID 3469725 (#1 of 1): Macro compares unsigned to 0 (NO_EFFECT)
-     * CID 3469738 (#1 of 1): Operands don't affect result (CONSTANT_EXPRESSION_RESULT)
-     */
-	/* coverity[unsigned_compare:SUPPRESS] */ /* coverity[result_independent_of_operands:SUPPRESS] */
-	assert(astlpc->binding.pkt_size >= 0);
 	if (body > (uint32_t)astlpc->binding.pkt_size) {
 		astlpc_prwarn(astlpc, "invalid RX len 0x%x", body);
 		return;
@@ -1377,7 +1371,7 @@ static int mctp_astlpc_init_fileio_lpc(struct mctp_binding_astlpc *astlpc)
 		astlpc_prwarn(astlpc, "LPC mmap failed");
 		rc = -1;
 	} else {
-		astlpc->lpc_map = lpc_map_base + map.size - LPC_WIN_SIZE;
+		astlpc->lpc_map = (uint8_t *)lpc_map_base + map.size - LPC_WIN_SIZE;
 	}
 
 	close(fd);

@@ -114,8 +114,8 @@ void mctp_print_req_msg(struct mctp_ctrl_req *ep_discovery_req,
 		MCTP_CTRL_TRACE("\t--------------<empty>-------------\n");
 	}
 
-	for (int i = 0; i < msg_len; i++)
-		MCTP_CTRL_TRACE("\tDATA[%d] \t\t: 0x%x\n", i,
+	for (size_t i = 0; i < msg_len; i++)
+		MCTP_CTRL_TRACE("\tDATA[%zu] \t\t: 0x%x\n", i,
 				ep_discovery_req->data[i]);
 	MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
 }

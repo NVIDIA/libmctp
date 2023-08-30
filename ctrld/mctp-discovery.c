@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <poll.h>
 #include <unistd.h>
 
 #include "libmctp-cmds.h"
@@ -292,6 +293,7 @@ int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
 	bool req_ret;
 	struct mctp_ctrl_resp_set_eid *set_eid_resp;
 
+	(void)eid;
 	mctp_print_resp_msg(
 		(struct mctp_ctrl_resp *)mctp_resp_msg, "MCTP_SET_EP_RESPONSE",
 		resp_msg_len - sizeof(struct mctp_ctrl_cmd_msg_hdr));
@@ -388,8 +390,8 @@ mctp_ret_codes_t mctp_alloc_eid_send_request(
 	}
 
 	/* Allocate Endpoint ID's message */
-	req_ret = mctp_encode_ctrl_cmd_alloc_eid(&set_eid_req, op, eid_count,
-						 eid_start);
+	req_ret = mctp_encode_ctrl_cmd_alloc_eid(&set_eid_req,
+			(mctp_ctrl_cmd_alloc_eid_op)op, eid_count, eid_start);
 	if (req_ret == false) {
 		MCTP_CTRL_ERR("%s: Packet preparation failed\n", __func__);
 		return MCTP_RET_ENCODE_FAILED;
@@ -480,6 +482,8 @@ mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd,
 	size_t binding_size = 0;
 	static int entry_count = 0;
 
+	(void)eid;
+
 	/* Set destination EID as NULL */
 	dest_eid = MCTP_EID_NULL;
 
@@ -543,6 +547,8 @@ int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
 	struct mctp_ctrl_resp_get_routing_table *routing_table;
 	int ret;
 	char arg[REDFISH_ARG_LEN] = { 0 };
+
+	(void)eid;
 
 	MCTP_CTRL_TRACE("%s: Get EP reesponse\n", __func__);
 
@@ -745,9 +751,9 @@ int mctp_get_endpoint_uuid_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 				  sizeof(guid_t))) {
 		/* TODO: Once we move to JSON based configuration, we should get this
 		UUID from the JSON file */
-		const char raw[16] = { 0xad, 0x4c, 0x83, 0x6b, 0xc5, 0x4c,
-				       0x11, 0xeb, 0x85, 0x29, 0x02, 0x42,
-				       0xac, 0x13, 0x00, 0x03 };
+		const uint8_t raw[16] = { 0xad, 0x4c, 0x83, 0x6b, 0xc5, 0x4c,
+			 	          0x11, 0xeb, 0x85, 0x29, 0x02, 0x42,
+				          0xac, 0x13, 0x00, 0x03 };
 		memcpy(&uuid_table.uuid.raw, &raw, sizeof(guid_t));
 	} else {
 		memcpy(&uuid_table.uuid.canonical, &uuid_resp->uuid.canonical,
@@ -1180,7 +1186,8 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 
 			/* Send the MCTP_ALLOCATE_EP_ID_REQUEST */
 			mctp_ret = mctp_alloc_eid_send_request(
-				ctrl->sock, bind_id, eid, alloc_eid_op,
+				ctrl->sock, bind_id, eid,
+				(mctp_ctrl_cmd_set_eid_op)alloc_eid_op,
 				eid_count, eid_start);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				MCTP_CTRL_ERR(

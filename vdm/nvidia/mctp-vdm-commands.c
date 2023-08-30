@@ -207,7 +207,7 @@ static int vdm_resp_output(char *msg, int len, uint8_t result, uint8_t enable)
 		wlen = fwrite(&msg[MCTP_VDM_NVDA_MSG_TYPE_OFFSET],
 			      MCTP_VDM_RESP_OP_BYTE_FORMAT,
 			      (len - MCTP_VDM_NVDA_MSG_TYPE_OFFSET), fptr);
-		if (wlen != (len - MCTP_VDM_NVDA_MSG_TYPE_OFFSET)) {
+		if (wlen != (size_t)(len - MCTP_VDM_NVDA_MSG_TYPE_OFFSET)) {
 			/* Close the Output fptr */
 			fclose(fptr);
 			MCTP_ERR("[err: %d] Unable to write %s\n", errno,
@@ -230,7 +230,7 @@ mctp_vdm_client_send_recv(mctp_eid_t eid, int fd, const uint8_t *req_msg,
 {
 	mctp_requester_rc_t rc;
 
-	print_hex("TX", req_msg, req_len, verbose);
+	print_hex("TX", (uint8_t *)req_msg, req_len, verbose);
 
 	rc = mctp_client_send_recv(eid, fd, MCTP_VENDOR_MSG_TYPE, req_msg,
 				   req_len, resp_msg, resp_len);
@@ -240,14 +240,14 @@ mctp_vdm_client_send_recv(mctp_eid_t eid, int fd, const uint8_t *req_msg,
 		print_hex("RX", *resp_msg + 1, *resp_len - 1, verbose);
 
 		/* Report the result in output file */
-		vdm_resp_output(*resp_msg + 1, *resp_len - 1, 0, verbose);
+		vdm_resp_output(*(char **)resp_msg + 1, *resp_len - 1, 0, verbose);
 
 		MCTP_ASSERT_RET(*resp_msg[0] == MCTP_VENDOR_MSG_TYPE,
 				MCTP_REQUESTER_NOT_RESP_MSG,
 				"VMD message type is not correct - %x\n",
 				*resp_msg[0]);
 	} else {
-		vdm_resp_output(NULL, 0, errno, verbose);
+		vdm_resp_output(NULL, 1, errno, verbose);
 	}
 
 	return rc;

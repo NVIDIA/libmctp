@@ -108,7 +108,9 @@ static uint32_t spiSpeed = 1000000;
 static int g_gpio_intr;
 
 static int spi_fd;
+#ifdef DEBUG
 static void mctp_spi_hexdump(const char *prefix, int len, void *buf);
+#endif
 static int mctp_spi_xfer(int sendLen, uint8_t *sbuf, int recvLen, uint8_t *rbuf,
 			 bool deassert);
 static int ast_spi_xfer_3wire(int fd, unsigned char *txdata, int txlen,
@@ -132,6 +134,8 @@ static int ast_spi_on_mode_change(bool quad, uint8_t waitCycles)
 	 * (Eg: Quad/Dual etc...)
 	 */
 
+	(void)quad;
+	(void)waitCycles;
 	return 0;
 }
 
@@ -274,6 +278,7 @@ static int mctp_spi_tx(struct mctp_binding_spi *spi, const uint8_t len,
 {
 	SpbApStatus status = 0;
 
+	(void)pkt_pvt;
 	MCTP_ASSERT_RET(len <= SPI_TX_BUFF_SIZE, -1, "spb_ap_send length: %id",
 			len);
 
@@ -297,7 +302,7 @@ static int mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	size_t tx_buf_len = sizeof(*spi_hdr_tx);
 	int ret;
 	uint8_t spi_message_len;
-	SpbApStatus status;
+	int status;
 
 	mctp_spi_verify_magics(spi);
 	/*
@@ -338,24 +343,25 @@ static int mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	return (0);
 }
 
+#if DEBUG
 static void mctp_spi_hexdump(const char *prefix, int len, void *buf)
 {
 	unsigned char *data = (unsigned char *)buf;
-	int ii = 0;
-
+	size_t ii;
 	printf("%s> ", prefix);
 	printf("SPI HDR (%zu bytes): ", sizeof(struct mctp_spi_header));
 	for (ii = 0; ii < sizeof(struct mctp_spi_header); ii++) {
 		printf("%02x ", data[ii]);
 	}
 	printf("\nData: ");
-	for (; ii < len; ii++) {
+	for (; ii < (size_t)len; ii++) {
 		printf("%02x ", data[ii]);
 		if ((ii + 1) % 16 == 0)
 			printf("\n     ");
 	}
 	printf("\n");
 }
+#endif
 
 int mctp_spi_init_pollfd(struct mctp_binding_spi *spi, struct pollfd *pollfd)
 {
@@ -390,15 +396,11 @@ int mctp_spi_process(struct mctp_binding_spi *spi)
 	 * We got notification from GPIO pin. There is no need to call poll(2)
 	 * again. Let's check for what information we got and consume data from
 	 * GPIO fd.
-	 */
-	SpbApStatus status;
-
-	/*
 	 * There is some chance we get notification about new message while we
 	 * are checking for acknowledgement.
 	 */
 	ast_spi_gpio_intr_check(spi->gpio_fd, 0, false);
-	status = spb_ap_on_interrupt(&spi->nvda_spb_ap);
+	(void)spb_ap_on_interrupt(&spi->nvda_spb_ap);
 
 	while (spb_ap_msgs_available(&spi->nvda_spb_ap) > 0)
 		mctp_spi_rx(spi);
@@ -428,7 +430,7 @@ static int mctp_spi_rx(struct mctp_binding_spi *spi)
 	payload_len = spi_hdr_rx->byte_count;
 	len = payload_len + hdr_size;
 
-	MCTP_ASSERT_RET(len >= hdr_size, ERR_SPI_RX, "Invalid packet size: %zi", len);
+	MCTP_ASSERT_RET((size_t)len >= hdr_size, ERR_SPI_RX, "Invalid packet size: %zi", len);
 	MCTP_ASSERT_RET(payload_len > 0, ERR_SPI_RX, "Invalid payload size: %zi",
 			payload_len);
 
@@ -635,6 +637,8 @@ static int ast_spi_xfer_3wire(int fd, unsigned char *txdata, int txlen,
 	struct spi_ioc_transfer spi = { 0 };
 	int ret = 0;
 
+	(void)deassert;
+
 	// send
 	spi.tx_buf = (unsigned long)txdata;
 	spi.rx_buf = (unsigned long)NULL; // single wire, this must be null
@@ -733,7 +737,7 @@ int ast_spi_set_mode(int fd, int mode)
 	int ret = 0;
 	int tryMode = spiMode;
 
-	tryMode = spiMode | mode & 0x07;
+	tryMode = spiMode | (mode & 0x07);
 	ret = ioctl(fd, SPI_IOC_WR_MODE, &tryMode);
 	MCTP_ASSERT_RET(ret >= 0, -1, "SPI WR Mode Change failure: %d (%s)",
 			errno, strerror(errno));
@@ -809,6 +813,7 @@ static int ast_spi_gpio_export(unsigned int gpio)
 	return (0);
 }
 
+#if DEBUG
 static int ast_spi_gpio_unexport(unsigned int gpio)
 {
 	int fd = 0, len = 0;
@@ -830,6 +835,7 @@ static int ast_spi_gpio_unexport(unsigned int gpio)
 	close(fd);
 	return (0);
 }
+#endif
 
 static int ast_spi_gpio_set_dir(unsigned int gpio, unsigned int out_flag)
 {
@@ -857,6 +863,7 @@ static int ast_spi_gpio_set_dir(unsigned int gpio, unsigned int out_flag)
 	return (0);
 }
 
+#if DEBUG
 static int ast_spi_gpio_set_value(unsigned int gpio, unsigned int value)
 {
 	int fd = 0;
@@ -882,6 +889,7 @@ static int ast_spi_gpio_set_value(unsigned int gpio, unsigned int value)
 	close(fd);
 	return (0);
 }
+#endif
 
 static int ast_spi_gpio_set_edge(unsigned int gpio, char *edge)
 {
@@ -897,8 +905,8 @@ static int ast_spi_gpio_set_edge(unsigned int gpio, char *edge)
 			errno, strerror(errno));
 
 	ret = write(fd, edge, strlen(edge) + 1);
-	MCTP_ASSERT(ret == strlen(edge) + 1, "write(2) failed: %d (%s)", errno,
-		    strerror(errno));
+	MCTP_ASSERT((size_t)ret == strlen(edge) + 1, "write(2) failed: %d (%s)",
+		    errno, strerror(errno));
 
 	close(fd);
 	return (0);

@@ -228,7 +228,7 @@ bool mctp_decode_resp_get_uuid(struct mctp_ctrl_resp_get_uuid *get_uuid_resp)
 	if (get_uuid_resp->completion_code != MCTP_CTRL_CC_SUCCESS)
 		return false;
 
-	MCTP_CTRL_DEBUG("%s: sizeof uuid: %lu\n", __func__,
+	MCTP_CTRL_DEBUG("%s: sizeof uuid: %zu\n", __func__,
 			sizeof(get_uuid_resp->uuid.raw));
 
 	return true;

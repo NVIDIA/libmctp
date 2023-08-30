@@ -11,6 +11,7 @@ static inline void mctp_ctrl_prlog(int level, const char *fmt, ...)
 {
 	va_list ap;
 
+	(void)level;
 	va_start(ap, fmt);
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);

@@ -46,11 +46,13 @@ int mctp_astpcie_get_eid_info_ioctl(struct mctp_binding_astpcie *astpcie,
 
 	get_eid_info.count = count;
 	get_eid_info.start_eid = start_eid;
-	get_eid_info.ptr = (uint64_t)eid_info;
+	get_eid_info.ptr = (uint64_t)(uintptr_t)eid_info;
 
 	rc = ioctl(astpcie->fd, ASPEED_MCTP_IOCTL_GET_EID_INFO, &get_eid_info);
-	if (!rc)
-		memcpy(eid_info, (void *)get_eid_info.ptr, get_eid_info.count);
+	if (!rc) {
+		uintptr_t ptr = (uintptr_t)get_eid_info.ptr;
+		memcpy(eid_info, (void *)ptr, get_eid_info.count);
+	}
 
 	return rc;
 }
@@ -61,7 +63,7 @@ int mctp_astpcie_set_eid_info_ioctl(struct mctp_binding_astpcie *astpcie,
 	struct aspeed_mctp_set_eid_info set_eid_info;
 
 	set_eid_info.count = count;
-	set_eid_info.ptr = (uint64_t)eid_info;
+	set_eid_info.ptr = (uint64_t)(uintptr_t)eid_info;
 
 	return ioctl(astpcie->fd, ASPEED_MCTP_IOCTL_SET_EID_INFO,
 		     &set_eid_info);
@@ -191,7 +193,6 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 		(struct mctp_astpcie_pkt_private *)pkt->msg_binding_private;
 	struct mctp_binding_astpcie *astpcie = binding_to_astpcie(b);
 	struct mctp_pcie_hdr hdr[PCIE_VDM_HDR_SIZE];
-	struct mctp_hdr *mctp_hdr = mctp_pktbuf_hdr(pkt);
 	uint16_t payload_len_dw = mctp_astpcie_tx_get_payload_size_dw(pkt);
 	uint8_t pad = mctp_astpcie_tx_get_pad_len(pkt);
 	ssize_t write_len, len;

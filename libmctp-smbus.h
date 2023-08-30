@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 #include "libmctp.h"
+#include <poll.h>
 
 #define MCTP_SMBUS_POLL_TIMEOUT     1000
 #define MCTP_I2C_BUS_NUM_DEFAULT 2

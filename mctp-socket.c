@@ -119,7 +119,7 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 			"%s: Recv failed: Invalid length: %zi or timedout\n",
 			__func__, length);
 		return MCTP_REQUESTER_RECV_FAIL;
-	} else if (length < min_len) {
+	} else if (length < (ssize_t)min_len) {
 		/* read and discard */
 		uint8_t buf[length];
 

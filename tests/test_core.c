@@ -555,10 +555,7 @@ static const struct {
 /* clang-format on */
 
 #ifndef BUILD_ASSERT
-#define BUILD_ASSERT(x)                                                        \
-	do {                                                                   \
-		(void)sizeof(char[0 - (!(x))]);                                \
-	} while (0)
+#define BUILD_ASSERT(x, msg) _Static_assert((x), msg)
 #endif
 
 int main(void)
@@ -567,7 +564,8 @@ int main(void)
 
 	mctp_set_log_stdio(MCTP_LOG_DEBUG);
 
-	BUILD_ASSERT(ARRAY_SIZE(mctp_core_tests) < SIZE_MAX);
+	BUILD_ASSERT(ARRAY_SIZE(mctp_core_tests) < SIZE_MAX,
+			"Array size is greater than SIZE_MAX");
 	for (i = 0; i < ARRAY_SIZE(mctp_core_tests); i++) {
 		mctp_prlog(MCTP_LOG_DEBUG, "begin: %s",
 			   mctp_core_tests[i].name);
