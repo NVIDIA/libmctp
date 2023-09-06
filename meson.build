@@ -7,6 +7,13 @@ project('libmctp',
 
 comp = meson.get_compiler('c')
 
+add_project_arguments('-Werror', language: ['c', 'cpp'])
+add_project_arguments('-Wall', language: ['c', 'cpp'])
+add_project_arguments('-DMCTP_LOG_STDERR', language: ['c', 'cpp'])
+add_project_arguments('-DMCTP_HAVE_FILEIO', language: ['c', 'cpp'])
+add_project_arguments('-DMCTP_HAVE_STDIO', language: ['c', 'cpp'])
+add_project_arguments('-DMCTP_DEFAULT_ALLOC', language: ['c', 'cpp'])
+
 sources = [
   'alloc.c',
   'astlpc.c',
