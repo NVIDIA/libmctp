@@ -16,15 +16,18 @@ int mctp_json_i2c_get_common_params_mctp_demux(json_object *jo, uint8_t *bus_num
 				uint8_t *bus_num_smq, uint8_t *src_slave_addr, char **sockname);
 int mctp_json_i2c_get_params_bridge_static_demux(json_object * jo, uint8_t *bus_num,
 				uint8_t *dest_slave_addr, uint8_t *src_eid);
-int mctp_json_i2c_get_params_static_demux(json_object *jo, uint8_t *bus_num,
-				uint8_t *dest_eid);
+int mctp_json_i2c_get_params_static_demux(
+	json_object *jo, uint8_t *bus_num,
+	struct mctp_static_endpoint_mapper *endpoints);
 int mctp_json_i2c_get_params_pool_demux(json_object *jo, uint8_t *bus_num,
 				struct mctp_static_endpoint_mapper **static_endpoints_tab,
 				uint8_t *static_endpoints_len);
 
 void mctp_json_i2c_get_common_params_ctrl(json_object *jo, uint8_t *bus_num,
-				char **sockname, uint8_t *src_eid, uint8_t *dest_slave_addr,
-				uint8_t *src_slave_addr);
+					  char **sockname, uint8_t *src_eid,
+					  uint8_t *dest_slave_addr,
+					  uint8_t *logical_busses,
+					  uint8_t *src_slave_addr);
 void mctp_json_i2c_get_params_bridge_ctrl(json_object *jo, uint8_t *bus_num,
 				uint8_t *dest_eid, uint8_t *pool_start);
 int mctp_json_i2c_get_params_static_ctrl(json_object *jo, uint8_t *bus_num,

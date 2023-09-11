@@ -86,8 +86,9 @@ struct mctp_cmdline_i2c {
 	uint8_t bridge_eid;
 	uint8_t bridge_pool_start;
 	uint8_t bus_num;
-	uint8_t dest_slave_addr;
 	uint8_t src_slave_addr;
+	uint8_t logical_busses[4];
+	uint8_t dest_slave_addr[4];
 };
 
 /* Command line structure */
