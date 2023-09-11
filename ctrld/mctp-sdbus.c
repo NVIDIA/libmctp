@@ -30,6 +30,7 @@
 #include "mctp-ctrl-log.h"
 #include "mctp-sdbus.h"
 #include "mctp-discovery-common.h"
+#include "mctp-discovery-i2c.h"
 
 extern mctp_routing_table_t *g_routing_table_entries;
 
@@ -48,6 +49,7 @@ int mctp_ctrl_running = 1;
 char g_mctp_ctrl_supported_buses[MCTP_CTRL_MAX_BUS_TYPES][10] = { "PCIe Bus ",
 								  "SPI Bus ",
 								  "SMBus Bus " };
+
 #if DEBUG
 static int mctp_ctrl_supported_bus_types(sd_bus *bus, const char *path,
 					 const char *interface,
@@ -282,6 +284,42 @@ static int mctp_ctrl_sdbus_get_sock_name(sd_bus *bus, const char *path,
 	return sd_bus_message_close_container(reply);
 }
 
+static int mctp_ctrl_sdbus_get_bus(sd_bus *bus, const char *path,
+				   const char *interface,
+				   const char *property,
+				   sd_bus_message *reply, void *userdata,
+				   sd_bus_error *error)
+{
+	const uint32_t i2c_bus = mctp_i2c_get_i2c_bus();
+
+	(void)bus;
+	(void)path;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
+
+	return sd_bus_message_append(reply, "u", i2c_bus);
+}
+
+static int mctp_ctrl_sdbus_get_address(sd_bus *bus, const char *path,
+				       const char *interface,
+				       const char *property,
+				       sd_bus_message *reply, void *userdata,
+				       sd_bus_error *error)
+{
+	const uint32_t addr = mctp_i2c_get_i2c_addr();
+
+	(void)bus;
+	(void)path;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
+
+	return sd_bus_message_append(reply, "u", addr);;
+}
+
 const char *phy_transport_binding_to_string(uint8_t id)
 {
 	if (id == 0x0) {
@@ -494,6 +532,15 @@ static const sd_bus_vtable mctp_ctrl_binding_vtable[] = {
 	SD_BUS_VTABLE_END
 };
 
+static const sd_bus_vtable mctp_ctrl_decorator_vtable[] = {
+	SD_BUS_VTABLE_START(0),
+	SD_BUS_PROPERTY("Bus", "u", mctp_ctrl_sdbus_get_bus, 0,
+			SD_BUS_VTABLE_PROPERTY_CONST),
+	SD_BUS_PROPERTY("Address", "u", mctp_ctrl_sdbus_get_address, 0,
+			SD_BUS_VTABLE_PROPERTY_CONST),
+	SD_BUS_VTABLE_END
+};
+
 int mctp_ctrl_sdbus_dispatch(mctp_sdbus_context_t *context)
 {
 	int polled, r;
@@ -622,6 +669,21 @@ mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
 			MCTP_CTRL_ERR("Failed to add Binding object: %s\n",
 				      strerror(-r));
 			goto finish;
+		}
+
+		if (MCTP_BINDING_SMBUS == cmdline->binding_type) {
+			MCTP_CTRL_TRACE("Registering object '%s' for Inventory: %d\n",
+					mctp_ctrl_objpath, entry->eid);
+			r = sd_bus_add_object_vtable(context->bus, NULL,
+						     mctp_ctrl_objpath,
+						     MCTP_CTRL_DBUS_DECORATOR_INTERFACE,
+						     mctp_ctrl_decorator_vtable,
+						     context);
+			if (r < 0) {
+				MCTP_CTRL_ERR("Failed to add Binding object: %s\n",
+					      strerror(-r));
+				goto finish;
+			}
 		}
 
 		r = sd_bus_emit_object_added(context->bus, mctp_ctrl_objpath);

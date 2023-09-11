@@ -37,6 +37,16 @@ void set_g_val_for_pvt_binding(uint8_t bus_num, uint8_t dest_slave_addr,
 	g_i2c_src_slave_addr = src_slave_addr;
 }
 
+uint8_t mctp_i2c_get_i2c_bus(void)
+{
+	return g_i2c_bus;
+}
+
+uint8_t mctp_i2c_get_i2c_addr(void)
+{
+	return g_i2c_dest_slave_addr;
+}
+
 /* Send function for Get MCTP version support */
 mctp_ret_codes_t mctp_i2c_get_mctp_ver_support_request(int sock_fd, uint8_t eid)
 {
