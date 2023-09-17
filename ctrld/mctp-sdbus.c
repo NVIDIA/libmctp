@@ -290,7 +290,8 @@ static int mctp_ctrl_sdbus_get_bus(sd_bus *bus, const char *path,
 				   sd_bus_message *reply, void *userdata,
 				   sd_bus_error *error)
 {
-	const uint32_t i2c_bus = mctp_i2c_get_i2c_bus();
+	const int eid = mctp_ctrl_get_eid_from_sdbus_path(path);
+	const uint32_t i2c_bus = mctp_i2c_get_i2c_bus(eid);
 
 	(void)bus;
 	(void)path;
@@ -298,6 +299,8 @@ static int mctp_ctrl_sdbus_get_bus(sd_bus *bus, const char *path,
 	(void)property;
 	(void)userdata;
 	(void)error;
+
+	MCTP_CTRL_ERR("%s: %s\n", __func__, path);
 
 	return sd_bus_message_append(reply, "u", i2c_bus);
 }
@@ -308,7 +311,8 @@ static int mctp_ctrl_sdbus_get_address(sd_bus *bus, const char *path,
 				       sd_bus_message *reply, void *userdata,
 				       sd_bus_error *error)
 {
-	const uint32_t addr = mctp_i2c_get_i2c_addr();
+	const int eid = mctp_ctrl_get_eid_from_sdbus_path(path);
+	const uint32_t addr = mctp_i2c_get_i2c_addr(eid);
 
 	(void)bus;
 	(void)path;
@@ -316,6 +320,8 @@ static int mctp_ctrl_sdbus_get_address(sd_bus *bus, const char *path,
 	(void)property;
 	(void)userdata;
 	(void)error;
+
+	MCTP_CTRL_ERR("%s: %s\n", __func__, path);
 
 	return sd_bus_message_append(reply, "u", addr);;
 }

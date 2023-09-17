@@ -17,8 +17,8 @@
 void set_g_val_for_pvt_binding(uint8_t bus_num, uint8_t dest_slave_addr,
 			       uint8_t src_slave_addr);
 
-uint8_t mctp_i2c_get_i2c_bus(void);
-uint8_t mctp_i2c_get_i2c_addr(void);
+uint8_t mctp_i2c_get_i2c_bus(int eid);
+uint8_t mctp_i2c_get_i2c_addr(int eid);
 
 mctp_ret_codes_t mctp_i2c_get_mctp_ver_support_request(int sock_fd, uint8_t eid);
 

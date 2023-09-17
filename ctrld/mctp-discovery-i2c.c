@@ -28,6 +28,14 @@ extern const uint8_t MCTP_ROUTING_ENTRY_START;
 /* The EIDs and pool start information would be obtaind from commandline */
 static uint8_t g_i2c_bridge_eid, g_i2c_own_eid, g_i2c_bridge_pool_start;
 static uint8_t g_i2c_bus, g_i2c_dest_slave_addr, g_i2c_src_slave_addr;
+struct {
+	int nitems;
+	struct {
+		uint8_t bus;
+		uint8_t dest_slave_addr;
+		int eid;
+	} *buses;
+} g_i2c_bus_info;
 
 void set_g_val_for_pvt_binding(uint8_t bus_num, uint8_t dest_slave_addr,
 			       uint8_t src_slave_addr)
@@ -37,14 +45,26 @@ void set_g_val_for_pvt_binding(uint8_t bus_num, uint8_t dest_slave_addr,
 	g_i2c_src_slave_addr = src_slave_addr;
 }
 
-uint8_t mctp_i2c_get_i2c_bus(void)
+uint8_t mctp_i2c_get_i2c_bus(int eid)
 {
-	return g_i2c_bus;
+	for (int ii = 0; ii < g_i2c_bus_info.nitems; ii++) {
+		if (g_i2c_bus_info.buses[ii].eid == eid) {
+			return g_i2c_bus_info.buses[ii].bus;
+		}
+	}
+
+	return 0;
 }
 
-uint8_t mctp_i2c_get_i2c_addr(void)
+uint8_t mctp_i2c_get_i2c_addr(int eid)
 {
-	return g_i2c_dest_slave_addr;
+	for (int ii = 0; ii < g_i2c_bus_info.nitems; ii++) {
+		if (g_i2c_bus_info.buses[ii].eid == eid) {
+			return g_i2c_bus_info.buses[ii].dest_slave_addr;
+		}
+	}
+
+	return 0;
 }
 
 /* Send function for Get MCTP version support */
@@ -1183,6 +1203,15 @@ mctp_ret_codes_t mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_
 	int timeout = 0;
 	uint8_t number_of_eid = 0;
 
+	g_i2c_bus_info.nitems = sizeof(cmd->i2c.logical_busses) /
+		sizeof(cmd->i2c.logical_busses[0]);
+	g_i2c_bus_info.buses = calloc(g_i2c_bus_info.nitems,
+				      sizeof(*g_i2c_bus_info.buses));
+	if (g_i2c_bus_info.buses == NULL) {
+		MCTP_CTRL_ERR("%s: Could not allocate array for buses.",
+			      __func__);
+	}
+
 	for (int i = 0; i < sizeof(cmd->i2c.logical_busses) /
 				    sizeof(cmd->i2c.logical_busses[0]);
 	     i++) {
@@ -1193,6 +1222,9 @@ mctp_ret_codes_t mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_
 		discovery_mode = MCTP_SET_EP_REQUEST;
 		g_i2c_dest_slave_addr = cmd->i2c.dest_slave_addr[i];
 		g_i2c_bus = cmd->i2c.logical_busses[i];
+
+		g_i2c_bus_info.buses[i].bus = cmd->i2c.logical_busses[i];
+		g_i2c_bus_info.buses[i].dest_slave_addr = cmd->i2c.dest_slave_addr[i];
 
 		MCTP_CTRL_DEBUG("Doing discovery for: %d, address: %d\n",
 				g_i2c_bus, g_i2c_dest_slave_addr);
@@ -1248,6 +1280,8 @@ mctp_ret_codes_t mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_
 				/* Update the EID operation and EID number */
 				set_eid_op = set_eid;
 				eid = cmd->dest_eid_tab[i];
+
+				g_i2c_bus_info.buses[i].eid = eid;
 
 				/* Send the MCTP_SET_EP_REQUEST */
 				mctp_ret = mctp_i2c_set_eid_send_request(
