@@ -49,7 +49,6 @@ int mctp_ctrl_running = 1;
 char g_mctp_ctrl_supported_buses[MCTP_CTRL_MAX_BUS_TYPES][10] = { "PCIe Bus ",
 								  "SPI Bus ",
 								  "SMBus Bus " };
-
 #if DEBUG
 static int mctp_ctrl_supported_bus_types(sd_bus *bus, const char *path,
 					 const char *interface,
