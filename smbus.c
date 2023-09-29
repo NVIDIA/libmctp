@@ -44,7 +44,7 @@ struct mctp_binding_smbus {
 };
 
 #ifndef I2C_M_HOLD
-#define I2C_M_HOLD	0x0100
+#define I2C_M_HOLD 0x0100
 #endif
 
 #ifndef container_of
@@ -52,7 +52,7 @@ struct mctp_binding_smbus {
 	(type *)((char *)(ptr) - (char *)&((type *)0)->member)
 #endif
 
-#define binding_to_smbus(b) container_of(b, struct mctp_binding_smbus, binding)
+#define binding_to_smbus(b)   container_of(b, struct mctp_binding_smbus, binding)
 #define total_tab_elements(a) (sizeof(a) / sizeof(a)[0])
 
 #define MCTP_SMBUS_BUS_NUM 2
@@ -219,16 +219,16 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 			} else {
 				MCTP_ERR("Invalid ioctl ret val: %d (%s)",
 					 errno, strerror(errno));
-				return rc;
+				return 0;
 			}
 		}
 	} while ((rc < 0) && (retry--));
 
-	if (msgrdwr.nmsgs == 2) {
+	if (msgrdwr.nmsgs == 2 && (rc == 0)) {
 		mctp_prdebug("Mux grabbed\n");
 		mctp_binding_set_tx_enabled(&smbus->binding, false);
 	}
-	return rc;
+	return 0;
 }
 
 static int mctp_binding_smbus_tx(struct mctp_binding *b,
@@ -253,10 +253,10 @@ static int mctp_binding_smbus_tx(struct mctp_binding *b,
 	hdr->source_slave_address = (smbus->src_slave_addr << 1) | 0x01;
 
 	// Check if endpoint support mctp, if no just drop send message
-	for(i = 0; i < static_endpoints_len; i++) {
+	for (i = 0; i < static_endpoints_len; i++) {
 		if (static_endpoints[i].slave_address ==
 		    smbus->dest_slave_addr[0]) {
-			if(static_endpoints[i].support_mctp == 0) {
+			if (static_endpoints[i].support_mctp == 0) {
 				mctp_prerr(
 					"EID: %d, address: %d, bus: %d does not support MCTP, dropping packet\n",
 					static_endpoints[i].endpoint_num,
@@ -402,8 +402,8 @@ uint8_t set_global_dest_slave_addr_from_pool(uint8_t eid)
 {
 	int i;
 
-	for(i = 0; i < static_endpoints_len; i++) {
-		if(eid == static_endpoints[i].endpoint_num) {
+	for (i = 0; i < static_endpoints_len; i++) {
+		if (eid == static_endpoints[i].endpoint_num) {
 			//g_mctp_smbus_dest_slave_address = static_endpoints[i].slave_address;
 			break;
 		}
@@ -485,15 +485,16 @@ int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus,
 	mctp_trace_tx(outbuf_mctp, msgs[0].len);
 
 	/* Wait for answer */
-	while(1) {
+	while (1) {
 		usleep(MCTP_SMBUS_READ_TIMEOUT_WAIT);
 		rc = mctp_smbus_read_only(smbus);
 
 		if (rc != -1) {
 			if ((smbus->rxbuf[8] == MCTP_MESSAGE_TYPE_MCTP_CTRL) &&
-			    (smbus->rxbuf[10] == MCTP_COMMAND_CODE_GET_MCTP_VERSION_SUPPORT))
-			{
-				mctp_prdebug("%s: Received correct command", __func__);
+			    (smbus->rxbuf[10] ==
+			     MCTP_COMMAND_CODE_GET_MCTP_VERSION_SUPPORT)) {
+				mctp_prdebug("%s: Received correct command",
+					     __func__);
 				break;
 			}
 		}
@@ -511,9 +512,11 @@ int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus,
 	if (smbus->rxbuf[10] == MCTP_COMMAND_CODE_GET_MCTP_VERSION_SUPPORT) {
 		if (smbus->rxbuf[11] == MCTP_CONTROL_MSG_STATUS_SUCCESS) {
 			static_endpoints[idx].support_mctp = 1;
-			mctp_prdebug("%s: Message type number supported", __func__);
+			mctp_prdebug("%s: Message type number supported",
+				     __func__);
 		} else {
-			mctp_prdebug("%s: Message type number not supported (Completion Code = 0x%x)",
+			mctp_prdebug(
+				"%s: Message type number not supported (Completion Code = 0x%x)",
 				__func__, smbus->rxbuf[11]);
 			return EXIT_FAILURE;
 		}
@@ -539,15 +542,20 @@ int check_mctp_get_ver_support(struct mctp_binding_smbus *smbus, size_t idx,
 	interface_ASF = inbuf[8];
 	interface_ASF = (interface_ASF >> 5) & 0x01;
 
-	if (interface_ASF == 1) {
-		for (i = 0; i < 16; i++) {
-			static_endpoints[idx].udid[i] = inbuf[i + 1];
-		}
-		/* Get MCTP version support */
-		rc = send_mctp_get_ver_support_command(smbus, idx);
-		if (rc != 0) {
-			mctp_prdebug("%s: Get MCTP version support failed!", __func__);
-		}
+	if (interface_ASF != 0x01) {
+		mctp_prdebug(
+			"%s: ASF bit is not set, proceeding with MCTP version "
+			"check anyway.",
+			__func__);
+	}
+
+	for (i = 0; i < 16; i++) {
+		static_endpoints[idx].udid[i] = inbuf[i + 1];
+	}
+	/* Get MCTP version support */
+	rc = send_mctp_get_ver_support_command(smbus, idx);
+	if (rc != 0) {
+		mctp_prdebug("%s: Get MCTP version support failed!", __func__);
 	}
 
 	mctp_prdebug("\n%s: Static endpoint", __func__);

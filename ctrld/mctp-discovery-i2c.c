@@ -1239,39 +1239,15 @@ mctp_ret_codes_t mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_
 					"%s: Failed to received message %d\n",
 					__func__, mctp_ret);
 
-				/* Try to repeat discovery for next endpoint from pool */
-				if (cmd->dest_eid_tab_len > 1) {
-					MCTP_CTRL_DEBUG(
-						"%s: Endpoint from pool doesn't response.\n",
-						__func__);
-					number_of_eid++;
-					// Do procedure again if next EID is available
-					if (number_of_eid <
-					    cmd->dest_eid_tab_len) {
-						MCTP_CTRL_DEBUG(
-							"%s: Set EID for next endpoint from pool.\n",
-							__func__);
-						discovery_mode =
-							MCTP_SET_EP_REQUEST;
-					} else {
-						MCTP_CTRL_DEBUG(
-							"%s: End of pool.\n",
-							__func__);
-						discovery_mode =
-							MCTP_FINISH_DISCOVERY;
-						break;
-					}
-				} else {
-					if ((discovery_mode !=
-					     MCTP_GET_EP_UUID_RESPONSE) &&
-					    (discovery_mode !=
-					     MCTP_GET_MSG_TYPE_RESPONSE)) {
-						MCTP_CTRL_ERR(
-							"%s: Unexpected failure %d, mode[%d]\n",
-							__func__, mctp_ret,
-							discovery_mode);
-						return MCTP_RET_DISCOVERY_FAILED;
-					}
+				if ((discovery_mode !=
+				     MCTP_GET_EP_UUID_RESPONSE) &&
+				    (discovery_mode !=
+				     MCTP_GET_MSG_TYPE_RESPONSE)) {
+					MCTP_CTRL_ERR(
+						"%s: Unexpected failure %d, mode[%d]\n",
+						__func__, mctp_ret,
+						discovery_mode);
+					break;
 				}
 			}
 
