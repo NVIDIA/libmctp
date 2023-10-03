@@ -339,6 +339,24 @@ int mctp_json_i2c_get_params_static_demux(
 						jo_i2c_obj_j);
 					endpoints[k].slave_address =
 						(uint8_t)parse_num(string_val);
+					jo_i2c_obj_j = json_object_object_get(
+						jo_i2c_struct, "mux_addr");
+					if (jo_i2c_obj_j == NULL) {
+						continue;
+					}
+					endpoints[k].mux_addr =
+						(uint8_t)parse_num(
+							json_object_get_string(
+								jo_i2c_obj_j));
+					jo_i2c_obj_j = json_object_object_get(
+						jo_i2c_struct, "mux_channel");
+					if (jo_i2c_obj_j == NULL) {
+						continue;
+					}
+					endpoints[k].mux_channel =
+						(uint8_t)parse_num(
+							json_object_get_string(
+								jo_i2c_obj_j));
 				}
 			}
 			if (++k >= MCTP_I2C_MAX_BUSES) {

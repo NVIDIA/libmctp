@@ -5,6 +5,7 @@
 #include "config.h"
 
 #include <assert.h>
+#include <dirent.h>
 #include <err.h>
 #include <errno.h>
 #include <getopt.h>
@@ -573,6 +574,49 @@ static void binding_smbus_use_default_config(void)
 	        i2c_bus_num, i2c_dest_slave_addr, i2c_src_slave_addr);
 }
 
+static void fix_muxed_bus_numbers()
+{
+	for (uint8_t k = 0; k < static_endpoints_len; ++k) {
+		mctp_prdebug("Mux addr: %d, Mux channel: %d\n",
+			     static_endpoints[k].mux_addr,
+			     static_endpoints[k].mux_channel);
+		if (static_endpoints[k].mux_addr == 0xFF ||
+		    static_endpoints[k].mux_channel == 0xFF) {
+			continue;
+		}
+
+		char top_dir_name[255] = { 0 };
+		snprintf(top_dir_name, sizeof(top_dir_name),
+			 "%s%d/%d-00%x/channel-%d/i2c-dev",
+			 "/sys/bus/i2c/devices/i2c-", i2c_bus_num, i2c_bus_num,
+			 static_endpoints[k].mux_addr,
+			 static_endpoints[k].mux_channel);
+		mctp_prdebug("Scanning directory: %s\n", top_dir_name);
+		DIR *dir = opendir(top_dir_name);
+
+		if (!dir) {
+			mctp_prerr("Failed to open dir: %s\n", top_dir_name);
+			return;
+		}
+
+		struct dirent *entry = NULL;
+		while ((entry = readdir(dir)) != NULL) {
+			mctp_prdebug("Found entry: %s\n", entry->d_name);
+			if (strncmp(entry->d_name, "i2c-",
+				    sizeof("i2c-") - 1)) {
+				continue;
+			}
+			/* Extract the bus number */
+			intmax_t bus_num = strtoimax(
+				(entry->d_name + sizeof("i2c-") - 1), NULL, 10);
+
+			mctp_prdebug("Got bus number: %d\n", (int)bus_num);
+			static_endpoints[k].bus_num = bus_num;
+		}
+		closedir(dir);
+	}
+}
+
 static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 			      mctp_eid_t eid, int n_params,
 			      char *const *params __attribute__((unused)))
@@ -662,6 +706,9 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 							       binding->name,
 							       &i2c_bus_num);
 
+				mctp_prdebug("Chosen EID type: %d\n",
+					     chosen_eid_type);
+
 				switch (chosen_eid_type) {
 				case EID_TYPE_BRIDGE:
 					mctp_prinfo("Use bridge endpoint\n");
@@ -719,6 +766,9 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 		}
 		free(config_json_file_path);
 	}
+
+	/* Bus numbers for muxed busses can be dynamic, fix them if needed */
+	fix_muxed_bus_numbers();
 
 	mctp_prdebug("No of endpoints to handle: %d\n", static_endpoints_len);
 	for (uint8_t i = 0; i < static_endpoints_len; ++i) {

@@ -34,6 +34,8 @@ struct mctp_static_endpoint_mapper {
 	uint8_t support_mctp;
 	int out_fd;
 	uint8_t udid[16];
+	uint8_t mux_addr; /*slave address of the mux chip*/
+	uint8_t mux_channel; /*channel number on the mux that this device is on*/
 };
 
 struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t bus_smq, uint8_t dest_addr,

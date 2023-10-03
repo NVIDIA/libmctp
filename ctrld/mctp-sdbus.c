@@ -299,8 +299,6 @@ static int mctp_ctrl_sdbus_get_bus(sd_bus *bus, const char *path,
 	(void)userdata;
 	(void)error;
 
-	MCTP_CTRL_ERR("%s: %s\n", __func__, path);
-
 	return sd_bus_message_append(reply, "u", i2c_bus);
 }
 
@@ -319,8 +317,6 @@ static int mctp_ctrl_sdbus_get_address(sd_bus *bus, const char *path,
 	(void)property;
 	(void)userdata;
 	(void)error;
-
-	MCTP_CTRL_ERR("%s: %s\n", __func__, path);
 
 	return sd_bus_message_append(reply, "u", addr);;
 }

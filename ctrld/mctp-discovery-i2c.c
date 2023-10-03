@@ -1201,7 +1201,6 @@ mctp_ret_codes_t mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_
 	uint8_t *mctp_resp_msg;
 	size_t resp_msg_len;
 	int timeout = 0;
-	uint8_t number_of_eid = 0;
 
 	g_i2c_bus_info.nitems = sizeof(cmd->i2c.logical_busses) /
 		sizeof(cmd->i2c.logical_busses[0]);
