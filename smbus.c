@@ -162,7 +162,7 @@ static int get_out_fd(uint8_t eid)
  */
 static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 {
-	uint16_t hold_timeout = 5000; /* ms */
+	uint16_t hold_timeout = 100; /* ms */
 	struct i2c_msg msgs[2] = {
 		{
 			.addr = smbus->dest_slave_addr[0], /* 7-bit address */
@@ -226,7 +226,6 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 
 	if (msgrdwr.nmsgs == 2 && (rc == 0)) {
 		mctp_prdebug("Mux grabbed\n");
-		mctp_binding_set_tx_enabled(&smbus->binding, false);
 	}
 	return 0;
 }
@@ -676,6 +675,7 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 		// Got an incorrectly sized payload
 		mctp_prerr("Got smbus payload sized %d, expecting %zu",
 			   hdr->byte_count, len - sizeof(*hdr));
+		mctp_trace_rx(smbus->rxbuf, 255);
 		return 0;
 	}
 
@@ -698,7 +698,6 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 	if (eom) {
 		mctp_smbus_close_mux(smbus, mctp_hdr->src);
 		mctp_prdebug("Mux released\n");
-		mctp_binding_set_tx_enabled(&smbus->binding, true);
 	}
 
 	mctp_trace_rx(smbus->rxbuf, len);
