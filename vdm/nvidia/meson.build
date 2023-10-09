@@ -16,7 +16,7 @@ comp = meson.get_compiler('c')
 systemd = declare_dependency(dependencies: [comp.find_library('systemd')])
 
 executable(
-  'nvidia-mctp-vdm-util',
+  'mctp-vdm-util',
   sources,
   include_directories: include_directories(headers),
   dependencies: [systemd],
