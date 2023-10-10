@@ -545,7 +545,8 @@ SpbApStatus spb_ap_recv(SpbAp *ap, int len, void *buf)
 	ap->msgs_available--;
 	status = wait_for_length(ap, &bytes);
 	MCTP_ASSERT_RET(status == SPB_AP_OK, status, "wait_for_length failed.");
-	MCTP_ASSERT(bytes <= (uint32_t)len, "Data cannot fit into the buffer.");
+	MCTP_ASSERT_RET(bytes <= (uint32_t)len, status,
+			"Data cannot fit into the buffer.");
 
 	status = posted_read(ap, 0x8000, bytes, (uint8_t *)(buf));
 	MCTP_ASSERT_RET(status == SPB_AP_OK, status, "posted_read failed.");

@@ -441,7 +441,7 @@ static int mctp_spi_rx(struct mctp_binding_spi *spi)
 	mctp_trace_rx(spi->rxbuf, payload_len);
 
 	spi->rx_pkt = mctp_pktbuf_alloc(&(spi->binding), 0);
-	MCTP_ASSERT(spi->rx_pkt != NULL, "spi->rx_pkt is NULL");
+	MCTP_ASSERT_RET(spi->rx_pkt != NULL, ERR_SPI_RX, "spi->rx_pkt is NULL");
 
 	ret = mctp_pktbuf_push(spi->rx_pkt, spi->rxbuf + hdr_size, payload_len);
 	MCTP_ASSERT_RET(ret == 0, ERR_SPI_RX, "Can't push to pktbuf: %d", ret);
@@ -806,7 +806,7 @@ static int ast_spi_gpio_export(unsigned int gpio)
 
 	ret = write(fd, buf, len);
 	/* EBUSY means the settings were already set. */
-	MCTP_ASSERT(ret == len || (ret == -1 && errno == EBUSY),
+	MCTP_ASSERT_RET(ret == len || (ret == -1 && errno == EBUSY), ret,
 		    "write(2) failed: %d (%s)", errno, strerror(errno));
 	close(fd);
 
@@ -829,8 +829,8 @@ static int ast_spi_gpio_unexport(unsigned int gpio)
 	len = snprintf(buf, sizeof(buf), "%d", gpio);
 
 	ret = write(fd, buf, len);
-	MCTP_ASSERT(ret == len, "write(2) failed: %d (%s)", errno,
-		    strerror(errno));
+	MCTP_ASSERT_RET(ret == len, ret, "write(2) failed: %d (%s)", errno,
+			strerror(errno));
 
 	close(fd);
 	return (0);
@@ -852,12 +852,12 @@ static int ast_spi_gpio_set_dir(unsigned int gpio, unsigned int out_flag)
 
 	if (out_flag) {
 		ret = write(fd, "out", 4);
-		MCTP_ASSERT(ret == 4, "write(2) failed: %d (%s)", errno,
-			    strerror(errno));
+		MCTP_ASSERT_RET(ret == 4, -1, "write(2) failed: %d (%s)", errno,
+				strerror(errno));
 	} else {
 		ret = write(fd, "in", 3);
-		MCTP_ASSERT(ret == 3, "write(2) failed: %d (%s)", errno,
-			    strerror(errno));
+		MCTP_ASSERT_RET(ret == 3, -1, "write(2) failed: %d (%s)", errno,
+				strerror(errno));
 	}
 	close(fd);
 	return (0);
@@ -879,12 +879,12 @@ static int ast_spi_gpio_set_value(unsigned int gpio, unsigned int value)
 
 	if (value) {
 		ret = write(fd, "1", 2);
-		MCTP_ASSERT(ret == 1, "write(2) failed: %d (%s)", errno,
-			    strerror(errno));
+		MCTP_ASSERT_RET(ret == 1, -1, "write(2) failed: %d (%s)", errno,
+				strerror(errno));
 	} else {
 		ret = write(fd, "0", 2);
-		MCTP_ASSERT(ret == 1, "write(2) failed: %d (%s)", errno,
-			    strerror(errno));
+		MCTP_ASSERT_RET(ret == 1, -1, "write(2) failed: %d (%s)", errno,
+				strerror(errno));
 	}
 	close(fd);
 	return (0);
@@ -905,8 +905,8 @@ static int ast_spi_gpio_set_edge(unsigned int gpio, char *edge)
 			errno, strerror(errno));
 
 	ret = write(fd, edge, strlen(edge) + 1);
-	MCTP_ASSERT((size_t)ret == strlen(edge) + 1, "write(2) failed: %d (%s)",
-		    errno, strerror(errno));
+	MCTP_ASSERT_RET((size_t)ret == strlen(edge) + 1, -1,
+			"write(2) failed: %d (%s)", errno, strerror(errno));
 
 	close(fd);
 	return (0);
@@ -952,8 +952,8 @@ ssize_t ast_spi_gpio_intr_read(int gpio_fd)
 	off_t offset;
 
 	offset = lseek(gpio_fd, 0, SEEK_SET);
-	MCTP_ASSERT(offset == 0, "lseek(2) failed: %d (%s)", errno,
-		    strerror(errno));
+	MCTP_ASSERT_RET(offset == 0, -1, "lseek(2) failed: %d (%s)", errno,
+			strerror(errno));
 
 	ret = read(gpio_fd, buf, sizeof(buf));
 	MCTP_ASSERT_RET(ret > 0, ret, "read(2) failed: %d (%s)", errno,
@@ -974,8 +974,9 @@ short ast_spi_gpio_poll(int gpio_fd, int timeout_ms)
 	fdset[0].events = POLLPRI;
 
 	rc = poll(fdset, nfds, timeout_ms);
-	MCTP_ASSERT(rc >= 0, "Failed[rc=%d]: GPIO[%d] Interrupt polling failed",
-		    rc, SPB_GPIO_INTR_NUM);
+	MCTP_ASSERT_RET(rc >= 0, rc,
+			"Failed[rc=%d]: GPIO[%d] Interrupt polling failed", rc,
+			SPB_GPIO_INTR_NUM);
 
 	if (rc == 0)
 		return (0);

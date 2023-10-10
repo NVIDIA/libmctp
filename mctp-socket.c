@@ -114,7 +114,7 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 		return MCTP_REQUESTER_TIMEOUT;
 	}
 
-	if ((length <= 0) || (length > 4096)) {
+	if ((length <= 0) || (length > MCTP_MAX_MESSAGE_SIZE)) {
 		MCTP_CTRL_INFO(
 			"%s: Recv failed: Invalid length: %zi or timedout\n",
 			__func__, length);

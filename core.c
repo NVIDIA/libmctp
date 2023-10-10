@@ -79,12 +79,6 @@ struct mctp {
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #endif
 
-/* 64kb should be sufficient for a single message. Applications
- * requiring higher sizes can override by setting max_message_size.*/
-#ifndef MCTP_MAX_MESSAGE_SIZE
-#define MCTP_MAX_MESSAGE_SIZE 65536
-#endif
-
 static int mctp_message_tx_on_bus(struct mctp_bus *bus, mctp_eid_t src,
 				  mctp_eid_t dest, bool tag_owner,
 				  uint8_t msg_tag, void *msg, size_t msg_len,

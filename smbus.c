@@ -695,7 +695,7 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 	}
 
 	smbus->rx_pkt = mctp_pktbuf_alloc(&smbus->binding, 0);
-	MCTP_ASSERT(smbus->rx_pkt != NULL, "Could not allocate pktbuf.");
+	MCTP_ASSERT_RET(smbus->rx_pkt != NULL, -1, "Could not allocate pktbuf.");
 
 	if (mctp_pktbuf_push(smbus->rx_pkt, &smbus->rxbuf[sizeof(*hdr)],
 			     len - sizeof(*hdr) - SMBUS_PEC_BYTE_SIZE) != 0) {

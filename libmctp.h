@@ -45,6 +45,12 @@ struct mctp_hdr {
 #define MCTP_PACKET_SIZE(unit) ((unit) + sizeof(struct mctp_hdr))
 #define MCTP_BODY_SIZE(unit) ((unit) - sizeof(struct mctp_hdr))
 
+/* 64kb should be sufficient for a single message. Applications
+ * requiring higher sizes can override by setting max_message_size.*/
+#ifndef MCTP_MAX_MESSAGE_SIZE
+#define MCTP_MAX_MESSAGE_SIZE 65536
+#endif
+
 #define MCTP_CONTROL_MESSAGE_TYPE 0x00
 
 enum MCTP_COMMAND_CODE {

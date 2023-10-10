@@ -22,6 +22,8 @@
 #undef pr_fmt
 #define pr_fmt(fmt) "astpcie: " fmt
 
+#define ASTPCIE_MIN_PACKET_SIZE 16
+
 /*
  * PCIe header template in "network format" - Big Endian
  */
@@ -322,7 +324,7 @@ int mctp_astpcie_rx(struct mctp_binding_astpcie *astpcie)
 		return -1;
 	}
 
-	if (read_len != ASTPCIE_PACKET_SIZE(MCTP_BTU)) {
+	if (read_len < ASTPCIE_MIN_PACKET_SIZE) {
 		mctp_prerr("Incorrect packet size: %d", read_len);
 		return -1;
 	}

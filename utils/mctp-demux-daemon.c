@@ -133,6 +133,9 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		struct mctp_smbus_pkt_private i2c;
 	} pvt_binding = { 0 };
 	mctp_eid_t eid = 0;
+	const size_t min_packet_pcie = MCTP_BIND_INFO_OFFSET + 1;
+	const size_t min_packet_spi = MCTP_SPI_EID_OFFSET + 1;
+	const size_t min_packet_smbus = MCTP_SMBUS_EID_OFFSET + 1;
 
 	/* Get the bus type (binding ID) */
 	bind_id = *((uint8_t *)msg);
@@ -140,6 +143,11 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 	/* Handle based on bind ID's */
 	switch (bind_id) {
 	case MCTP_BINDING_PCIE:
+		if (len < min_packet_pcie) {
+			mctp_prwarn("Packet too short for PCIe");
+			return;
+		}
+
 		/* Copy the binding information */
 		memcpy(&pvt_binding.pcie, ((uint8_t *)msg + MCTP_BIND_INFO_OFFSET),
 		       sizeof(struct mctp_astpcie_pkt_private));
@@ -166,6 +174,11 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		}
 		break;
 	case MCTP_BINDING_SPI:
+		if (len < min_packet_spi) {
+			mctp_prwarn("Packet too short for SPI.");
+			return;
+		}
+
 		memcpy(&pvt_binding.spi, ((uint8_t *)msg + MCTP_BIND_INFO_OFFSET),
 		       sizeof(struct mctp_astspi_pkt_private));
 
@@ -180,6 +193,11 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 
 		break;
 	case MCTP_BINDING_SMBUS:
+		if (len < min_packet_smbus) {
+			mctp_prwarn("Packet too short for SMBUS.");
+			return;
+		}
+
 		/* Copy the binding information */
 		memcpy(&pvt_binding.i2c, ((uint8_t *)msg + MCTP_BIND_INFO_OFFSET),
 		       sizeof(struct mctp_smbus_pkt_private));
@@ -340,7 +358,7 @@ static int binding_serial_init(struct mctp *mctp, struct binding *binding,
 	path = params[0];
 
 	serial = mctp_serial_init();
-	MCTP_ASSERT(serial != NULL, "serial is NULL");
+	MCTP_ASSERT_RET(serial != NULL, -1, "serial is NULL");
 
 	rc = mctp_serial_open_path(serial, path);
 	if (rc)
@@ -443,7 +461,7 @@ static int binding_astpcie_process(struct binding *binding)
 	rc = mctp_astpcie_poll(binding->data, MCTP_ASTPCIE_POLL_TIMEOUT);
 	if (rc & POLLIN) {
 		rc = mctp_astpcie_rx(binding->data);
-		MCTP_ASSERT(rc == 0, "mctp_astpcie_rx returned %d", rc);
+		MCTP_ASSERT_RET(rc == 0, rc, "mctp_astpcie_rx returned %d", rc);
 	}
 
 	return rc;
@@ -513,7 +531,7 @@ static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
 	}
 
 	astspi = mctp_spi_bind_init(&config);
-	MCTP_ASSERT(astspi != NULL, "mctp_spi_bind_init failed.");
+	MCTP_ASSERT_RET(astspi != NULL, -1, "mctp_spi_bind_init failed.");
 
 	mctp_register_bus(mctp, mctp_binding_astspi_core(astspi), eid);
 	binding->data = astspi;
@@ -792,7 +810,7 @@ static int binding_smbus_process(struct binding *binding)
 	rc = mctp_smbus_poll(binding->data, MCTP_SMBUS_POLL_TIMEOUT);
 	if (rc & POLLPRI) {
 		rc = mctp_smbus_read(binding->data);
-		MCTP_ASSERT(rc == 0, "mctp_smbus_read failed: %d", rc);
+		MCTP_ASSERT_RET(rc == 0, rc, "mctp_smbus_read failed: %d", rc);
 	}
 	return 0;
 }
@@ -1187,9 +1205,7 @@ static int run_daemon(struct ctx *ctx)
 		for (i = 0; i < ctx->n_clients; i++) {
 			if (!ctx->pollfds[FD_NR + i].revents)
 				continue;
-			MCTP_ASSERT(ctx->pollfds[FD_NR + i].fd ==
-					    ctx->clients[i].sock,
-				    "Socket fd mismatch!");
+
 			rc = client_process_recv(ctx, i);
 			if (rc)
 				ctx->clients_changed = true;
@@ -1330,7 +1346,7 @@ int main(int argc, char *const *argv)
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
 
 	ctx->mctp = mctp_init();
-	MCTP_ASSERT(ctx->mctp != NULL, "ctx->mctp is NULL");
+	MCTP_ASSERT_RET(ctx->mctp != NULL, EXIT_FAILURE, "ctx->mctp is NULL");
 
 	if (ctx->pcap.binding.path || ctx->pcap.socket.path) {
 		if (capture_init()) {
