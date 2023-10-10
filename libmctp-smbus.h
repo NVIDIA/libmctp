@@ -39,7 +39,8 @@ struct mctp_static_endpoint_mapper {
 };
 
 struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t bus_smq, uint8_t dest_addr,
-			     uint8_t src_addr, uint8_t eid_type);
+			     uint8_t src_addr, uint8_t static_endpoints_len,
+				 struct mctp_static_endpoint_mapper *static_endpoints);
 
 int mctp_smbus_open_in_bus(struct mctp_binding_smbus *smbus, int in_bus, int src_slv_addr);
 int mctp_smbus_open_out_bus(struct mctp_binding_smbus *smbus, int out_bus);
@@ -49,7 +50,6 @@ void mctp_smbus_register_bus(struct mctp_binding_smbus *smbus,
 			     struct mctp *mctp, mctp_eid_t eid);
 void mctp_smbus_free(struct mctp_binding_smbus *smbus);
 
-uint8_t set_global_dest_slave_addr_from_pool(uint8_t eid);
 int send_get_udid_command(struct mctp_binding_smbus *smbus, size_t idx,
 			  uint8_t *inbuf, uint8_t len);
 int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus, uint8_t which_endpoint);

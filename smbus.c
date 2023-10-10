@@ -44,11 +44,21 @@ struct mctp_binding_smbus {
 	uint8_t dest_slave_addr[MCTP_I2C_MAX_BUSES];
 	/* src slave address */
 	uint8_t src_slave_addr;
+
+	/* static endpoints configuration */
+	struct mctp_static_endpoint_mapper *static_endpoints;
+	uint8_t static_endpoints_len;
 };
 
+/* I2C M HOLD is a custom flag to hold I2C mux 
+	with specific I2C dest address */
 #ifndef I2C_M_HOLD
 #define I2C_M_HOLD 0x0100
 #endif
+
+#define MCTP_SMBUS_I2C_M_HOLD_TIMEOUT_MS 	100
+#define MCTP_SMBUS_I2C_TX_RETRIES_MAX		1000  /* 1000 retries with a 20us sleep, so a total of 20ms at worst*/
+#define MCTP_SMBUS_I2C_TX_RETRIES_US		20	  /* 20 us * 1000 = 20ms*/
 
 #ifndef container_of
 #define container_of(ptr, type, member)                                        \
@@ -85,9 +95,6 @@ struct mctp_smbus_header_rx {
 	uint8_t byte_count;
 	uint8_t source_slave_address;
 };
-
-struct mctp_static_endpoint_mapper *static_endpoints = NULL;
-uint8_t static_endpoints_len = 0;
 
 /**
  * @brief Print prepared MCTP packet ready to send via i2c.
@@ -146,14 +153,26 @@ static uint8_t calculate_pec_byte(uint8_t *buf, size_t len, uint8_t address,
 	return pec;
 }
 
-static int get_out_fd(uint8_t eid)
+static int get_out_fd(struct mctp_binding_smbus *smbus, uint8_t eid)
 {
-	for (uint8_t i = 0; i < static_endpoints_len; ++i) {
-		if (static_endpoints[i].endpoint_num == eid) {
-			return static_endpoints[i].out_fd;
+	for (uint8_t i = 0; i < smbus->static_endpoints_len; ++i) {
+		if (smbus->static_endpoints[i].endpoint_num == eid) {
+			return smbus->static_endpoints[i].out_fd;
 		}
 	}
+
 	return -1;
+}
+
+static int get_dest_i2c_addr(struct mctp_binding_smbus *smbus, uint8_t eid)
+{
+	for (uint8_t i = 0; i < smbus->static_endpoints_len; ++i) {
+		if (smbus->static_endpoints[i].endpoint_num == eid) {
+			return smbus->static_endpoints[i].slave_address;
+		}
+	}
+
+	return smbus->dest_slave_addr[0];
 }
 
 /**
@@ -165,10 +184,10 @@ static int get_out_fd(uint8_t eid)
  */
 static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 {
-	uint16_t hold_timeout = 100; /* ms */
+	uint16_t hold_timeout = MCTP_SMBUS_I2C_M_HOLD_TIMEOUT_MS; /* ms */
 	struct i2c_msg msgs[2] = {
 		{
-			.addr = smbus->dest_slave_addr[0], /* 7-bit address */
+			.addr = 0, /* 7-bit address */
 			.flags = 0,
 			.len = len,
 			.buf = (__uint8_t *)smbus->txbuf,
@@ -182,8 +201,7 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 	};
 	struct i2c_rdwr_ioctl_data msgrdwr = { msgs, 1 };
 	int rc;
-	int retry =
-		1000; /* 1000 retries with a 20us sleep, so a total of 20ms at worst*/
+	int retry = MCTP_SMBUS_I2C_TX_RETRIES_MAX;
 
 	struct mctp_hdr *hdr =
 		(void *)(smbus->txbuf + sizeof(struct mctp_smbus_header_tx));
@@ -196,20 +214,29 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 	}
 
 	/* Choose outfd based on the EID */
-	int out_fd = get_out_fd(hdr->dest);
+	int dest_eid = hdr->dest;
 
 	/* For SetEndpoint control command, fetch the EID from the data packet */
-	if (hdr->dest == 0) {
+	if (dest_eid == 0) {
 		uint8_t *mctp_body =
 			(uint8_t *)(smbus->txbuf +
 				    sizeof(struct mctp_smbus_header_tx) +
 				    sizeof(struct mctp_hdr));
 		if (mctp_body[0] == 0x00 && mctp_body[2] == 0x01) {
-			out_fd = get_out_fd(mctp_body[4]);
+			dest_eid = mctp_body[4];
 		}
 	}
 
+	int out_fd = get_out_fd(smbus, dest_eid);
+
 	mctp_prdebug("Tx Out FD: %d\n", out_fd);
+
+	if (out_fd < 0) {
+		MCTP_ERR("The dest eid is not supported on any SMBUS");
+		return 0;
+	}
+
+	msgs[0].addr = get_dest_i2c_addr(smbus, dest_eid); /* 7-bit address */
 
 	do {
 		rc = ioctl(out_fd, I2C_RDWR, &msgrdwr);
@@ -223,7 +250,7 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 						"Invalid ioctl ret val: %d (%s)",
 						errno, strerror(errno));
 				}
-				usleep(20);
+				usleep(MCTP_SMBUS_I2C_TX_RETRIES_US);
 			} else {
 				MCTP_ERR("Invalid ioctl ret val: %d (%s)",
 					 errno, strerror(errno));
@@ -260,15 +287,15 @@ static int mctp_binding_smbus_tx(struct mctp_binding *b,
 	hdr->source_slave_address = (smbus->src_slave_addr << 1) | 0x01;
 
 	// Check if endpoint support mctp, if no just drop send message
-	for (i = 0; i < static_endpoints_len; i++) {
-		if (static_endpoints[i].slave_address ==
+	for (i = 0; i < smbus->static_endpoints_len; i++) {
+		if (smbus->static_endpoints[i].slave_address ==
 		    smbus->dest_slave_addr[0]) {
-			if (static_endpoints[i].support_mctp == 0) {
+			if (smbus->static_endpoints[i].support_mctp == 0) {
 				mctp_prerr(
 					"EID: %d, address: %d, bus: %d does not support MCTP, dropping packet\n",
-					static_endpoints[i].endpoint_num,
-					static_endpoints[i].slave_address,
-					static_endpoints[i].bus_num);
+					smbus->static_endpoints[i].endpoint_num,
+					smbus->static_endpoints[i].slave_address,
+					smbus->static_endpoints[i].bus_num);
 				return 0;
 			}
 		}
@@ -375,7 +402,7 @@ int mctp_smbus_close_mux(struct mctp_binding_smbus *smbus, uint8_t eid)
 
 	mctp_prdebug("Closing mux for EID: %d\n", eid);
 
-	int out_fd = get_out_fd(eid);
+	int out_fd = get_out_fd(smbus, eid);
 
 	rc = ioctl(out_fd, I2C_RDWR, &msgrdwr);
 	MCTP_ASSERT_RET(rc >= 0, rc, "Invalid ioctl ret val: %d (%s)", errno,
@@ -404,21 +431,6 @@ int mctp_smbus_poll(struct mctp_binding_smbus *smbus, int timeout)
 			errno);
 
 	return 0;
-}
-
-uint8_t set_global_dest_slave_addr_from_pool(uint8_t eid)
-{
-	int i;
-
-	for (i = 0; i < static_endpoints_len; i++) {
-		if (eid == static_endpoints[i].endpoint_num) {
-			//g_mctp_smbus_dest_slave_address = static_endpoints[i].slave_address;
-			break;
-		}
-	}
-
-	return 0x32;
-	//g_mctp_smbus_dest_slave_address;
 }
 
 int send_get_udid_command(struct mctp_binding_smbus *smbus, size_t idx,
@@ -469,7 +481,7 @@ int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus,
 			 0x00, 0x80, 0x04, 0x00, 0x00 /* PEC to calculate */ };
 	struct i2c_msg msgs[1];
 	struct i2c_rdwr_ioctl_data msgset[1];
-	const uint8_t addr = static_endpoints[idx].slave_address;
+	const uint8_t addr = smbus->static_endpoints[idx].slave_address;
 
 	msgs[0].addr = addr;
 	msgs[0].flags = 0;
@@ -519,7 +531,7 @@ int send_mctp_get_ver_support_command(struct mctp_binding_smbus *smbus,
 	 */
 	if (smbus->rxbuf[10] == MCTP_COMMAND_CODE_GET_MCTP_VERSION_SUPPORT) {
 		if (smbus->rxbuf[11] == MCTP_CONTROL_MSG_STATUS_SUCCESS) {
-			static_endpoints[idx].support_mctp = 1;
+			smbus->static_endpoints[idx].support_mctp = 1;
 			mctp_prdebug("%s: Message type number supported",
 				     __func__);
 		} else {
@@ -559,7 +571,7 @@ int check_mctp_get_ver_support(struct mctp_binding_smbus *smbus, size_t idx,
 	}
 
 	for (i = 0; i < 16; i++) {
-		static_endpoints[idx].udid[i] = inbuf[i + 1];
+		smbus->static_endpoints[idx].udid[i] = inbuf[i + 1];
 	}
 	/* Get MCTP version support */
 	rc = send_mctp_get_ver_support_command(smbus, idx);
@@ -568,13 +580,13 @@ int check_mctp_get_ver_support(struct mctp_binding_smbus *smbus, size_t idx,
 	}
 
 	mctp_prdebug("\n%s: Static endpoint", __func__);
-	mctp_prdebug("Endpoint = %d", static_endpoints[idx].endpoint_num);
+	mctp_prdebug("Endpoint = %d", smbus->static_endpoints[idx].endpoint_num);
 	mctp_prdebug("Slave address = 0x%x",
-		     static_endpoints[idx].slave_address);
-	mctp_prdebug("Support MCTP = %d", static_endpoints[idx].support_mctp);
+		     smbus->static_endpoints[idx].slave_address);
+	mctp_prdebug("Support MCTP = %d", smbus->static_endpoints[idx].support_mctp);
 	mctp_prdebug("UDID = ");
 	for (i = 0; i < 16; i++) {
-		mctp_prdebug("0x%x ", static_endpoints[idx].udid[i]);
+		mctp_prdebug("0x%x ", smbus->static_endpoints[idx].udid[i]);
 	}
 
 	return EXIT_SUCCESS;
@@ -596,7 +608,7 @@ int find_and_set_pool_of_endpoints(struct mctp_binding_smbus *smbus)
 
 	for (i = 0; i < quantity_of_udid; i++) {
 		printf("%d\n", i);
-		static_endpoints[i].slave_address = slave_address;
+		smbus->static_endpoints[i].slave_address = slave_address;
 		check_mctp_get_ver_support(smbus, 0, i, inbuf, inbuf_len);
 	}
 
@@ -756,8 +768,8 @@ static int mctp_smbus_start(struct mctp_binding *b)
 		     smbus->bus_num_smq, smbus->dest_slave_addr[0]);
 
 	/* Open all applicable I2C nodes */
-	for (uint8_t i = 0; i < static_endpoints_len; ++i) {
-		if (static_endpoints[i].bus_num == 0xFF) {
+	for (uint8_t i = 0; i < smbus->static_endpoints_len; ++i) {
+		if (smbus->static_endpoints[i].bus_num == 0xFF) {
 			continue;
 		}
 		mctp_prdebug("%s: Setting up I2C output fd", __func__);
@@ -765,7 +777,7 @@ static int mctp_smbus_start(struct mctp_binding *b)
 		MCTP_ASSERT_RET(outfd >= 0, -1,
 				"Failed to open I2C Tx node: %d", outfd);
 		smbus->out_fd[i] = outfd;
-		static_endpoints[i].out_fd = outfd;
+		smbus->static_endpoints[i].out_fd = outfd;
 	}
 
 	/* Open I2C in node */
@@ -784,7 +796,8 @@ static int mctp_smbus_start(struct mctp_binding *b)
 
 struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t bus_smq,
 					   uint8_t dest_addr, uint8_t src_addr,
-					   uint8_t eid_type)
+					   uint8_t static_endpoints_len,
+					   struct mctp_static_endpoint_mapper *static_endpoints)
 {
 	struct mctp_binding_smbus *smbus;
 
@@ -810,13 +823,13 @@ struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t bus_smq,
 	smbus->dest_slave_addr[0] = dest_addr;
 	smbus->src_slave_addr = src_addr;
 
-	/* Override slave addresses and bus numbers if static */
-	if (eid_type == EID_TYPE_STATIC) {
-		for (uint8_t i = 0; i < static_endpoints_len; ++i) {
-			smbus->dest_slave_addr[i] =
-				static_endpoints[i].slave_address;
-			smbus->bus_num[i] = static_endpoints[i].bus_num;
-		}
+	/* Override slave addresses and bus numbers if static endpoints are used */
+	smbus->static_endpoints_len = static_endpoints_len;
+	smbus->static_endpoints = static_endpoints;
+	for (uint8_t i = 0; i < static_endpoints_len; ++i) {
+		smbus->dest_slave_addr[i] =
+			static_endpoints[i].slave_address;
+		smbus->bus_num[i] = static_endpoints[i].bus_num;
 	}
 
 	smbus->binding.start = mctp_smbus_start;

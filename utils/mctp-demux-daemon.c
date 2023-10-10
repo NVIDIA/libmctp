@@ -112,8 +112,8 @@ struct ctx {
 
 uint8_t chosen_eid_type;
 
-extern struct mctp_static_endpoint_mapper *static_endpoints;
-extern uint8_t static_endpoints_len;
+struct mctp_static_endpoint_mapper *smbus_static_endpoints = NULL;
+uint8_t smbus_static_endpoints_len;
 
 static void mctp_print_hex(uint8_t *data, size_t length)
 {
@@ -211,19 +211,6 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		printf("Print msg: ");
 		mctp_print_hex((uint8_t *)msg + MCTP_SMBUS_MSG_OFFSET, len);
 		printf("\n");
-
-		/* Set correct dest slave addres from pool bese on EID */
-		if (chosen_eid_type == EID_TYPE_POOL) {
-			uint8_t searched_eid = eid;
-
-			if (eid == 0) { // Get EID from other place
-				if (*((uint8_t *)msg + MCTP_SMBUS_MSG_COMMAND_CODE_OFFSET) == MCTP_COMMAND_CODE_SET_EID) {
-					searched_eid = *((uint8_t *)msg + MCTP_SMBUS_MSG_DATA_0_OFFSET);
-				}
-			}
-
-			i2c_dest_slave_addr = set_global_dest_slave_addr_from_pool(searched_eid);
-		}
 
 		pvt_binding.i2c.i2c_bus = i2c_bus_num;
 		pvt_binding.i2c.dest_slave_addr = i2c_dest_slave_addr;
@@ -585,12 +572,12 @@ static void binding_smbus_use_default_config(void)
 
 static void fix_muxed_bus_numbers()
 {
-	for (uint8_t k = 0; k < static_endpoints_len; ++k) {
+	for (uint8_t k = 0; k < smbus_static_endpoints_len; ++k) {
 		mctp_prdebug("Mux addr: %d, Mux channel: %d\n",
-			     static_endpoints[k].mux_addr,
-			     static_endpoints[k].mux_channel);
-		if (static_endpoints[k].mux_addr == 0xFF ||
-		    static_endpoints[k].mux_channel == 0xFF) {
+			     smbus_static_endpoints[k].mux_addr,
+			     smbus_static_endpoints[k].mux_channel);
+		if (smbus_static_endpoints[k].mux_addr == 0xFF ||
+		    smbus_static_endpoints[k].mux_channel == 0xFF) {
 			continue;
 		}
 
@@ -598,8 +585,8 @@ static void fix_muxed_bus_numbers()
 		snprintf(top_dir_name, sizeof(top_dir_name),
 			 "%s%d/%d-00%x/channel-%d/i2c-dev",
 			 "/sys/bus/i2c/devices/i2c-", i2c_bus_num, i2c_bus_num,
-			 static_endpoints[k].mux_addr,
-			 static_endpoints[k].mux_channel);
+			 smbus_static_endpoints[k].mux_addr,
+			 smbus_static_endpoints[k].mux_channel);
 		mctp_prdebug("Scanning directory: %s\n", top_dir_name);
 		DIR *dir = opendir(top_dir_name);
 
@@ -620,7 +607,7 @@ static void fix_muxed_bus_numbers()
 				(entry->d_name + sizeof("i2c-") - 1), NULL, 10);
 
 			mctp_prdebug("Got bus number: %d\n", (int)bus_num);
-			static_endpoints[k].bus_num = bus_num;
+			smbus_static_endpoints[k].bus_num = bus_num;
 		}
 		closedir(dir);
 	}
@@ -731,18 +718,18 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 					break;
 				case EID_TYPE_STATIC:
 					mctp_prinfo("Use static endpoint\n");
-					static_endpoints = malloc(
+					smbus_static_endpoints = malloc(
 						MCTP_I2C_MAX_BUSES *
 						sizeof(struct mctp_static_endpoint_mapper));
-					memset(static_endpoints, 0xFF,
+					memset(smbus_static_endpoints, 0xFF,
 					       MCTP_I2C_MAX_BUSES *
 						       sizeof(struct mctp_static_endpoint_mapper));
-					static_endpoints_len =
+					smbus_static_endpoints_len =
 						MCTP_I2C_MAX_BUSES;
 					rc = mctp_json_i2c_get_params_bridge_static_demux(
 						parsed_json, &i2c_bus_num,
 						&i2c_dest_slave_addr, &eid);
-					static_endpoints[0].slave_address =
+					smbus_static_endpoints[0].slave_address =
 						i2c_dest_slave_addr;
 
 					if (rc == EXIT_FAILURE)
@@ -750,7 +737,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 
 					rc = mctp_json_i2c_get_params_static_demux(
 						parsed_json, &i2c_bus_num,
-						static_endpoints);
+						smbus_static_endpoints);
 
 					break;
 				case EID_TYPE_POOL:
@@ -758,8 +745,8 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 
 					rc = mctp_json_i2c_get_params_pool_demux(
 						parsed_json, &i2c_bus_num,
-						&static_endpoints,
-						&static_endpoints_len);
+						&smbus_static_endpoints,
+						&smbus_static_endpoints_len);
 
 					if (rc == EXIT_FAILURE) {
 						mctp_prinfo(
@@ -779,15 +766,15 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 	/* Bus numbers for muxed busses can be dynamic, fix them if needed */
 	fix_muxed_bus_numbers();
 
-	mctp_prdebug("No of endpoints to handle: %d\n", static_endpoints_len);
-	for (uint8_t i = 0; i < static_endpoints_len; ++i) {
+	mctp_prdebug("No of endpoints to handle: %d\n", smbus_static_endpoints_len);
+	for (uint8_t i = 0; i < smbus_static_endpoints_len; ++i) {
 		mctp_prdebug("Endpoint: bus: %d, addr: %d\n",
-			     static_endpoints[i].bus_num,
-			     static_endpoints[i].slave_address);
+			     smbus_static_endpoints[i].bus_num,
+			     smbus_static_endpoints[i].slave_address);
 	}
 	smbus = mctp_smbus_init(i2c_bus_num, i2c_bus_num_smq,
 				i2c_dest_slave_addr, i2c_src_slave_addr,
-				chosen_eid_type);
+				smbus_static_endpoints_len, smbus_static_endpoints);
 	MCTP_ASSERT_RET(smbus != NULL, -1,
 			"could not initialise smbus binding");
 
@@ -1017,11 +1004,6 @@ static int client_process_recv(struct ctx *ctx, int idx)
 
 	eid = *(uint8_t *)ctx->buf;
 
-	/* Set correct dest slave addres from pool bese on EID */
-	if (chosen_eid_type == EID_TYPE_POOL) {
-		i2c_dest_slave_addr = set_global_dest_slave_addr_from_pool(eid);
-	}
-
 	if (ctx->verbose)
 		fprintf(stderr, "client[%d] sent message: dest 0x%02x len %d\n",
 			idx, eid, rc - 1);
@@ -1121,17 +1103,17 @@ static int run_daemon(struct ctx *ctx)
 		find_and_set_pool_of_endpoints(ctx->binding->data);
 
 		int j, k;
-		for (j = 0; j < static_endpoints_len; j++) {
-			if (static_endpoints[j].bus_num == 0xFF) {
+		for (j = 0; j < smbus_static_endpoints_len; j++) {
+			if (smbus_static_endpoints[j].bus_num == 0xFF) {
 				continue;
 			}
 			mctp_prdebug("\n%s: Static endpoint Pool", __func__);
-			mctp_prdebug("Endpoint = %d", static_endpoints[j].endpoint_num);
-			mctp_prdebug("Slave address = 0x%x", static_endpoints[j].slave_address);
-			mctp_prdebug("Support MCTP = %d", static_endpoints[j].support_mctp);
+			mctp_prdebug("Endpoint = %d", smbus_static_endpoints[j].endpoint_num);
+			mctp_prdebug("Slave address = 0x%x", smbus_static_endpoints[j].slave_address);
+			mctp_prdebug("Support MCTP = %d", smbus_static_endpoints[j].support_mctp);
 			mctp_prdebug("UDID = ");
 			for (k = 0; k < 16; k++) {
-				mctp_prdebug("0x%x ", static_endpoints[j].udid[k]);
+				mctp_prdebug("0x%x ", smbus_static_endpoints[j].udid[k]);
 			}
 		}
 	}
@@ -1223,7 +1205,9 @@ static int run_daemon(struct ctx *ctx)
 	}
 
 	free(ctx->pollfds);
-	free(static_endpoints);
+	if (smbus_static_endpoints != NULL) {
+		free(smbus_static_endpoints);
+	}
 
 	return rc;
 }
