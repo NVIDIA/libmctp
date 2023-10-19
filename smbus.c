@@ -179,7 +179,8 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 	};
 	struct i2c_rdwr_ioctl_data msgrdwr = { msgs, 1 };
 	int rc;
-	int retry = 7;
+	int retry =
+		1000; /* 1000 retries with a 20us sleep, so a total of 20ms at worst*/
 
 	struct mctp_hdr *hdr =
 		(void *)(smbus->txbuf + sizeof(struct mctp_smbus_header_tx));
@@ -215,7 +216,7 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 			     errno == EIO)) {
 				MCTP_ERR("Invalid ioctl ret val: %d (%s)",
 					 errno, strerror(errno));
-				usleep(100000);
+				usleep(20);
 			} else {
 				MCTP_ERR("Invalid ioctl ret val: %d (%s)",
 					 errno, strerror(errno));
