@@ -284,12 +284,14 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 	switch (cmd->ops) {
 	case MCTP_CMDLINE_OP_WRITE_DATA:
 		/* Send the request message over socket */
-		MCTP_CTRL_INFO("%s: Sending EP request\n", __func__);
-		mctp_ret =
-			mctp_client_send(cmd->dest_eid, sock_fd,
-					 MCTP_MSG_TYPE_HDR,
-					 (uint8_t *)cmd->tx_data, cmd->tx_len);
-
+		mctp_ret = MCTP_REQUESTER_SEND_FAIL;
+		if(cmd->tx_len > 0)
+		{
+			mctp_ret =
+				mctp_client_send(cmd->dest_eid, sock_fd,
+						cmd->tx_data[0],
+						((uint8_t *)cmd->tx_data) + 1, cmd->tx_len - 1);
+		}
 		if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 			MCTP_CTRL_ERR("%s: Failed to send message..\n",
 				      __func__);
@@ -605,8 +607,16 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 	}
 
 	/* Open the user socket file-descriptor */
-	rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_CTRL_MSG_TYPE,
-				  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
+	if (cmdline->ops == MCTP_CMDLINE_OP_WRITE_DATA) {
+		MCTP_CTRL_DEBUG("%s: scoket init for Message Type:0x%x\n", __func__, cmdline->tx_data[0]);
+		rc = mctp_usr_socket_init(&fd, mctp_sock_path,
+					  cmdline->tx_data[0],
+					  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
+	} else {
+		rc = mctp_usr_socket_init(&fd, mctp_sock_path,
+					  MCTP_CTRL_MSG_TYPE,
+					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
+	}
 	if (rc != MCTP_REQUESTER_SUCCESS) {
 		MCTP_CTRL_ERR("Failed to open mctp socket\n");
 
@@ -825,7 +835,7 @@ static void parse_command_line(int argc, char *const *argv,
 	cmdline->verbose = false;
 	cmdline->binding_type = MCTP_BINDING_RESERVED;
 	cmdline->delay = MCTP_CTRL_DELAY_DEFAULT;
-	cmdline->ops = MCTP_CMDLINE_OP_NONE;
+	cmdline->ops = MCTP_CMDLINE_OP_WRITE_DATA;
 	cmdline->dest_eid = 8;
 
 	memset(&cmdline->tx_data, 0, MCTP_WRITE_DATA_BUFF_SIZE);
