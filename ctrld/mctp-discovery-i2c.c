@@ -1211,7 +1211,7 @@ mctp_ret_codes_t mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_
 			      __func__);
 	}
 
-	for (int i = 0; i < sizeof(cmd->i2c.logical_busses) /
+	for (size_t i = 0; i < sizeof(cmd->i2c.logical_busses) /
 				    sizeof(cmd->i2c.logical_busses[0]);
 	     i++) {
 		if (cmd->i2c.logical_busses[i] == 0 ||

@@ -367,6 +367,7 @@ int mctp_smbus_close_mux(struct mctp_binding_smbus *smbus, uint8_t eid)
 	};
 	struct i2c_rdwr_ioctl_data msgrdwr = { &msg, 1 };
 	int rc;
+	(void)smbus;
 
 	mctp_prdebug("Closing mux for EID: %d\n", eid);
 
@@ -539,6 +540,7 @@ int check_mctp_get_ver_support(struct mctp_binding_smbus *smbus, size_t idx,
 	uint8_t interface_ASF = 0;
 	uint8_t i;
 
+	(void)which_endpoint;
 	(void)len;
 
 	// Check ASF bit from UDID
