@@ -217,8 +217,12 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 			if ((errno == EAGAIN || errno == EPROTO ||
 			     errno == ETIMEDOUT || errno == ENXIO ||
 			     errno == EIO)) {
-				MCTP_ERR("Invalid ioctl ret val: %d (%s)",
-					 errno, strerror(errno));
+				if (retry % 200 == 0) {
+					/* Only trace every 200 retries*/
+					MCTP_ERR(
+						"Invalid ioctl ret val: %d (%s)",
+						errno, strerror(errno));
+				}
 				usleep(20);
 			} else {
 				MCTP_ERR("Invalid ioctl ret val: %d (%s)",
