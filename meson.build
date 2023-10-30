@@ -37,7 +37,7 @@ configure_file(
   configuration: conf_data,
 )
 
-libmctp = library('libmctp',
+libmctp = library('mctp',
   sources,
   version: meson.project_version(),
   soversion: meson.project_version(),
