@@ -49,6 +49,7 @@ extern "C" {
 typedef struct mctp_sdbus_context {
 	struct pollfd fds[MCTP_CTRL_TOTAL_FDS];
 	struct sd_bus *bus;
+	const mctp_cmdline_args_t *cmdline;
 } mctp_sdbus_context_t;
 
 enum { SDBUS_POLLING_TIMEOUT = 1, SDBUS_PROCESS_EVENT };

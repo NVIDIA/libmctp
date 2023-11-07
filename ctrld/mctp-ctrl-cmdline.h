@@ -11,6 +11,8 @@
 
 #define MCTP_CTRL_DELAY_DEFAULT 10
 
+#define UUID_STR_LEN 36
+
 /* Command line options for various operations */
 typedef enum mctp_cmdline_ops {
 	MCTP_CMDLINE_OP_READ_DATA,
@@ -115,6 +117,7 @@ typedef struct mctp_cmdline_args_ {
 	uint8_t *dest_eid_tab;
 	uint8_t dest_eid_tab_len;
 	uint8_t uuid;
+	char uuid_str[UUID_STR_LEN];
 	union {
 		struct mctp_cmdline_pcie pcie;
 		struct mctp_cmdline_spi spi;

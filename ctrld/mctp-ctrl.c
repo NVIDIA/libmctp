@@ -161,6 +161,7 @@ static const struct option g_options[] = {
 	{ "bindinfo", required_argument, 0, 'b' },
 	{ "cfg_file_path", required_argument, 0, 'f' },
 	{ "bus_num", required_argument, 0, 'n' },
+	{ "uuid", required_argument, 0, 'u' },
 
 	/* EID options */
 	{ "pci_own_eid", required_argument, 0, 'i' },
@@ -179,7 +180,7 @@ static const struct option g_options[] = {
 };
 
 static const char *const short_options =
-	"v:c:e:m:t:d:s:r:b:f:n:i:j:p:q:x:y:h::";
+	"v:c:e:m:t:d:s:r:b:f:n:u:i:j:p:q:x:y:h::";
 
 static void usage(void)
 {
@@ -228,6 +229,8 @@ static void usage_spi(void)
 		"\t\t3 - Heartbeat,\n"
 		"\t\t4 - Enable Heartbeat,\n"
 		"\t\t5 - Query boot status\n"
+		"\t-u\tUUID:\n"
+		"\t\tUUID to be set on SPI endpoint 0's D-Bus object in string format\n"
 		"\t-x mctp base command:\n"
 		"\t\t1 - Set Endpoint ID,\n"
 		"\t\t2 - Get Endpoint ID,\n"
@@ -827,6 +830,7 @@ static void parse_command_line(int argc, char *const *argv,
 
 	memset(&cmdline->tx_data, 0, MCTP_WRITE_DATA_BUFF_SIZE);
 	memset(&cmdline->rx_data, 0, MCTP_READ_DATA_BUFF_SIZE);
+	memset(&cmdline->uuid_str, 0, sizeof(cmdline->uuid_str));
 	uint8_t own_eid = 0, bridge_eid = 0, bridge_pool = 0;
 	int vdm_ops = 0, command_mode = 0;
 	bool remove_duplicates = false;
@@ -883,6 +887,10 @@ static void parse_command_line(int argc, char *const *argv,
 		case 's':
 			cmdline->tx_len = mctp_cmdline_copy_tx_buff(
 				optarg, cmdline->tx_data, strlen(optarg));
+			break;
+		case 'u':
+			strncpy(&cmdline->uuid_str[0], optarg,
+				sizeof(cmdline->uuid_str));
 			break;
 		case 'f':
 			if (config_json_file_path == NULL) {

@@ -396,11 +396,11 @@ static int mctp_ctrl_sdbus_get_uuid(sd_bus *bus, const char *path,
 	uint8_t eid_req = 0;
 	mctp_uuid_table_t *entry = g_uuid_entries;
 	char uuid_data[MCTP_CTRL_SDBUS_MAX_MSG_SIZE];
+	mctp_sdbus_context_t *ctx = (mctp_sdbus_context_t *)userdata;
 
 	(void)bus;
 	(void)interface;
 	(void)property;
-	(void)userdata;
 	(void)error;
 
 	eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
@@ -410,19 +410,30 @@ static int mctp_ctrl_sdbus_get_uuid(sd_bus *bus, const char *path,
 
 	while (entry != NULL) {
 		if (entry->eid == eid_req) {
-			/* Frame the message */
-			snprintf(uuid_data, MCTP_CTRL_SDBUS_MAX_MSG_SIZE,
-				 "%08x-%04x-%04x-%04x-%02x%02x%02x%02x%02x%02x",
-				 __bswap_32(entry->uuid.canonical.data0),
-				 __bswap_16(entry->uuid.canonical.data1),
-				 __bswap_16(entry->uuid.canonical.data2),
-				 __bswap_16(entry->uuid.canonical.data3),
-				 entry->uuid.canonical.data4[0],
-				 entry->uuid.canonical.data4[1],
-				 entry->uuid.canonical.data4[2],
-				 entry->uuid.canonical.data4[3],
-				 entry->uuid.canonical.data4[4],
-				 entry->uuid.canonical.data4[5]);
+			uint8_t nil_uuid[sizeof(entry->uuid.raw)] = { 0 };
+			/* For cases where the UUID is not set for EID 0, report the one
+			passed in from the command line. */
+			if (entry->eid == 0 &&
+			    !memcmp(entry->uuid.raw, nil_uuid,
+				    sizeof(nil_uuid))) {
+				memcpy(uuid_data, ctx->cmdline->uuid_str,
+				       sizeof(ctx->cmdline->uuid_str));
+			} else {
+				/* Frame the message */
+				snprintf(
+					uuid_data, MCTP_CTRL_SDBUS_MAX_MSG_SIZE,
+					"%08x-%04x-%04x-%04x-%02x%02x%02x%02x%02x%02x",
+					__bswap_32(entry->uuid.canonical.data0),
+					__bswap_16(entry->uuid.canonical.data1),
+					__bswap_16(entry->uuid.canonical.data2),
+					__bswap_16(entry->uuid.canonical.data3),
+					entry->uuid.canonical.data4[0],
+					entry->uuid.canonical.data4[1],
+					entry->uuid.canonical.data4[2],
+					entry->uuid.canonical.data4[3],
+					entry->uuid.canonical.data4[4],
+					entry->uuid.canonical.data4[5]);
+			}
 			break;
 		}
 
@@ -586,6 +597,7 @@ mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
 		return NULL;
 	}
 	context->bus = bus;
+	context->cmdline = cmdline;
 
 	/* Add sd-bus object manager */
 	r = sd_bus_add_object_manager(context->bus, NULL, MCTP_CTRL_OBJ_NAME);
