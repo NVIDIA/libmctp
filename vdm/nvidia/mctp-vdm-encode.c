@@ -2,6 +2,7 @@
 
 #define _GNU_SOURCE
 
+#include <endian.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,7 +52,7 @@ static uint8_t getRqDgramInst()
 static void encode_vendor_cmd_header(struct mctp_vendor_msg_hdr *mctp_vdr_hdr,
 				     uint8_t rq_dgram_inst, uint8_t cmd_code)
 {
-	mctp_vdr_hdr->iana = MCTP_VDM_HDR_IANA;
+	mctp_vdr_hdr->iana = htobe32(MCTP_VDM_HDR_IANA);
 	mctp_vdr_hdr->rq_dgram_inst = rq_dgram_inst;
 	mctp_vdr_hdr->vendor_msg_type = MCTP_VDM_HDR_VENDOR_MSG_TYPE;
 	mctp_vdr_hdr->command_code = cmd_code;
