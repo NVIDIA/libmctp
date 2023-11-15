@@ -46,6 +46,7 @@ typedef enum mctp_mode_ops {
 	MCTP_MODE_CMDLINE,
 	MCTP_MODE_DAEMON,
 	MCTP_SPI_MODE_TEST,
+	MCTP_MODE_MOCKUP_EID,
 } mctp_mode_ops_t;
 
 /* PCIE specific confguration */

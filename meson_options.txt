@@ -14,3 +14,10 @@ option(
     value: 'disabled',
     description: '''Enable MCTPoUSB functionality. Also required libmctp dependency during runtime.'''
 )
+
+option(
+    'enable-mockup-endpoint',
+    type: 'feature',
+    value: 'disabled',
+    description: '''Enable Mockup Endpoint..'''
+)

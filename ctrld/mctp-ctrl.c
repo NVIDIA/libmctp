@@ -44,6 +44,9 @@
 #include "mctp-discovery-i2c.h"
 #include "mctp-socket.h"
 #include "mctp-json.h"
+#ifdef MOCKUP_ENDPOINT
+#include "fsdyn-endpoint.h"
+#endif
 
 /* MCTP Tx/Rx waittime in milli-seconds */
 #define MCTP_CTRL_WAIT_SECONDS (1 * 1000)
@@ -72,6 +75,9 @@ static uint8_t g_dest_eid_tab[MCTP_DEST_EID_TABLE_MAX];
 /* Static variables for clean up*/
 int g_socket_fd = -1;
 int g_signal_fd = -1;
+#ifdef MOCKUP_ENDPOINT
+int g_mon_fd = -1;
+#endif
 static sd_bus *g_sdbus = NULL;
 
 static uint8_t chosen_eid_type = EID_TYPE_BRIDGE;
@@ -85,6 +91,55 @@ extern mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *c
 						mctp_ctrl_t *ctrl);
 extern void *mctp_spi_keepalive_event(void *arg);
 extern mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl);
+
+#ifdef MOCKUP_ENDPOINT
+// Create selected endpoint
+static void mctp_emu_dyn_ep_create(const fsdyn_ep_config_t *cfg)
+{
+	int ret;
+	MCTP_CTRL_DEBUG("Adding new emu eid %i\n", cfg->eid);
+	if (cfg->has_uuid) {
+		mctp_uuid_table_t uuid = { .eid = cfg->eid, .uuid = cfg->uuid };
+		ret = mctp_uuid_entry_add(&uuid);
+		if (ret < 0) {
+			MCTP_CTRL_ERR(
+				"Failed to update global UUID table err (%i)\n",
+				ret);
+		}
+	}
+	mctp_msg_type_table_t type = { .eid = cfg->eid,
+				       .data_len = cfg->data_size };
+	memcpy(type.data, cfg->data, cfg->data_size);
+	ret = mctp_msg_type_entry_add(&type);
+	if (ret < 0) {
+		MCTP_CTRL_ERR(
+			"Failed to update global routing table for option err (%i)\n",
+			ret);
+	}
+}
+
+static void mctp_emu_dyn_ep_remove(const fsdyn_ep_config_t *cfg)
+{
+	int ret;
+	MCTP_CTRL_DEBUG("Removing new emu eid %i\n", cfg->eid);
+	if (cfg->has_uuid) {
+		ret = mctp_uuid_entry_remove(cfg->eid);
+		if (ret < 0) {
+			MCTP_CTRL_ERR("Failed to remove UUID by EID (%i)\n",
+				      ret);
+		}
+	}
+	ret = mctp_msg_type_entry_remove(cfg->eid);
+	if (ret < 0) {
+		MCTP_CTRL_ERR("Failed to remove TYPE by EID (%i)\n", ret);
+	}
+}
+
+static const fsdyn_ep_ops_t fmon_emulation_fops = {
+	.add = mctp_emu_dyn_ep_create,
+	.remove = mctp_emu_dyn_ep_remove
+};
+#endif
 
 static void mctp_ctrl_clean_up(void)
 {
@@ -798,6 +853,13 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		mctp_err_ret = mctp_discover_endpoints(cmdline, mctp_ctrl);
 		if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
 			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
+#ifdef MOCKUP_ENDPOINT
+			if(cmdline->mode == MCTP_MODE_MOCKUP_EID) {
+				// discovery failure is allowed when mocking up EID
+				return EXIT_SUCCESS;
+			}
+			mctp_ctrl_clean_up();
+#endif
 			return EXIT_FAILURE;
 		}
 	} else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
@@ -1133,6 +1195,14 @@ static void parse_command_line(int argc, char *const *argv,
 	free(config_json_file_path);
 }
 
+#ifdef MOCKUP_ENDPOINT
+// Custom event handler
+static int mctp_ctrl_sdbus_custom_event(void *ctx)
+{
+	return fsdyn_ep_poll_handler((fsdyn_ep_context_ptr)ctx);
+}
+#endif
+
 int main(int argc, char *const *argv)
 {
 	int rc;
@@ -1140,6 +1210,9 @@ int main(int argc, char *const *argv)
 	mctp_ctrl_t *mctp_ctrl, _mctp_ctrl;
 	mctp_cmdline_args_t cmdline;
 	int ret_val = EXIT_SUCCESS;
+#ifdef MOCKUP_ENDPOINT
+	fsdyn_ep_context_ptr filemon;
+#endif
 
 	/* Initialize MCTP ctrl structure */
 	mctp_ctrl = &_mctp_ctrl;
@@ -1170,6 +1243,19 @@ int main(int argc, char *const *argv)
 	/* sleep before starting the daemon */
 	sleep(cmdline.delay);
 
+#ifdef MOCKUP_ENDPOINT
+	filemon = fsdyn_ep_mon_start(MCTP_CTRL_EMU_CFG_DIR,
+				     MCTP_CTRL_EMU_CFG_FILE,
+				     MCTP_CTRL_EMU_CFG_JSON_ROOT,
+				     &fmon_emulation_fops);
+
+	/* Populate Dbus objects */
+	mctp_sdbus_fd_watch_t extra_mon = {
+		.ctx = filemon,
+		.fd_mon = fsdyn_ep_get_fd(filemon),
+		.fd_event = mctp_ctrl_sdbus_custom_event
+	};
+#endif
 	/* Run this application only if set as daemon mode */
 	if (cmdline.mode == MCTP_MODE_CMDLINE) { 
 		// Run mode: command line mode
@@ -1189,9 +1275,15 @@ int main(int argc, char *const *argv)
 			ret_val = EXIT_FAILURE;
 		} else {
 			MCTP_CTRL_INFO("%s: Initiate dbus\n", __func__);
+#ifdef MOCKUP_ENDPOINT
+			/* Start D-Bus initialization and monitoring */
+			rc = mctp_ctrl_sdbus_init(mctp_ctrl->bus, g_signal_fd, &cmdline,
+					  &extra_mon);
+#else
 			/* Start D-Bus initialization and monitoring */
 			rc = mctp_ctrl_sdbus_init(mctp_ctrl->bus, g_signal_fd,
 						&cmdline);
+#endif
 
 			MCTP_CTRL_INFO("%s: Initiate dbus: result = %d\n", __func__, rc);
 
@@ -1209,5 +1301,9 @@ int main(int argc, char *const *argv)
 
 	mctp_ctrl_clean_up();
 
+#ifdef MOCKUP_ENDPOINT
+	/* Disable monitoring service */
+	fsdyn_ep_mon_stop(filemon);
+#endif
 	return ret_val;
 }

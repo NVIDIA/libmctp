@@ -98,6 +98,9 @@ struct client {
 	bool active;
 	int sock;
 	uint8_t type;
+#ifdef MOCKUP_ENDPOINT
+	uint8_t eid;
+#endif
 };
 
 struct ctx {
@@ -338,6 +341,77 @@ static void clean_all_clients(struct ctx *ctx)
 
 	ctx->clients = NULL;
 }
+
+#ifdef MOCKUP_ENDPOINT
+
+static void forward_message(struct client *src_client, uint8_t eid,
+			    bool tag_owner, uint8_t msg_tag, void *data,
+			    void *msg, size_t len)
+{
+	struct ctx *ctx = data;
+	struct iovec iov[2];
+	struct msghdr msghdr;
+	uint8_t type;
+	int i, rc;
+	uint8_t tag_eid[2] = {
+		((tag_owner << 3) | (msg_tag & LIBMCTP_TAG_MASK)), eid
+	};
+
+	if (len < 2)
+		return;
+
+	type = *(uint8_t *)msg & 0x7F;
+
+	if (ctx->verbose)
+		fprintf(stderr, "MCTP message received: len %zd, type %d\n",
+			len, type);
+
+	memset(&msghdr, 0, sizeof(msghdr));
+	msghdr.msg_iov = iov;
+	msghdr.msg_iovlen = 2;
+	iov[0].iov_base = &tag_eid;
+	iov[0].iov_len = 2;
+	iov[1].iov_base = msg;
+	iov[1].iov_len = len;
+
+	for (i = 0; i < ctx->n_clients; i++) {
+		struct client *client = &ctx->clients[i];
+
+		if (ctx->verbose)
+			fprintf(stderr, " %i client type: %hhu type: %hhu\n", i,
+				client->type, type);
+
+		if (src_client->eid == ctx->local_eid) {
+			//to mockup
+			if (client->eid != eid)
+				continue;
+		} else {
+			//to local clients
+			if (client->eid != ctx->local_eid)
+				continue;
+		}
+
+		if (client->type != type)
+			continue;
+
+		if (ctx->verbose)
+			fprintf(stderr, "  forwarding to client %d\n", i);
+
+		mctp_trace_common(">SOCK RX HDR>", &tag_eid, 2);
+		mctp_trace_common(">SOCK RX>", msg, len);
+
+		rc = sendmsg(client->sock, &msghdr, 0);
+		/* EAGAIN shouldn't close socket. Otherwise,spi-ctrl daemon will fail 
+		 * to communicate with demux due to socket close.
+		 */
+		if (errno != EAGAIN && rc != (ssize_t)(len + 2)) {
+			client->active = false;
+			ctx->clients_changed = true;
+		}
+	}
+}
+
+#endif
 
 static void rx_message(uint8_t eid, bool tag_owner, uint8_t msg_tag, void *data,
 		       void *msg, size_t len)
@@ -1171,6 +1245,10 @@ static int socket_process(struct ctx *ctx)
 	/* Reset client type to 0xff as type-0 is for MCTP ctrl */
 	client->type = 0xff;
 
+#ifdef MOCKUP_ENDPOINT
+	/* The eid can be modified with the first message, see client_process_recv  */
+	client->eid = ctx->local_eid;
+#endif
 	return 0;
 }
 
@@ -1190,7 +1268,26 @@ static int client_process_recv(struct ctx *ctx, int idx)
 				__func__, rc, errno, strerror(errno));
 			goto out_close;
 		}
+#ifdef MOCKUP_ENDPOINT
+		if (type == 0xff) {
+			/* this signifies an emulation client which has it's own separate eid */
+			sleep(1);
+			rc = read(client->sock, &type, 1);
+			if (rc <= 0)
+				goto out_close;
+			client->type = type;
 
+			uint8_t eid = 0;
+			rc = read(client->sock, &eid, 1);
+			if (rc <= 0)
+				goto out_close;
+			client->eid = eid;
+			if (ctx->verbose)
+				fprintf(stderr,
+					"client[%d] registered for eid %u\n",
+					idx, eid);
+		}
+#endif
 		if (ctx->verbose)
 			fprintf(stderr, "[%s] client[%d] registered for type %u",
 				__func__, idx, type);
@@ -1259,6 +1356,12 @@ static int client_process_recv(struct ctx *ctx, int idx)
 	if (ctx->verbose)
 		fprintf(stderr, "client[%d] sent message: dest 0x%02x len %d\n",
 			idx, eid, rc - 2);
+
+#ifdef MOCKUP_ENDPOINT
+	forward_message(client, eid, MCTP_MESSAGE_TO_DST, 0, ctx,
+			(uint8_t *)ctx->buf + 2, rc - 2);
+	return 0;
+#endif
 
 	if (eid == ctx->local_eid)
 		rx_message(eid, MCTP_MESSAGE_TO_DST, 0, ctx,

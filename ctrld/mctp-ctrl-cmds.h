@@ -18,6 +18,9 @@ typedef uint8_t mctp_eid_t;
 #define MCTP_EID_NULL 0
 #define MCTP_EID_BROADCAST 0xff
 
+/* Maximum size of message */
+#define MCTP_MSG_TYPE_MAX_SIZE 0xff
+
 /* Baseline Transmission Unit and packet size */
 #define MCTP_BTU 64
 

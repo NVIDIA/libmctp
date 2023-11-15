@@ -91,10 +91,12 @@ void mctp_routing_entry_delete_all(void);
 
 void mctp_uuid_delete_all(void);
 int mctp_uuid_entry_add(mctp_uuid_table_t *uuid_tbl);
+int mctp_uuid_entry_remove(uint8_t eid);
 void mctp_uuid_display(void);
 
 void mctp_msg_types_display(void);
 int mctp_msg_type_entry_add(mctp_msg_type_table_t *msg_type_tbl);
+int mctp_msg_type_entry_remove(uint8_t eid);
 void mctp_msg_types_delete_all(void);
 
 void mctp_print_resp_msg(struct mctp_ctrl_resp *ep_discovery_resp,

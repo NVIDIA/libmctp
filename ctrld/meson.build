@@ -17,6 +17,10 @@ sources = [
   '../vdm/nvidia/mctp-vdm-encode.c',
 ]
 
+if get_option('enable-mockup-endpoint').enabled()
+  sources += ['fsdyn-endpoint.c']
+endif
+
 comp = meson.get_compiler('c')
 
 systemd = declare_dependency(dependencies: [comp.find_library('systemd')])

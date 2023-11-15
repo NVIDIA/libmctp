@@ -50,6 +50,11 @@ if get_option('enable-usb').enabled()
 
 endif
 
+if get_option('enable-mockup-endpoint').enabled()
+  summary('enable-mockup-endpoint','-DMOCKUP_ENDPOINT', section : 'Enabled mockup endpoint')
+  add_project_arguments('-DMOCKUP_ENDPOINT', language: ['c', 'cpp'])
+endif
+
 conf_data = configuration_data()
 conf_data.set('HAVE_PCAP', get_option('capture').enabled() ? 1 : 0)
 

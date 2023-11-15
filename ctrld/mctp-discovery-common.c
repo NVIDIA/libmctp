@@ -346,6 +346,25 @@ int mctp_uuid_entry_add(mctp_uuid_table_t *uuid_tbl)
 	return 0;
 }
 
+/** To remove single entry by UUID key */
+int mctp_uuid_entry_remove(uint8_t eid)
+{
+	mctp_uuid_table_t *prev = NULL, *curr = NULL;
+	for (curr = g_uuid_entries; curr; curr = curr->next) {
+		if (curr->eid == eid) {
+			if (prev)
+				prev->next = curr->next;
+			else
+				g_uuid_entries = curr->next;
+			free(curr);
+			--g_uuid_table_len;
+			return 0;
+		}
+		prev = curr;
+	}
+	return -1;
+}
+
 /* To delete all the UUID information */
 void mctp_uuid_delete_all(void)
 {
@@ -411,6 +430,25 @@ int mctp_msg_type_entry_add(mctp_msg_type_table_t *msg_type_tbl)
 	g_msg_type_table_len++;
 
 	return 0;
+}
+
+/* To remove MCTP type entry by EID */
+int mctp_msg_type_entry_remove(uint8_t eid)
+{
+	mctp_msg_type_table_t *prev = NULL, *curr = NULL;
+	for (curr = g_msg_type_entries; curr; curr = curr->next) {
+		if (curr->eid == eid) {
+			if (prev)
+				prev->next = curr->next;
+			else
+				g_msg_type_entries = curr->next;
+			free(curr);
+			--g_msg_type_table_len;
+			return 0;
+		}
+		prev = curr;
+	}
+	return -1;
 }
 
 /* To delete all the Messgae types information */

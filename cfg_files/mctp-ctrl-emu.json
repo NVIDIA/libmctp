@@ -1,0 +1,27 @@
+{
+    "mctp_demux_pcie_emu": {
+        "endpoints": [
+            {
+                "eid": 30,
+                "mctp_type": 126,
+                "uuid": "c13e2b99-68e4-45f1-8686-409009062aa8",
+                "description": "Test endpoint for local NSM mockup responder"
+            },
+            {
+                "eid": 31,
+                "mctp_type": 1,
+                "description": "Test endpoint for local PLDM mockup responder"
+            },
+            {
+                "eid": 32,
+                "mctp_type": [1,5],
+                "description": "Test endpoint for local SPDM mockup responder"
+            },
+            {
+                "eid": 33,
+                "mctp_type": [1,5],
+                "description": "Test endpoint for local SPDM mockup responder"
+            }
+        ]
+    }
+}

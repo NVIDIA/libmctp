@@ -30,6 +30,11 @@ extern "C" {
 /* Default destination eid table size */
 #define MCTP_DEST_EID_TABLE_MAX	256
 
+/* Runtime debug configuration files */
+#define MCTP_CTRL_EMU_CFG_DIR	    "/tmp"
+#define MCTP_CTRL_EMU_CFG_FILE	    "mctp-ctrl-emu.json"
+#define MCTP_CTRL_EMU_CFG_JSON_ROOT "mctp_demux_pcie_emu"
+
 typedef uint8_t mctp_eid_t;
 
 typedef enum {

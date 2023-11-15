@@ -9,6 +9,11 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <stdbool.h>
+
+#ifdef MOCKUP_ENDPOINT
+#include <time.h>
+#endif
+
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <linux/aspeed-mctp.h>
@@ -46,6 +51,12 @@ int mctp_astpcie_get_eid_info_ioctl(struct mctp_binding_astpcie *astpcie,
 	struct aspeed_mctp_get_eid_info get_eid_info;
 	int rc;
 
+#ifdef MOCKUP_ENDPOINT
+	if (astpcie->fd <= 0) {
+		return 0;
+	}
+#endif
+
 	get_eid_info.count = count;
 	get_eid_info.start_eid = start_eid;
 	get_eid_info.ptr = (uint64_t)(uintptr_t)eid_info;
@@ -64,6 +75,12 @@ int mctp_astpcie_set_eid_info_ioctl(struct mctp_binding_astpcie *astpcie,
 {
 	struct aspeed_mctp_set_eid_info set_eid_info;
 
+#ifdef MOCKUP_ENDPOINT
+	if (astpcie->fd <= 0) {
+		return 0;
+	}
+#endif
+
 	set_eid_info.count = count;
 	set_eid_info.ptr = (uint64_t)(uintptr_t)eid_info;
 
@@ -75,6 +92,13 @@ static int mctp_astpcie_get_bdf_ioctl(struct mctp_binding_astpcie *astpcie)
 {
 	struct aspeed_mctp_get_bdf bdf;
 	int rc;
+
+#ifdef MOCKUP_ENDPOINT
+	if (astpcie->fd <= 0) {
+		astpcie->bdf = 0x0001;
+		return 0;
+	}
+#endif
 
 	rc = ioctl(astpcie->fd, ASPEED_MCTP_IOCTL_GET_BDF, &bdf);
 	if (!rc)
@@ -103,6 +127,13 @@ mctp_astpcie_get_medium_id_ioctl(struct mctp_binding_astpcie *astpcie)
 	struct aspeed_mctp_get_medium_id get_medium_id;
 	int rc;
 
+#ifdef MOCKUP_ENDPOINT
+	if (astpcie->fd <= 0) {
+		astpcie->medium_id = 0;
+		return 0;
+	}
+#endif
+
 	rc = ioctl(astpcie->fd, ASPEED_MCTP_IOCTL_GET_MEDIUM_ID,
 		   &get_medium_id);
 	if (!rc)
@@ -113,6 +144,12 @@ mctp_astpcie_get_medium_id_ioctl(struct mctp_binding_astpcie *astpcie)
 
 int mctp_astpcie_register_default_handler(struct mctp_binding_astpcie *astpcie)
 {
+#ifdef MOCKUP_ENDPOINT
+	if (astpcie->fd <= 0) {
+		return 0;
+	}
+#endif
+
 	return ioctl(astpcie->fd, ASPEED_MCTP_IOCTL_REGISTER_DEFAULT_HANDLER);
 }
 
@@ -137,6 +174,11 @@ static int mctp_astpcie_open(struct mctp_binding_astpcie *astpcie)
 
 static void mctp_astpcie_close(struct mctp_binding_astpcie *astpcie)
 {
+#ifdef MOCKUP_ENDPOINT
+	if (astpcie->fd <= 0) {
+		return;
+	}
+#endif
 	close(astpcie->fd);
 	astpcie->fd = -1;
 }
@@ -152,6 +194,15 @@ static int mctp_astpcie_start(struct mctp_binding *b)
 	assert(astpcie);
 
 	rc = mctp_astpcie_open(astpcie);
+
+#ifdef MOCKUP_ENDPOINT
+	if (rc && errno == ENOENT) {
+		mctp_prerr("Unable to open %s is running in the debug mode",
+			   AST_DRV_FILE);
+		return 0;
+	}
+#endif
+
 	if (rc)
 		return -errno;
 
@@ -250,6 +301,13 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 
 	mctp_trace_tx(pcie_mctp_hdr_data, len);
 
+#ifdef MOCKUP_ENDPOINT
+	if (astpcie->fd <= 0) {
+		free(pcie_mctp_hdr_data);
+		return 0;
+	}
+#endif
+
 	write_len = write(astpcie->fd, pcie_mctp_hdr_data, len);
 	if (write_len < 0) {
 		mctp_prerr("TX error");
@@ -278,6 +336,18 @@ int mctp_astpcie_poll(struct mctp_binding_astpcie *astpcie, int timeout)
 {
 	struct pollfd fds[1];
 	int rc;
+
+#ifdef MOCKUP_ENDPOINT
+	if (astpcie->fd <= 0) {
+		struct timespec ts;
+		ts.tv_sec = timeout / 1000;
+		ts.tv_nsec = (timeout % 1000) * 1000000;
+		do {
+			rc = nanosleep(&ts, &ts);
+		} while (rc && errno == EINTR);
+		return 0;
+	}
+#endif
 
 	fds[0].fd = astpcie->fd;
 	fds[0].events = POLLIN | POLLOUT;
@@ -317,6 +387,12 @@ int mctp_astpcie_rx(struct mctp_binding_astpcie *astpcie)
 	size_t payload_len;
 	int read_len;
 	int rc;
+
+#ifdef MOCKUP_ENDPOINT
+	if (astpcie->fd <= 0) {
+		return 0;
+	}
+#endif
 
 	read_len = read(astpcie->fd, &data, sizeof(data));
 	if (read_len < 0) {

@@ -738,10 +738,16 @@ void mctp_ctrl_sdbus_stop(void)
 {
 	mctp_ctrl_running = 0;
 }
-
+#ifdef MOCKUP_ENDPOINT
+/* MCTP ctrl D-Bus initialization */
+int mctp_ctrl_sdbus_init(sd_bus *bus, int signal_fd,
+			 const mctp_cmdline_args_t *cmdline,
+			 const mctp_sdbus_fd_watch_t *monfd)
+#else
 /* MCTP ctrl D-Bus initialization */
 int mctp_ctrl_sdbus_init(sd_bus *bus, int signal_fd,
 			 const mctp_cmdline_args_t *cmdline)
+#endif
 {
 	int r = 0;
 	mctp_sdbus_context_t *context = NULL;
@@ -755,6 +761,14 @@ int mctp_ctrl_sdbus_init(sd_bus *bus, int signal_fd,
 	context->fds[MCTP_CTRL_SIGNAL_FD].events = POLLIN;
 	context->fds[MCTP_CTRL_SIGNAL_FD].revents = 0;
 
+#ifdef MOCKUP_ENDPOINT
+	if (monfd) {
+		context->fds[MCTP_CTRL_SD_MON_FD].fd = monfd->fd_mon;
+		context->fds[MCTP_CTRL_SD_MON_FD].events = POLLIN;
+		context->fds[MCTP_CTRL_SD_MON_FD].revents = 0;
+		context->monitor = *monfd;
+	}
+#endif
 	MCTP_CTRL_DEBUG("%s: Entering polling loop\n", __func__);
 
 	while (mctp_ctrl_running) {

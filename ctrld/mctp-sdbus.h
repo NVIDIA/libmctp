@@ -36,6 +36,9 @@ extern "C" {
 #define MCTP_CTRL_SD_BUS_FD 0
 #define MCTP_CTRL_SIGNAL_FD 1
 #define MCTP_CTRL_TOTAL_FDS 2
+#ifdef MOCKUP_ENDPOINT
+#define MCTP_CTRL_SD_MON_FD 3
+#endif
 
 #define MCTP_CTRL_POLL_TIMEOUT 1000
 #define MCTP_CTRL_SDBUS_MAX_MSG_SIZE 256
@@ -45,11 +48,23 @@ extern "C" {
 
 #define MCTP_CTRL_MAX_BUS_TYPES 4
 
+#ifdef MOCKUP_ENDPOINT
+/* MCTP sdbus extra watch */
+typedef struct mctp_sdbus_fd_watch {
+	int (*fd_event)(void *);
+	void *ctx;
+	int fd_mon;
+} mctp_sdbus_fd_watch_t;
+#endif
+
 /* MCTP ctrl D-Bus poll struct */
 typedef struct mctp_sdbus_context {
 	struct pollfd fds[MCTP_CTRL_TOTAL_FDS];
 	struct sd_bus *bus;
 	const mctp_cmdline_args_t *cmdline;
+#ifdef MOCKUP_ENDPOINT
+	struct mctp_sdbus_fd_watch monitor;
+#endif
 } mctp_sdbus_context_t;
 
 enum { SDBUS_POLLING_TIMEOUT = 1, SDBUS_PROCESS_EVENT };
@@ -63,8 +78,14 @@ enum { SDBUS_POLLING_TIMEOUT = 1, SDBUS_PROCESS_EVENT };
  *
  * @return int (errno may be set). failure is returned.
  */
+#ifdef MOCKUP_ENDPOINT
+int mctp_ctrl_sdbus_init(sd_bus *bus, int signalfd,
+			 const mctp_cmdline_args_t *cmdline,
+			 const mctp_sdbus_fd_watch_t *monfd);
+#else
 int mctp_ctrl_sdbus_init(sd_bus *bus, int signalfd,
 			 const mctp_cmdline_args_t *cmdline);
+#endif
 
 /**
  * @brief stop serving the D-Bus requests
