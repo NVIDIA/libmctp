@@ -624,7 +624,7 @@ int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
 					g_eid_pool_size);
 			} else {
 				MCTP_CTRL_DEBUG(
-					"%s: EID: 0x%x: No vaild medium type\n",
+					"%s: EID: 0x%x: No valid medium type\n",
 					__func__,
 					routing_table_entry.starting_eid);
 

@@ -341,6 +341,9 @@ const char *phy_transport_binding_to_string(uint8_t id)
 	} else if (id == 0x05) {
 		/* MCTP over Serial*/
 		return "Serial";
+	} else if (id == 0x06) {
+		/* MCTP over I3C*/
+		return "I3C";
 	}
 	return "Unknown";
 }
