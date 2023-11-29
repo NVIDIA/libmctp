@@ -48,7 +48,7 @@ struct mctp_binding_astlpc *mctp_astlpc_init_fileio(void);
 
 struct pollfd;
 int mctp_astlpc_init_pollfd(struct mctp_binding_astlpc *astlpc,
-			    struct pollfd *pollfd);
+			    struct pollfd **pollfd);
 
 #ifdef __cplusplus
 }

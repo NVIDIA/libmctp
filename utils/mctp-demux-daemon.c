@@ -33,6 +33,7 @@
 #include "libmctp-astspi.h"
 #include "libmctp-log.h"
 #include "libmctp-smbus.h"
+#include "libmctp-usb.h"
 #include "utils/mctp-capture.h"
 #include "mctp-json.h"
 
@@ -77,10 +78,11 @@ struct binding {
 	int (*init)(struct mctp *mctp, struct binding *binding, mctp_eid_t eid,
 		    int n_params, char *const *params);
 	void (*destroy)(struct mctp *mctp, struct binding *binding);
-	int (*init_pollfd)(struct binding *binding, struct pollfd *pollfd);
+	int (*init_pollfd)(struct binding *binding, struct pollfd **pollfd);
 	int (*process)(struct binding *binding);
 	void *data;
 	char *sockname;
+	uint8_t bindingfds_cnt;
 };
 
 struct client {
@@ -99,7 +101,7 @@ struct ctx {
 
 	int sock;
 	struct pollfd *pollfds;
-
+	int n_bindings;
 	struct client *clients;
 	int n_clients;
 	bool clients_changed;
@@ -359,7 +361,7 @@ static int binding_serial_init(struct mctp *mctp, struct binding *binding,
 }
 
 static int binding_serial_init_pollfd(struct binding *binding,
-				      struct pollfd *pollfd)
+				      struct pollfd **pollfd)
 {
 	return mctp_serial_init_pollfd(binding->data, pollfd);
 }
@@ -402,7 +404,7 @@ static void binding_astlpc_destroy(struct mctp *mctp, struct binding *binding)
 }
 
 static int binding_astlpc_init_pollfd(struct binding *binding,
-				      struct pollfd *pollfd)
+				      struct pollfd **pollfd)
 {
 	return mctp_astlpc_init_pollfd(binding->data, pollfd);
 }
@@ -436,7 +438,7 @@ static int binding_astpcie_init(struct mctp *mctp, struct binding *binding,
 }
 
 static int binding_astpcie_init_pollfd(struct binding *binding,
-				       struct pollfd *pollfd)
+				       struct pollfd **pollfd)
 {
 	return mctp_astpcie_init_pollfd(binding->data, pollfd);
 }
@@ -527,7 +529,7 @@ static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
 }
 
 static int binding_astspi_init_pollfd(struct binding *binding,
-				      struct pollfd *pollfd)
+				      struct pollfd **pollfd)
 {
 	struct mctp_binding_spi *astspi = binding->data;
 
@@ -618,6 +620,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 			      char *const *params __attribute__((unused)))
 {
 	struct mctp_binding_smbus *smbus;
+
 	struct {
 		char *prefix;
 		void *target;
@@ -785,7 +788,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 }
 
 static int binding_smbus_init_pollfd(struct binding *binding,
-				  struct pollfd *pollfd)
+				  struct pollfd **pollfd)
 {
 	return mctp_smbus_init_pollfd(binding->data, pollfd);
 }
@@ -800,6 +803,82 @@ static int binding_smbus_process(struct binding *binding)
 		MCTP_ASSERT_RET(rc == 0, rc, "mctp_smbus_read failed: %d", rc);
 	}
 	return 0;
+}
+
+static int binding_usb_init(struct mctp *mctp, struct binding *binding,
+			      mctp_eid_t eid, int n_params,
+			      char *const *params __attribute__((unused)))
+{
+	(void)mctp;
+	(void)eid;
+	struct mctp_binding_usb *usb;
+	uint16_t vendor_id;
+	uint16_t product_id;
+	uint16_t class_id;
+	struct {
+		char *prefix;
+		void *target;
+	} options[] = {
+		{ "vendor_id=", &vendor_id },
+		{ "product_id=", &product_id},
+		{ "class_id=", &class_id },
+		{ NULL, NULL },
+	};
+
+	if(n_params != 0) {
+		for (int ii = 0; ii < n_params; ii++) {
+			bool parsed = false;
+
+			for (int jj = 0; options[jj].prefix != NULL; jj++) {
+				const char *prefix = options[jj].prefix;
+				const size_t len = strlen(prefix);
+
+				if (strncmp(params[ii], prefix, len) == 0) {
+					int val = 0;
+					char *arg = strstr(params[ii], "=") + 1;	// Get string after "="
+
+					/* Check if a value is given in 'hex' or 'dec' */
+					if (strncmp(arg, "0x", 2) == 0)
+						val = strtoul(arg, NULL, 16);
+					else
+						val = parse_num(arg);
+
+					*(uint16_t *)options[jj].target =
+						val;
+
+					parsed = true;
+				}
+			}
+
+			if (!parsed) {
+				binding_smbus_usage();
+				exit(1);
+			}
+		}
+	}
+	else {
+		mctp_prinfo("Using default config .. no params\n");
+	}
+
+	usb = mctp_usb_init(vendor_id, product_id, class_id);
+	//mctp_register_bus(mctp, mctp_binding_smbus_core(smbus), eid);
+
+	binding->data = usb;
+	return 0;
+}
+
+static int binding_usb_init_pollfd(struct binding *binding,
+				  struct pollfd **pollfds)
+{
+	return mctp_usb_init_pollfd(binding->data, pollfds);
+}
+
+static int binding_usb_process(struct binding *binding)
+{
+	int rc;
+
+	rc = mctp_usb_handle_event(binding->data);
+	return rc;
 }
 
 struct binding bindings[] = { {
@@ -846,6 +925,14 @@ struct binding bindings[] = { {
 				      .init_pollfd = binding_smbus_init_pollfd,
 				      .process = binding_smbus_process,
 				      .sockname = "\0mctp-i2c-mux",
+			      },
+				  {
+				      .name = "usb",
+				      .init = binding_usb_init,
+				      .destroy = NULL,
+				      .init_pollfd = binding_usb_init_pollfd,
+				      .process = binding_usb_process,
+				      .sockname = "\0mctp-usb-mux",
 			      } };
 
 struct binding *binding_lookup(const char *name)
@@ -1044,11 +1131,17 @@ static void binding_destroy(struct ctx *ctx)
 }
 
 enum {
-	FD_BINDING = 0,
+	//FD_BINDING = 0,
 	FD_SOCKET,
 	FD_SIGNAL,
 	FD_TIMER,
 	FD_NR,
+	/*
+		FD for binding will be dynamically allocate here.
+	*/
+	/*
+		FD for clients unix socket application will be dynamically allocate here.
+	*/
 };
 
 static int run_daemon(struct ctx *ctx)
@@ -1058,11 +1151,6 @@ static int run_daemon(struct ctx *ctx)
 	struct itimerspec timer;
 
 	ctx->pollfds = malloc(FD_NR * sizeof(struct pollfd));
-
-	if (ctx->binding->init_pollfd) {
-		ctx->pollfds[FD_BINDING].fd = -1;
-		ctx->pollfds[FD_BINDING].events = 0;
-	}
 
 	sigemptyset(&mask);
 	sigaddset(&mask, SIGINT);
@@ -1118,27 +1206,36 @@ static int run_daemon(struct ctx *ctx)
 		}
 	}
 
+	struct pollfd *bindingfds;
+	if (ctx->binding->init_pollfd) {
+		ctx->n_bindings = ctx->binding->init_pollfd(ctx->binding,
+			&bindingfds);
+		if(ctx->n_bindings > 0) {
+			ctx->pollfds = realloc(ctx->pollfds,
+							(ctx->n_bindings + FD_NR) *
+								sizeof(struct pollfd));
+			memcpy(&ctx->pollfds[FD_NR], bindingfds, ctx->n_bindings * sizeof(struct pollfd));
+		}
+	}
+
 	for (;;) {
 		if (ctx->clients_changed) {
 			int i;
 
 			ctx->pollfds = realloc(ctx->pollfds,
-					       (ctx->n_clients + FD_NR) *
+					       (ctx->n_bindings + ctx->n_clients + FD_NR) *
 						       sizeof(struct pollfd));
 
 			for (i = 0; i < ctx->n_clients; i++) {
-				ctx->pollfds[FD_NR + i].fd =
+				ctx->pollfds[ctx->n_bindings + FD_NR + i].fd =
 					ctx->clients[i].sock;
-				ctx->pollfds[FD_NR + i].events = POLLIN;
+				ctx->pollfds[ctx->n_bindings + FD_NR + i].events = POLLIN;
 			}
 			ctx->clients_changed = false;
 		}
 
-		if (ctx->binding->init_pollfd) {
-			ctx->binding->init_pollfd(ctx->binding,
-						  &ctx->pollfds[FD_BINDING]);
-		}
-		rc = poll(ctx->pollfds, ctx->n_clients + FD_NR, -1);
+
+		rc = poll(ctx->pollfds, ctx->n_bindings + ctx->n_clients + FD_NR, -1);
 		if (rc < 0) {
 			warn("poll failed");
 			break;
@@ -1175,7 +1272,7 @@ static int run_daemon(struct ctx *ctx)
 			}
 			sd_notify(0, "WATCHDOG=1");
 		}
-
+/*
 		if (ctx->pollfds[FD_BINDING].revents) {
 			rc = 0;
 			if (ctx->binding->process)
@@ -1183,9 +1280,19 @@ static int run_daemon(struct ctx *ctx)
 			if (rc)
 				break;
 		}
+*/
+		for (i = 0; i < ctx->n_bindings; i++) {
+			if (ctx->pollfds[FD_NR + i].revents) {
+				rc = 0;
+				if (ctx->binding->process)
+					rc = ctx->binding->process(ctx->binding);
+				if (rc)
+					break;
+			}
+		}
 
 		for (i = 0; i < ctx->n_clients; i++) {
-			if (!ctx->pollfds[FD_NR + i].revents)
+			if (!ctx->pollfds[ctx->n_bindings + FD_NR + i].revents)
 				continue;
 
 			rc = client_process_recv(ctx, i);
@@ -1259,6 +1366,7 @@ int main(int argc, char *const *argv)
 	ctx = &_ctx;
 	ctx->clients = NULL;
 	ctx->n_clients = 0;
+	ctx->n_bindings = 0;
 	ctx->local_eid = local_eid_default;
 	ctx->verbose = false;
 	ctx->pcap.binding.path = NULL;

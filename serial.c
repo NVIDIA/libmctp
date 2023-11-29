@@ -280,12 +280,12 @@ int mctp_serial_read(struct mctp_binding_serial *serial)
 }
 
 int mctp_serial_init_pollfd(struct mctp_binding_serial *serial,
-			    struct pollfd *pollfd)
+			    struct pollfd **pollfd)
 {
-	pollfd->fd = serial->fd;
-	pollfd->events = POLLIN;
+	(*pollfd)->fd = serial->fd;
+	(*pollfd)->events = POLLIN;
 
-	return 0;
+	return 1;
 }
 
 int mctp_serial_open_path(struct mctp_binding_serial *serial,

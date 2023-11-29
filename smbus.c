@@ -739,12 +739,12 @@ struct mctp_binding *mctp_binding_smbus_core(struct mctp_binding_smbus *smbus)
 }
 
 int mctp_smbus_init_pollfd(struct mctp_binding_smbus *smbus,
-			   struct pollfd *pollfd)
+			   struct pollfd **pollfd)
 {
-	pollfd->fd = smbus->in_fd;
-	pollfd->events = POLLPRI;
+	(*pollfd)->fd = smbus->in_fd;
+	(*pollfd)->events = POLLPRI;
 
-	return 0;
+	return 1;
 }
 
 void mctp_smbus_register_bus(struct mctp_binding_smbus *smbus,

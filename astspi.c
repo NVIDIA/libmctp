@@ -363,12 +363,12 @@ static void mctp_spi_hexdump(const char *prefix, int len, void *buf)
 }
 #endif
 
-int mctp_spi_init_pollfd(struct mctp_binding_spi *spi, struct pollfd *pollfd)
+int mctp_spi_init_pollfd(struct mctp_binding_spi *spi, struct pollfd **pollfd)
 {
-	pollfd->fd = spi->nvda_spb_ap.gpio_fd;
-	pollfd->events = POLLPRI;
+	(*pollfd)->fd = spi->nvda_spb_ap.gpio_fd;
+	(*pollfd)->events = POLLPRI;
 
-	return 0;
+	return 1;
 }
 
 static void mctp_spi_verify_magics(struct mctp_binding_spi *spi)

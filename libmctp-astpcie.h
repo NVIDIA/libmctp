@@ -34,7 +34,7 @@ mctp_binding_astpcie_core(struct mctp_binding_astpcie *astpcie);
 int mctp_astpcie_poll(struct mctp_binding_astpcie *astpcie, int timeout);
 
 int mctp_astpcie_init_pollfd(struct mctp_binding_astpcie *astpcie,
-			     struct pollfd *pollfd);
+			     struct pollfd **pollfd);
 
 int mctp_astpcie_rx(struct mctp_binding_astpcie *astpcie);
 

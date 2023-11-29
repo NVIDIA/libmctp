@@ -25,7 +25,8 @@ sources = [
   'glacier-spb-ap.c',
   'log.c',
   'serial.c',
-  'smbus.c'
+  'smbus.c',
+  'usb.c'
 ]
 
 conf_data = configuration_data()
@@ -37,12 +38,16 @@ configure_file(
   configuration: conf_data,
 )
 
+usb_lib = declare_dependency(dependencies: [comp.find_library('usb-1.0')])
+deps = [usb_lib]
+
 libmctp = library('mctp',
   sources,
   version: meson.project_version(),
   soversion: meson.project_version(),
   include_directories: include_directories('.'),
-  install: true
+  install: true,
+  dependencies: deps
 )
 
 systemd_system_unit_dir = dependency('systemd').get_variable(

@@ -64,7 +64,7 @@ int mctp_smbus_poll(struct mctp_binding_smbus *smbus, int timeout);
 struct mctp_binding *mctp_binding_smbus_core(struct mctp_binding_smbus *smbus);
 
 int mctp_smbus_init_pollfd(struct mctp_binding_smbus *smbus,
-			     struct pollfd *pollfd);
+			     struct pollfd **pollfd);
 
 #ifdef __cplusplus
 }

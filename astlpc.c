@@ -1419,19 +1419,19 @@ static int __mctp_astlpc_fileio_kcs_write(void *arg,
 }
 
 int mctp_astlpc_init_pollfd(struct mctp_binding_astlpc *astlpc,
-			    struct pollfd *pollfd)
+			    struct pollfd **pollfd)
 {
 	bool release;
 
-	pollfd->fd = astlpc->kcs_fd;
-	pollfd->events = 0;
+	(*pollfd)->fd = astlpc->kcs_fd;
+	(*pollfd)->events = 0;
 
 	release = astlpc->layout.rx.state == buffer_state_prepared ||
 			astlpc->layout.tx.state == buffer_state_prepared;
 
-	pollfd->events = release ? POLLOUT : POLLIN;
+	(*pollfd)->events = release ? POLLOUT : POLLIN;
 
-	return 0;
+	return 1;
 }
 
 struct mctp_binding_astlpc *mctp_astlpc_init_fileio(void)
@@ -1478,7 +1478,7 @@ struct mctp_binding_astlpc *mctp_astlpc_init_fileio(void)
 }
 
 int mctp_astlpc_init_pollfd(struct mctp_binding_astlpc *astlpc __unused,
-			    struct pollfd *pollfd __unused)
+			    struct pollfd **pollfd __unused)
 {
 	mctp_prlog(MCTP_LOG_ERR, "%s: Missing support for file IO", __func__);
 	return -1;

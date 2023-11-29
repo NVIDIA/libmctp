@@ -411,10 +411,10 @@ mctp_binding_astpcie_core(struct mctp_binding_astpcie *astpcie)
 }
 
 int mctp_astpcie_init_pollfd(struct mctp_binding_astpcie *astpcie,
-			     struct pollfd *pollfd)
+			     struct pollfd **pollfd)
 {
-	pollfd->fd = astpcie->fd;
-	pollfd->events = POLLIN;
+	(*pollfd)->fd = astpcie->fd;
+	(*pollfd)->events = POLLIN;
 
-	return 0;
+	return 1;
 }

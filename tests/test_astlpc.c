@@ -1318,11 +1318,10 @@ static void astlpc_test_async_exchange(void)
 {
 	struct astlpc_test ctx = { 0 };
 	uint8_t msg[MCTP_BTU];
-	struct pollfd pollfd = {
-		.fd = -1,
-		.events = 0,
-		.revents = 0,
-	};
+	struct pollfd *pollfd = malloc(sizeof(struct pollfd));
+	pollfd->fd = -1;
+	pollfd->events = 0;
+	pollfd->revents = 0;
 	uint8_t tag = 0;
 
 	network_init(&ctx);
@@ -1342,8 +1341,8 @@ static void astlpc_test_async_exchange(void)
 	 */
 	/* coverity[var_deref_model:SUPPRESS] */
 	mctp_astlpc_init_pollfd(ctx.bmc.astlpc, &pollfd);
-	assert(pollfd.events & POLLIN);
-	assert(!(pollfd.events & POLLOUT));
+	assert(pollfd->events & POLLIN);
+	assert(!(pollfd->events & POLLOUT));
 
 	/* (3)
 	 * Send a message from the host to the BMC and dequeue the message on the BMC, triggering a
@@ -1359,8 +1358,8 @@ static void astlpc_test_async_exchange(void)
 	 * from (1) before further transfers take place.
 	 */
 	mctp_astlpc_init_pollfd(ctx.bmc.astlpc, &pollfd);
-	assert(!(pollfd.events & POLLIN));
-	assert(pollfd.events & POLLOUT);
+	assert(!(pollfd->events & POLLIN));
+	assert(pollfd->events & POLLOUT);
 
 	/* (5)
 	 * Dequeue the message from (1) on the host side, allowing transmisson of the outstanding
@@ -1378,8 +1377,8 @@ static void astlpc_test_async_exchange(void)
 	 * Assert that we're again listening for in-bound messages on the BMC.
 	 */
 	mctp_astlpc_init_pollfd(ctx.bmc.astlpc, &pollfd);
-	assert(pollfd.events & POLLIN);
-	assert(!(pollfd.events & POLLOUT));
+	assert(pollfd->events & POLLIN);
+	assert(!(pollfd->events & POLLOUT));
 
 	network_destroy(&ctx);
 }
