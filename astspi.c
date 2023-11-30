@@ -365,6 +365,7 @@ static void mctp_spi_hexdump(const char *prefix, int len, void *buf)
 
 int mctp_spi_init_pollfd(struct mctp_binding_spi *spi, struct pollfd **pollfd)
 {
+	*pollfd = __mctp_alloc(1 * sizeof(struct pollfd));
 	(*pollfd)->fd = spi->nvda_spb_ap.gpio_fd;
 	(*pollfd)->events = POLLPRI;
 

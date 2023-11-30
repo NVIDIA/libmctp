@@ -741,6 +741,7 @@ struct mctp_binding *mctp_binding_smbus_core(struct mctp_binding_smbus *smbus)
 int mctp_smbus_init_pollfd(struct mctp_binding_smbus *smbus,
 			   struct pollfd **pollfd)
 {
+	*pollfd = __mctp_alloc(1 * sizeof(struct pollfd));
 	(*pollfd)->fd = smbus->in_fd;
 	(*pollfd)->events = POLLPRI;
 

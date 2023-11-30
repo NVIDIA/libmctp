@@ -282,6 +282,7 @@ int mctp_serial_read(struct mctp_binding_serial *serial)
 int mctp_serial_init_pollfd(struct mctp_binding_serial *serial,
 			    struct pollfd **pollfd)
 {
+	*pollfd = __mctp_alloc(1 * sizeof(struct pollfd));
 	(*pollfd)->fd = serial->fd;
 	(*pollfd)->events = POLLIN;
 
