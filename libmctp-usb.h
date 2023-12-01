@@ -10,6 +10,11 @@ extern "C" {
 #include "libmctp.h"
 #include <poll.h>
 
+enum {
+	MCTP_USB_NO_ERROR = 0,
+	MCTP_USB_FD_CHANGE
+};
+
 struct mctp_binding_usb;
 
 int mctp_usb_handle_event(struct mctp_binding_usb *usb);

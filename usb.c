@@ -21,20 +21,30 @@
 #include "libmctp.h"
 #include "mctp-json.h"
 
+#define USB_POLL_FD_NUM 3 //Assume that the number of usb fd we want to poll is fixed
+
 struct mctp_binding_usb {
 	struct mctp_binding binding;
 	libusb_context *ctx;
 	const struct libusb_pollfd **usb_poll_fds;
 	uint8_t bindingfds_cnt;
+	bool bindingfds_change;
 };
 
 int mctp_usb_handle_event(struct mctp_binding_usb *usb)
 {
 	struct timeval t;
 	memset(&t, 0, sizeof(t));
+	int ret = MCTP_USB_NO_ERROR;
 
 	libusb_handle_events_timeout_completed(usb->ctx, &t, NULL);
-	return 0;
+
+	if(usb->bindingfds_change) {
+		ret = MCTP_USB_FD_CHANGE;
+		usb->bindingfds_change = false;
+	}
+
+	return ret;
 }
 
 int mctp_usb_hotplug_callback(struct libusb_context *ctx,
@@ -47,7 +57,6 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 
 	(void)libusb_get_device_descriptor(dev, &desc);
 	(void)ctx;
-	(void)user_data;
 
 	if (LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED == event) {
 		rc = libusb_get_device_descriptor(dev, &desc);
@@ -63,6 +72,13 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 		if (LIBUSB_SUCCESS != rc) {
 			printf("Could not open USB device\n");
 		}
+		struct mctp_binding_usb *usb = user_data;
+		usb->usb_poll_fds = libusb_get_pollfds(usb->ctx);
+		usb->bindingfds_cnt = 0;
+		while (usb->usb_poll_fds[usb->bindingfds_cnt]) {
+			usb->bindingfds_cnt++;
+		}
+		usb->bindingfds_change = true;
 	} else if (LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT == event) {
 		rc = libusb_get_device_descriptor(dev, &desc);
 		if (LIBUSB_SUCCESS == rc) {
@@ -91,32 +107,38 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 	int rc;
 	usb = __mctp_alloc(sizeof(*usb));
 	libusb_init(&usb->ctx);
-
-	usb->usb_poll_fds = libusb_get_pollfds(usb->ctx);
-	usb->bindingfds_cnt = 0;
-	while (usb->usb_poll_fds[usb->bindingfds_cnt]) {
-		usb->bindingfds_cnt++;
-	}
+	usb->bindingfds_change = false;
 
 	rc = libusb_hotplug_register_callback(
 		NULL,
 		LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED |
 			LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT,
 		LIBUSB_HOTPLUG_ENUMERATE, vendor_id, product_id, class_id,
-		mctp_usb_hotplug_callback, NULL, &callback_handle);
+		mctp_usb_hotplug_callback, usb, &callback_handle);
 	if (LIBUSB_SUCCESS != rc) {
 		printf("Error creating a hotplug callback\n");
 		libusb_exit(NULL);
+	}
+	usb->usb_poll_fds = libusb_get_pollfds(usb->ctx);
+	usb->bindingfds_cnt = 0;
+	while (usb->usb_poll_fds[usb->bindingfds_cnt]) {
+		usb->bindingfds_cnt++;
 	}
 	return usb;
 }
 
 int mctp_usb_init_pollfd(struct mctp_binding_usb *usb, struct pollfd **pollfds)
 {
-	*pollfds = __mctp_alloc(usb->bindingfds_cnt * sizeof(struct pollfd));
-	for (int i = 0; i < usb->bindingfds_cnt; i++) {
-		(*pollfds + i)->fd = usb->usb_poll_fds[i]->fd;
-		(*pollfds + i)->events = usb->usb_poll_fds[i]->events;
+	*pollfds = __mctp_alloc(USB_POLL_FD_NUM * sizeof(struct pollfd));
+	for (int i = 0; i < USB_POLL_FD_NUM; i++) {
+		if(i < usb->bindingfds_cnt) {
+			(*pollfds + i)->fd = usb->usb_poll_fds[i]->fd;
+			(*pollfds + i)->events = usb->usb_poll_fds[i]->events;
+		}
+		else {
+			(*pollfds + i)->fd = -1;
+			(*pollfds + i)->events = 0;
+		}
 	}
-	return usb->bindingfds_cnt;
+	return USB_POLL_FD_NUM;
 }

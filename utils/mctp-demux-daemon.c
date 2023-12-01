@@ -83,6 +83,7 @@ struct binding {
 	void *data;
 	char *sockname;
 	uint8_t bindingfds_cnt;
+	bool bindings_changed;
 };
 
 struct client {
@@ -356,6 +357,7 @@ static int binding_serial_init(struct mctp *mctp, struct binding *binding,
 	mctp_register_bus(mctp, mctp_binding_serial_core(serial), eid);
 
 	binding->data = serial;
+	binding->bindings_changed = false;
 
 	return 0;
 }
@@ -391,6 +393,7 @@ static int binding_astlpc_init(struct mctp *mctp, struct binding *binding,
 	mctp_register_bus(mctp, mctp_binding_astlpc_core(astlpc), eid);
 
 	binding->data = astlpc;
+	binding->bindings_changed = false;
 	return 0;
 }
 
@@ -434,6 +437,7 @@ static int binding_astpcie_init(struct mctp *mctp, struct binding *binding,
 	mctp_register_bus(mctp, mctp_binding_astpcie_core(astpcie), eid);
 
 	binding->data = astpcie;
+	binding->bindings_changed = false;
 	return 0;
 }
 
@@ -495,6 +499,7 @@ static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
 		{ "singlemode=", &config.singlemode },
 		{ NULL, NULL },
 	};
+	binding->bindings_changed = false;
 
 	for (int ii = 0; ii < n_params; ii++) {
 		bool parsed = false;
@@ -631,6 +636,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 		{ "i2c_src_addr=", &i2c_src_slave_addr},
 		{ NULL, NULL },
 	};
+	binding->bindings_changed = false;
 
 	bool use_config_json_file = false;
 
@@ -805,6 +811,17 @@ static int binding_smbus_process(struct binding *binding)
 	return 0;
 }
 
+static void binding_usb_usage(void)
+{
+	fprintf(stderr,
+		"Usage: usb (use dec or hex value)\n"
+		"\tvendor_id=<vendor id> - usb vendor id to filter\n"
+		"\tproduct_id=<product id> - usb product id to filter\n"
+		"\tclass_id=<class id> - usb class id to filter\n");
+
+	fprintf(stderr, "Example: usb vendor_id=0x0483 product_id=0xffff class_id=0x00\n");
+}
+
 static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 			      mctp_eid_t eid, int n_params,
 			      char *const *params __attribute__((unused)))
@@ -824,6 +841,7 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 		{ "class_id=", &class_id },
 		{ NULL, NULL },
 	};
+	binding->bindings_changed = false;
 
 	if(n_params != 0) {
 		for (int ii = 0; ii < n_params; ii++) {
@@ -851,7 +869,7 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 			}
 
 			if (!parsed) {
-				binding_smbus_usage();
+				binding_usb_usage();
 				exit(1);
 			}
 		}
@@ -878,6 +896,9 @@ static int binding_usb_process(struct binding *binding)
 	int rc;
 
 	rc = mctp_usb_handle_event(binding->data);
+	if(rc == MCTP_USB_FD_CHANGE) {
+		binding->bindings_changed = true;
+	}
 	return rc;
 }
 
@@ -1131,8 +1152,7 @@ static void binding_destroy(struct ctx *ctx)
 }
 
 enum {
-	//FD_BINDING = 0,
-	FD_SOCKET,
+	FD_SOCKET = 0,
 	FD_SIGNAL,
 	FD_TIMER,
 	FD_NR,
@@ -1234,6 +1254,22 @@ static int run_daemon(struct ctx *ctx)
 			ctx->clients_changed = false;
 		}
 
+		if(ctx->binding->bindings_changed) {
+			ctx->binding->bindings_changed = false;
+			struct pollfd *bindingfds;
+			if (ctx->binding->init_pollfd) {
+				int fds_size = ctx->binding->init_pollfd(ctx->binding,
+									&bindingfds);
+				if(fds_size == ctx->n_bindings) {
+					for(int i = 0; i < fds_size; i++) {
+						ctx->pollfds[FD_NR + i] = bindingfds[i];
+					}
+				}
+				else {
+					/*At present, we assume that the size of the binding fds is not changed, just the content changed*/
+				}
+			}
+		}
 
 		rc = poll(ctx->pollfds, ctx->n_bindings + ctx->n_clients + FD_NR, -1);
 		if (rc < 0) {
@@ -1272,15 +1308,7 @@ static int run_daemon(struct ctx *ctx)
 			}
 			sd_notify(0, "WATCHDOG=1");
 		}
-/*
-		if (ctx->pollfds[FD_BINDING].revents) {
-			rc = 0;
-			if (ctx->binding->process)
-				rc = ctx->binding->process(ctx->binding);
-			if (rc)
-				break;
-		}
-*/
+
 		for (i = 0; i < ctx->n_bindings; i++) {
 			if (ctx->pollfds[FD_NR + i].revents) {
 				rc = 0;
