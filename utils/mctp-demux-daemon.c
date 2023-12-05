@@ -47,6 +47,8 @@
 #define MCTP_SPI_EID_OFFSET                                                    \
 	(MCTP_BIND_INFO_OFFSET + sizeof(struct mctp_astspi_pkt_private))
 #define MCTP_SPI_MSG_OFFSET (MCTP_SPI_EID_OFFSET + sizeof(uint8_t))
+
+// MCTP_SMBUS defined offsets
 #define MCTP_SMBUS_EID_OFFSET                                                  \
 	MCTP_BIND_INFO_OFFSET + sizeof(struct mctp_smbus_pkt_private)
 #define MCTP_SMBUS_MSG_OFFSET MCTP_SMBUS_EID_OFFSET + (sizeof(uint8_t))
@@ -61,6 +63,12 @@
 	0x30 //Dest_Slave_Addr:	0x52(BMC), 0x30(HMC) [7-bit]
 #define MCTP_SMBUS_SRC_SLAVE_ADDR                                              \
 	0x18 //Src_Slave_Addr:	0x51(BMC), 0x18(HMC) [7-bit]
+
+// MCTP_USB defined offsets:
+// Question: offsets for smbus do not correspond to diagram in spec
+#define MCTP_USB_EID_OFFSET                                                  \
+	MCTP_BIND_INFO_OFFSET + sizeof(struct mctp_usb_pkt_private)
+#define MCTP_USB_MSG_OFFSET MCTP_SMBUS_EID_OFFSET + (sizeof(uint8_t))
 
 #include <systemd/sd-daemon.h>
 
@@ -134,11 +142,13 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		struct mctp_astpcie_pkt_private pcie;
 		struct mctp_astspi_pkt_private spi;
 		struct mctp_smbus_pkt_private i2c;
+		struct mctp_usb_pkt_private usb;
 	} pvt_binding = { 0 };
 	mctp_eid_t eid = 0;
 	const size_t min_packet_pcie = MCTP_BIND_INFO_OFFSET + 1;
 	const size_t min_packet_spi = MCTP_SPI_EID_OFFSET + 1;
 	const size_t min_packet_smbus = MCTP_SMBUS_EID_OFFSET + 1;
+	const size_t min_packet_usb = MCTP_USB_EID_OFFSET + 1;
 
 	/* Get the bus type (binding ID) */
 	bind_id = *((uint8_t *)msg);
@@ -232,6 +242,43 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		if (rc) {
 			warnx("Failed to send message: %d", rc);
 		}
+		break;
+	
+	case MCTP_BINDING_USB:
+
+		if (len < min_packet_usb) {
+			mctp_prwarn("Packet too short for USB.");
+			return;
+		}
+
+		/* Copy the binding information */
+		memcpy(&pvt_binding.usb, ((uint8_t *)msg + MCTP_BIND_INFO_OFFSET),
+		       sizeof(struct mctp_usb_pkt_private));
+		
+		/* Get target EID */
+		eid = *((uint8_t *)msg + MCTP_USB_EID_OFFSET);
+
+		/* Set MCTP payload size */
+		len = len - (MCTP_SMBUS_MSG_OFFSET)-1;
+
+		printf("USB msg: ");
+		mctp_print_hex((uint8_t *)msg + MCTP_USB_MSG_OFFSET, len);
+		printf("\n");
+
+		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, MCTP_MESSAGE_TO_SRC, 0,
+					      (uint8_t *)msg + MCTP_SMBUS_MSG_OFFSET, len,
+					      (void *)&pvt_binding.usb);
+
+		if (ctx->verbose) {
+			printf("%s: USB EID: %d, VendorID: 0x%x, ProdID: 0x%x, len: %zu\n",
+			       __func__, eid, pvt_binding.usb.vendor_id,
+			       pvt_binding.usb.prod_id, len);
+		}
+		if (rc) {
+			warnx("Failed to send message: %d", rc);
+		}
+
+
 		break;
 
 	default:
@@ -826,8 +873,6 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 			      mctp_eid_t eid, int n_params,
 			      char *const *params __attribute__((unused)))
 {
-	(void)mctp;
-	(void)eid;
 	struct mctp_binding_usb *usb;
 	uint16_t vendor_id;
 	uint16_t product_id;
@@ -879,7 +924,10 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 	}
 
 	usb = mctp_usb_init(vendor_id, product_id, class_id);
-	//mctp_register_bus(mctp, mctp_binding_smbus_core(smbus), eid);
+
+	MCTP_ASSERT_RET(usb != NULL, -1,"could not initialise usb binding");
+
+	mctp_register_bus(mctp, mctp_binding_usb_core(usb), eid);
 
 	binding->data = usb;
 	return 0;
@@ -1120,7 +1168,7 @@ static int client_process_recv(struct ctx *ctx, int idx)
 		rx_message(eid, MCTP_MESSAGE_TO_DST, 0, ctx, (uint8_t *)ctx->buf + 1,
 			   rc - 1);
 	else
-		tx_message(ctx, eid, (uint8_t *)ctx->buf + 1, rc - 1);
+		tx_message(ctx, eid, (uint8_t *)ctx->buf + 1, rc - 1); //Question - +1 what 8B data is removed?
 
 	return 0;
 
@@ -1318,7 +1366,7 @@ static int run_daemon(struct ctx *ctx)
 					break;
 			}
 		}
-
+		//Question: Where are we resetting revents?
 		for (i = 0; i < ctx->n_clients; i++) {
 			if (!ctx->pollfds[ctx->n_bindings + FD_NR + i].revents)
 				continue;

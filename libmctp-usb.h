@@ -2,6 +2,7 @@
 
 #ifndef _LIBMCTP_USB_H
 #define _LIBMCTP_USB_H
+#define MCTP_USB_MTU 256
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,6 +16,13 @@ enum {
 	MCTP_USB_FD_CHANGE
 };
 
+// Question: format?? - used in ctrl messages
+// This is just a placeholder:
+struct mctp_usb_pkt_private {
+	uint8_t vendor_id;
+	uint8_t prod_id;
+} __attribute__((packed));
+
 struct mctp_binding_usb;
 
 int mctp_usb_handle_event(struct mctp_binding_usb *usb);
@@ -23,6 +31,8 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id, 
 
 int mctp_usb_init_pollfd(struct mctp_binding_usb *usb,
 			   struct pollfd **pollfds);
+
+struct mctp_binding *mctp_binding_usb_core(struct mctp_binding_usb *usb);
 
 #ifdef __cplusplus
 }
