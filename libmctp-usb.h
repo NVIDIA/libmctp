@@ -2,7 +2,6 @@
 
 #ifndef _LIBMCTP_USB_H
 #define _LIBMCTP_USB_H
-#define MCTP_USB_MTU 256
 
 #ifdef __cplusplus
 extern "C" {

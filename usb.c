@@ -73,15 +73,21 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 	static libusb_device_handle *dev_handle = NULL;
 	struct libusb_device_descriptor desc;
 	int rc;
+	bool bus_reg false;
 	struct mctp_binding_usb *usb = user_data;
+	struct mctp_binding *base_usb = usb->binding;
 	(void)libusb_get_device_descriptor(dev, &desc);
 	(void)ctx;
+
+	if (base_usb->bus){
+		bus_reg = true;
+	}
 
 	if (LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED == event) {
 		rc = libusb_get_device_descriptor(dev, &desc);
 		if (LIBUSB_SUCCESS == rc) {
 			printf("Device attached: %04x:%04x\n", desc.idVendor,
-			       desc.idProduct);
+			       desc.idProduct);			
 		} else {
 			printf("Device attached\n");
 			fprintf(stderr, "Error getting device descriptor: %s\n",
@@ -97,8 +103,13 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 			usb->bindingfds_cnt++;
 		}
 		usb->bindingfds_change = true;
+		if (bus_reg)
+			mctp_binding_set_tx_enabled(base_usb, true);
+
 	} else if (LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT == event) {
 		rc = libusb_get_device_descriptor(dev, &desc);
+		if (bus_reg)
+			mctp_binding_set_tx_enabled(base_usb, false);
 		if (LIBUSB_SUCCESS == rc) {
 			printf("Device de-attached: %04x:%04x\n", desc.idVendor,
 			       desc.idProduct);
@@ -113,6 +124,8 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 		}
 	} else {
 		printf("Unhandled event %d\n", event);
+		if (bus_reg)
+			mctp_binding_set_tx_enabled(base_usb, false);
 	}
 	usb->dev_handle=dev_handle;
 	return 0;
@@ -220,10 +233,12 @@ static int mctp_usb_start(struct mctp_binding *b)
 	//Potential race condition - what if hotplug callback hasn't happened yet?
 	if (!usb->dev_handle) {
 		printf("Error starting USB device (hotplug callback not yet happened): \n");
-		return -1; //Question: return codes?
-	} 
+		mctp_binding_set_tx_enabled(b, false);
+	}
+	else {
+		mctp_binding_set_tx_enabled(b, true);
+	}
 	
-	mctp_binding_set_tx_enabled(b, true);
 	return 0;
 
 }
@@ -251,7 +266,7 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 	usb->binding.name = "usb";
 	usb->binding.version = 1;
 
-	usb->binding.pkt_size = MCTP_USB_MTU;
+	usb->binding.pkt_size = MCTP_PACKET_SIZE(MCTP_BTU);
 	usb->binding.pkt_header = 4;
 	usb->binding.pkt_trailer = 0;
 	usb->binding.pkt_priv_size = sizeof(struct mctp_usb_pkt_private);

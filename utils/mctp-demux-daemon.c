@@ -259,14 +259,14 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		eid = *((uint8_t *)msg + MCTP_USB_EID_OFFSET);
 
 		/* Set MCTP payload size */
-		len = len - (MCTP_SMBUS_MSG_OFFSET)-1;
+		len = len - (MCTP_USB_MSG_OFFSET)-1;
 
 		printf("USB msg: ");
 		mctp_print_hex((uint8_t *)msg + MCTP_USB_MSG_OFFSET, len);
 		printf("\n");
 
 		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, MCTP_MESSAGE_TO_SRC, 0,
-					      (uint8_t *)msg + MCTP_SMBUS_MSG_OFFSET, len,
+					      (uint8_t *)msg + MCTP_USB_MSG_OFFSET, len,
 					      (void *)&pvt_binding.usb);
 
 		if (ctx->verbose) {
