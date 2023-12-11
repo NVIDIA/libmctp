@@ -73,9 +73,9 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 	static libusb_device_handle *dev_handle = NULL;
 	struct libusb_device_descriptor desc;
 	int rc;
-	bool bus_reg false;
+	bool bus_reg = false;
 	struct mctp_binding_usb *usb = user_data;
-	struct mctp_binding *base_usb = usb->binding;
+	struct mctp_binding *base_usb = &usb->binding;
 	(void)libusb_get_device_descriptor(dev, &desc);
 	(void)ctx;
 
