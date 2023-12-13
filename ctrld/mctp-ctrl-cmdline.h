@@ -94,6 +94,13 @@ struct mctp_cmdline_i2c {
 	uint8_t dest_slave_addr[4];
 };
 
+/* USB specific configuration */
+struct mctp_cmdline_usb {
+	uint8_t vendor_id;
+	uint8_t product_id;
+	uint8_t class_id;
+};
+
 /* Command line structure */
 typedef struct mctp_cmdline_args_ {
 	char name[10];
@@ -122,6 +129,7 @@ typedef struct mctp_cmdline_args_ {
 		struct mctp_cmdline_pcie pcie;
 		struct mctp_cmdline_spi spi;
 		struct mctp_cmdline_i2c i2c;
+		struct mctp_cmdline_usb usb;
 	};
 } mctp_cmdline_args_t;
 

@@ -697,6 +697,15 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		/* Open the user socket file-descriptor */
 		rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_CTRL_MSG_TYPE,
 					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
+	} else if (cmdline->binding_type == MCTP_BINDING_USB) {
+		MCTP_CTRL_INFO("%s: Binding type: USB\n", __func__);
+		if(use_config_json_file_mc == false)
+			mctp_sock_path = MCTP_SOCK_PATH_USB;
+		mctp_medium_type = "USB";
+
+		/* Open the user socket file-descriptor */
+		rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_CTRL_MSG_TYPE,
+					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
 	} else {
 		MCTP_CTRL_ERR("Unknown binding type: %d\n",
 			      cmdline->binding_type);
@@ -824,6 +833,29 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 			break;
 		}
 	}
+	else if (cmdline->binding_type == MCTP_BINDING_USB) {
+		/* Make sure all PCIe EID options are available from commandline */
+		// rc = mctp_pcie_eids_sanity_check(cmdline->pcie.own_eid,
+		// 				cmdline->pcie.bridge_eid,
+		// 				cmdline->pcie.bridge_pool_start);
+		// if (rc < 0) {
+		// 	close(g_socket_fd);
+		// 	close(g_signal_fd);
+		// 	sd_bus_unref(mctp_ctrl->bus);
+		// 	MCTP_CTRL_ERR("MCTP-Ctrl sanity check unsuccessful\n");
+		// 	return EXIT_FAILURE;
+		// }
+
+		/* Discover endpoints via PCIe*/
+		MCTP_CTRL_INFO("%s: Start MCTP-over-PCIe Discovery\n",
+			       __func__);
+		mctp_err_ret = mctp_discover_endpoints(cmdline, mctp_ctrl);
+		if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
+			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
+			mctp_ctrl_clean_up();
+			return EXIT_FAILURE;
+		}
+	}
 
 	return EXIT_SUCCESS;
 }
@@ -841,7 +873,7 @@ static void parse_command_line(int argc, char *const *argv,
 	memset(&cmdline->tx_data, 0, MCTP_WRITE_DATA_BUFF_SIZE);
 	memset(&cmdline->rx_data, 0, MCTP_READ_DATA_BUFF_SIZE);
 	memset(&cmdline->uuid_str, 0, sizeof(cmdline->uuid_str));
-	uint8_t own_eid = 0, bridge_eid = 0, bridge_pool = 0;
+	uint8_t own_eid = 0, bridge_eid = 0, bridge_pool = 0, vendor_id = 0, product_id = 0, class_id = 0;
 	int vdm_ops = 0, command_mode = 0;
 	bool remove_duplicates = false;
 
@@ -926,6 +958,21 @@ static void parse_command_line(int argc, char *const *argv,
 				own_eid = (uint8_t)atoi(optarg);
 			}
 			break;
+		case 'k':
+			if (cmdline->binding_type == MCTP_BINDING_USB) {
+				vendor_id = (uint8_t)atoi(optarg);
+			}
+			break;
+		case 'l':
+			if (cmdline->binding_type == MCTP_BINDING_USB) {
+				product_id = (uint8_t)atoi(optarg);
+			}
+			break;
+		case 'o':
+			if (cmdline->binding_type == MCTP_BINDING_USB) {
+				class_id = (uint8_t)atoi(optarg);
+			}
+			break;
 		case 'q':
 			if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
 				bridge_eid = (uint8_t)atoi(optarg);
@@ -963,6 +1010,10 @@ static void parse_command_line(int argc, char *const *argv,
 				} else if (!strcmp(optarg, "smbus")) {
 					usage_common();
 					usage_i2c();
+				} else if (!strcmp(optarg, "usb")) {
+					usage_common();
+					// ToDo:
+					// usage_usb();
 				} else
 					printf("Wrong binding\n");
 			}
@@ -1054,6 +1105,13 @@ static void parse_command_line(int argc, char *const *argv,
 			cmdline->i2c.own_eid = own_eid;
 		}
 		break;
+
+	case MCTP_BINDING_USB:
+		cmdline->usb.vendor_id = vendor_id;
+		cmdline->usb.product_id = product_id;
+		cmdline->usb.class_id = class_id;
+		break;
+		
 	default:
 		break;
 	}

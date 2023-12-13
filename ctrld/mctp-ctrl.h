@@ -21,6 +21,8 @@ extern "C" {
 #define MCTP_SOCK_PATH_PCIE "\0mctp-pcie-mux"
 #define MCTP_SOCK_PATH_SPI "\0mctp-spi-mux"
 #define MCTP_SOCK_PATH_I2C "\0mctp-i2c-mux"
+#define MCTP_SOCK_PATH_USB "\0mctp-usb-mux"
+
 
 /* Define Max buffer size */
 #define MCTP_RX_BUFFER_MAX_SIZE 64
