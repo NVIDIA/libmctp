@@ -156,7 +156,7 @@ void callbackUSBTxTransferComplete(struct libusb_transfer *xfr)
 static int mctp_usb_tx(struct mctp_binding_usb *usb, uint8_t len)
 {
 	struct libusb_transfer *tx_xfr = libusb_alloc_transfer(0);
-	void *data_tx = &usb->txbuf;
+	void *data_tx = (void *)usb->txbuf;
 	libusb_fill_bulk_transfer(tx_xfr, usb->dev_handle,
 				  USB_ENDPOINT_OUT,
 				  data_tx, len,
