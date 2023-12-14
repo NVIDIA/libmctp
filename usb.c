@@ -32,6 +32,8 @@
 
 #define MCTP_USB_DMTF_ID 0x1AB4
 #define USB_ENDPOINT_OUT (LIBUSB_ENDPOINT_OUT | 2) /* endpoint address */
+#define USB_ENDPOINT_IN	 (LIBUSB_ENDPOINT_IN | 1) /* endpoint address */
+
 
 struct mctp_usb_header_tx {
 	uint16_t dmtf_id;
@@ -39,12 +41,22 @@ struct mctp_usb_header_tx {
 	uint8_t length;
 };
 
+struct mctp_usb_header_rx {
+	uint16_t dmtf_id;
+	uint8_t rsvd;
+	uint8_t byte_count;
+};
+
+
 struct mctp_binding_usb {
 	struct mctp_binding binding;
 	libusb_context *ctx;
 	libusb_device_handle *dev_handle;
 	/* temporary transmit buffer */
 	uint8_t txbuf[512];
+	/* receive buffer */
+	uint8_t rxbuf[512];
+	struct mctp_pktbuf *rx_pkt;
 	const struct libusb_pollfd **usb_poll_fds;
 	uint8_t bindingfds_cnt;
 	bool bindingfds_change;
@@ -64,6 +76,47 @@ int mctp_usb_handle_event(struct mctp_binding_usb *usb)
 	}
 
 	return ret;
+}
+
+void mctp_usb_rx_transfer_callback(struct libusb_transfer *xfr)
+{
+	struct mctp_binding_usb *usb = xfr->user_data;
+	struct mctp_usb_header_rx *hdr;
+
+	switch (xfr->status) {
+	case LIBUSB_TRANSFER_COMPLETED:
+
+		if (xfr->actual_length < (ssize_t)sizeof(*hdr)) {
+			goto out;
+		}
+
+		hdr = (void *)xfr->buffer;
+		if (hdr->dmtf_id != MCTP_USB_DMTF_ID) { // The recipient of the message is 'Src_slave_addr'
+			mctp_prerr("Got bad DMTF ID: %d", hdr->dmtf_id);
+			goto out;
+		}
+		if (hdr->byte_count != (xfr->actual_length - sizeof(*hdr))) {
+			// Got an incorrectly sized payload
+			mctp_prerr("Got usb payload sized %d, expecting %zu",
+				hdr->byte_count, xfr->actual_length - sizeof(*hdr));
+			mctp_trace_rx(xfr->buffer, 255);
+			goto out;
+		}
+		usb->rx_pkt = mctp_pktbuf_alloc(&usb->binding, 0);
+		MCTP_ASSERT(usb->rx_pkt != NULL, -1, "Could not allocate pktbuf.");
+		if (mctp_pktbuf_push(usb->rx_pkt, &usb->rxbuf[sizeof(*hdr)],
+			xfr->actual_length - sizeof(*hdr)) != 0) {
+			mctp_prerr("Can't push tok pktbuf.");
+			goto out;
+		}
+		mctp_bus_rx(&usb->binding, usb->rx_pkt);
+		usb->rx_pkt = NULL;
+		break;
+	default:
+		break;
+	}
+out:
+	libusb_submit_transfer(xfr);
 }
 
 int mctp_usb_hotplug_callback(struct libusb_context *ctx,
@@ -105,6 +158,17 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 		usb->bindingfds_change = true;
 		if (bus_reg)
 			mctp_binding_set_tx_enabled(base_usb, true);
+		//Submit to get Rx
+		struct libusb_transfer *rx_xtr = libusb_alloc_transfer(0);
+		libusb_fill_bulk_transfer(rx_xtr, dev_handle,
+						USB_ENDPOINT_IN, // Endpoint ID
+						usb->rxbuf, sizeof(usb->rxbuf),
+						mctp_usb_rx_transfer_callback, usb,
+						0);
+		if (libusb_submit_transfer(rx_xtr) < 0) {
+			mctp_prerr("Rx: Error libusb_submit_transfer\n");
+			libusb_free_transfer(rx_xtr);
+		}
 
 	} else if (LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT == event) {
 		rc = libusb_get_device_descriptor(dev, &desc);
@@ -131,7 +195,6 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 	return 0;
 }
 
-
 void callbackUSBTxTransferComplete(struct libusb_transfer *xfr)
 {
 	printf("callbackWriteComplete, status: %d\n", xfr->status);
@@ -151,7 +214,6 @@ void callbackUSBTxTransferComplete(struct libusb_transfer *xfr)
 	}
 
 }
-
 
 static int mctp_usb_tx(struct mctp_binding_usb *usb, uint8_t len)
 {
