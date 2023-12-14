@@ -96,9 +96,10 @@ struct mctp_cmdline_i2c {
 
 /* USB specific configuration */
 struct mctp_cmdline_usb {
-	uint8_t vendor_id;
-	uint8_t product_id;
-	uint8_t class_id;
+	uint8_t own_eid;
+	uint8_t bridge_eid;
+	uint8_t bridge_pool_start;
+	bool remove_duplicates;
 };
 
 /* Command line structure */

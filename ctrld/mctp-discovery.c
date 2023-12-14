@@ -35,7 +35,7 @@ extern const uint8_t MCTP_ROUTING_ENTRY_START;
 static int g_target_bdf = 0;
 
 /* The EIDs and pool start information would be obtaind from commandline */
-static uint8_t g_pci_bridge_eid, g_pci_own_eid, g_pci_bridge_pool_start;
+static uint8_t g_bridge_eid, g_own_eid, g_bridge_pool_start;
 
 /* Send function for Prepare for Endpoint discovery */
 mctp_ret_codes_t
@@ -62,6 +62,10 @@ mctp_prepare_ep_discovery_send_request(int sock_fd, mctp_binding_ids_t bind_id)
 		pvt_binding = &pvt_binding_pcie;
 		binding_size = sizeof(pvt_binding_pcie);
 	} else if (MCTP_BINDING_SPI == bind_id) {
+		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
+		pvt_binding = &pvt_binding_spi;
+		binding_size = sizeof(pvt_binding_spi);
+	} else if (MCTP_BINDING_USB == bind_id) {
 		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
 		pvt_binding = &pvt_binding_spi;
 		binding_size = sizeof(pvt_binding_spi);
@@ -324,7 +328,7 @@ int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
 			__func__, set_eid_resp->status, set_eid_resp->eid_set);
 
 		/* Get the EID from the bridge (FPGA) */
-		g_pci_bridge_eid = set_eid_resp->eid_set;
+		g_bridge_eid = set_eid_resp->eid_set;
 	} else {
 		MCTP_CTRL_DEBUG(
 			"%s: Set Endpoint id: 0x%x (Accepted by the device)\n",
@@ -591,7 +595,7 @@ int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
 		       sizeof(struct get_routing_table_entry));
 
 		/* Dont add the entry to the routing table if the EID is it's own */
-		if (routing_table_entry.starting_eid == g_pci_own_eid) {
+		if (routing_table_entry.starting_eid == g_own_eid) {
 			MCTP_CTRL_DEBUG(
 				"%s: Found it's own eid: [%d] in the Routing table\n",
 				__func__, routing_table_entry.starting_eid);
@@ -996,14 +1000,26 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 	g_target_bdf = mctp_ctrl_get_target_bdf(cmd);
 
 	/* Update the EID lists */
-	g_pci_own_eid = cmd->pcie.own_eid;
-	g_pci_bridge_eid = cmd->pcie.bridge_eid;
-	g_pci_bridge_pool_start = cmd->pcie.bridge_pool_start;
+	switch (cmd->binding_type) {
+		case MCTP_BINDING_USB:
+			g_own_eid = cmd->usb.own_eid;
+			g_bridge_eid = cmd->usb.bridge_eid;
+			g_bridge_pool_start = cmd->usb.bridge_pool_start;
+			bind_id = MCTP_BINDING_USB;
+			break;
+		case MCTP_BINDING_PCIE:
+			g_own_eid = cmd->pcie.own_eid;
+			g_bridge_eid = cmd->pcie.bridge_eid;
+			g_bridge_pool_start = cmd->pcie.bridge_pool_start;
+			break;
+		default:
+			break;
+	}
 
 	MCTP_CTRL_INFO(
-		"%s: pci_own_eid: %d, pci_bridge_eid: %d, pci_bridge_pool_start: %d\n",
-		__func__, g_pci_own_eid, g_pci_bridge_eid,
-		g_pci_bridge_pool_start);
+		"%s: own_eid: %d, bridge_eid: %d, bridge_pool_start: %d\n",
+		__func__, g_own_eid, g_bridge_eid,
+		g_bridge_pool_start);
 
 	do {
 		/* Wait for MCTP response */
@@ -1121,7 +1137,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 
 			/* Update the EID operation and EID number */
 			set_eid_op = set_eid;
-			eid = g_pci_bridge_eid;
+			eid = g_bridge_eid;
 
 			/* Send the MCTP_SET_EP_REQUEST */
 			mctp_ret = mctp_set_eid_send_request(
@@ -1147,7 +1163,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			/* Process the MCTP_SET_EP_RESPONSE */
 			mctp_ret = mctp_set_eid_get_response(mctp_resp_msg,
 							     resp_msg_len,
-							     g_pci_bridge_eid,
+							     g_bridge_eid,
 							     &eid_count);
 			/* Free Rx packet */
 			free(mctp_resp_msg);
@@ -1192,11 +1208,11 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 		case MCTP_ALLOCATE_EP_ID_REQUEST:
 
 			/* Update the Allocate EIDs operation, number of EIDs, Starting EID */
-			eid = g_pci_bridge_eid;
+			eid = g_bridge_eid;
 			alloc_eid_op = alloc_req_eid;
 
 			/* Set the start of EID */
-			eid_start = g_pci_bridge_pool_start;
+			eid_start = g_bridge_pool_start;
 
 			/* Send the MCTP_ALLOCATE_EP_ID_REQUEST */
 			mctp_ret = mctp_alloc_eid_send_request(
