@@ -143,6 +143,15 @@ configure_file(
   output: 'mctp-spi-ctrl'
 )
 
+configure_file(
+  copy: true,
+  input: 'mctp-usb-ctrl',
+  install: true,
+  install_dir: get_option('bindir'),
+  install_mode: 'rwxr-xr-x',
+  output: 'mctp-usb-ctrl'
+)
+
 subdir('utils')
 subdir('ctrld')
 subdir('vdm/nvidia')
