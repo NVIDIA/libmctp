@@ -31,7 +31,7 @@ extern uint8_t g_eid_pool_start;
 extern mctp_routing_table_t *g_routing_table_entries;
 extern const uint8_t MCTP_ROUTING_ENTRY_START;
 
-/* PCIe target bdf */
+/* PCIe or USB target bdf */
 static int g_target_bdf = 0;
 
 /* The EIDs and pool start information would be obtaind from commandline */
@@ -996,18 +996,22 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 	mctp_routing_table_t *routing_entry = NULL;
 	mctp_binding_ids_t bind_id = MCTP_BINDING_PCIE;
 
-	/* Update Target BDF */
-	g_target_bdf = mctp_ctrl_get_target_bdf(cmd);
 
 	/* Update the EID lists */
 	switch (cmd->binding_type) {
 		case MCTP_BINDING_USB:
+			/* Update Target BDF */
+			g_target_bdf = mctp_ctrl_get_target_bdf_usb(cmd);
+
 			g_own_eid = cmd->usb.own_eid;
 			g_bridge_eid = cmd->usb.bridge_eid;
 			g_bridge_pool_start = cmd->usb.bridge_pool_start;
 			bind_id = MCTP_BINDING_USB;
 			break;
 		case MCTP_BINDING_PCIE:
+			/* Update Target BDF */
+			g_target_bdf = mctp_ctrl_get_target_bdf_pcie(cmd);
+
 			g_own_eid = cmd->pcie.own_eid;
 			g_bridge_eid = cmd->pcie.bridge_eid;
 			g_bridge_pool_start = cmd->pcie.bridge_pool_start;

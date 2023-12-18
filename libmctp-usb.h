@@ -15,12 +15,20 @@ enum {
 	MCTP_USB_FD_CHANGE
 };
 
-// Question: format?? - used in ctrl messages
-// This is just a placeholder:
+/*
+ * Routing types
+ */
+enum mctp_usb_msg_routing {
+	USB_ROUTE_TO_RC = 0,
+	USB_ROUTE_BY_ID = 2,
+	USB_BROADCAST_FROM_RC = 3
+};
+
 struct mctp_usb_pkt_private {
-	uint8_t vendor_id;
-	uint8_t prod_id;
-} __attribute__((packed));
+	enum mctp_usb_msg_routing routing;
+	/* source (rx)/target (tx) endpoint bdf */
+	uint16_t remote_id;
+} __attribute__((__packed__));
 
 struct mctp_binding_usb;
 

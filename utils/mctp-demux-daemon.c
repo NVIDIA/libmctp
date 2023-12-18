@@ -270,9 +270,11 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 					      (void *)&pvt_binding.usb);
 
 		if (ctx->verbose) {
-			printf("%s: USB EID: %d, VendorID: 0x%x, ProdID: 0x%x, len: %zu\n",
-			       __func__, eid, pvt_binding.usb.vendor_id,
-			       pvt_binding.usb.prod_id, len);
+			printf("%s: BindID: %d, Target EID: %d, msg len: %zi,\
+			    Routing:%d remote_id: 0x%x\n",
+			       __func__, bind_id, eid, len,
+			       pvt_binding.usb.routing,
+			       pvt_binding.usb.remote_id);
 		}
 		if (rc) {
 			warnx("Failed to send message: %d", rc);
@@ -926,6 +928,7 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 	usb = mctp_usb_init(vendor_id, product_id, class_id);
 
 	MCTP_ASSERT_RET(usb != NULL, -1,"could not initialise usb binding");
+	mctp_prinfo("registering bus");
 
 	mctp_register_bus(mctp, mctp_binding_usb_core(usb), eid);
 
@@ -1438,7 +1441,6 @@ int main(int argc, char *const *argv)
 {
 	struct ctx *ctx = NULL, _ctx = {0};
 	int rc;
-
 	ctx = &_ctx;
 	ctx->clients = NULL;
 	ctx->n_clients = 0;
@@ -1451,6 +1453,8 @@ int main(int argc, char *const *argv)
 	ctx->pcap.socket.path = NULL;
 	ctx->pcap.socket.linktype = -1;
 
+	// Revertme: For debugging
+	ctx->verbose = true;
 	mctp_prinfo("MCTP demux started.");
 
 	for (;;) {
@@ -1485,6 +1489,9 @@ int main(int argc, char *const *argv)
 		}
 	}
 
+	mctp_prinfo("initial parsing of cmdline done");
+
+
 	if (optind >= argc) {
 		fprintf(stderr, "missing binding argument\n");
 		usage(argv[0]);
@@ -1512,6 +1519,7 @@ int main(int argc, char *const *argv)
 
 	rc = sd_notifyf(0, "STATUS=Initializing MCTP.\nMAINPID=%d", getpid());
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
+	mctp_prinfo("initing mctp!");
 
 	ctx->mctp = mctp_init();
 	MCTP_ASSERT_RET(ctx->mctp != NULL, EXIT_FAILURE, "ctx->mctp is NULL");
@@ -1549,7 +1557,7 @@ int main(int argc, char *const *argv)
 	rc = sd_notify(0, "STATUS=Initializing binding.");
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
 
-	mctp_prinfo("Binding init called.");
+	mctp_prinfo("Binding init called!");
 	rc = binding_init(ctx, argv[optind], argc - optind - 1,
 			  argv + optind + 1);
 	mctp_prinfo("Binding init returned: %d.", rc);

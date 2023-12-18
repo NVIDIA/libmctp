@@ -13,7 +13,7 @@
 #include <unistd.h>
 #include <libusb-1.0/libusb.h>
 
-#define pr_fmt(x) "smbus: " x
+#define pr_fmt(x) "usb: " x
 
 #include "libmctp-alloc.h"
 #include "libmctp-log.h"
@@ -294,10 +294,11 @@ static int mctp_usb_start(struct mctp_binding *b)
 
 	//Potential race condition - what if hotplug callback hasn't happened yet?
 	if (!usb->dev_handle) {
-		printf("Error starting USB device (hotplug callback not yet happened): \n");
+		mctp_prinfo("USB device could not be started (hotplug callback not yet happened!): \n");
 		mctp_binding_set_tx_enabled(b, false);
 	}
 	else {
+		mctp_prinfo("Enabling bus in start func \n");
 		mctp_binding_set_tx_enabled(b, true);
 	}
 	
@@ -316,6 +317,7 @@ struct mctp_binding *mctp_binding_usb_core(struct mctp_binding_usb *usb)
 struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 				       uint16_t class_id)
 {
+	(void)class_id;
 	struct mctp_binding_usb *usb;
 	libusb_hotplug_callback_handle callback_handle;
 	int rc;
@@ -333,11 +335,13 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 	usb->binding.pkt_trailer = 0;
 	usb->binding.pkt_priv_size = sizeof(struct mctp_usb_pkt_private);
 
+	mctp_prinfo("Creating a hotplug callback\n");
+
 	rc = libusb_hotplug_register_callback(
 		NULL,
 		LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED |
 			LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT,
-		LIBUSB_HOTPLUG_ENUMERATE, vendor_id, product_id, class_id,
+		LIBUSB_HOTPLUG_ENUMERATE, vendor_id, product_id, LIBUSB_HOTPLUG_MATCH_ANY,
 		mctp_usb_hotplug_callback, usb, &callback_handle);
 	if (LIBUSB_SUCCESS != rc) {
 		printf("Error creating a hotplug callback\n");
