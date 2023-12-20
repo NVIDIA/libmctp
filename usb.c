@@ -29,11 +29,8 @@
 #endif
 #define binding_to_usb(b)   container_of(b, struct mctp_binding_usb, binding)
 
-
 #define MCTP_USB_DMTF_ID 0x1AB4
-#define USB_ENDPOINT_OUT (LIBUSB_ENDPOINT_OUT | 1) /* endpoint address */
-#define USB_ENDPOINT_IN	 (LIBUSB_ENDPOINT_IN | 2) /* endpoint address */
-
+#define MCTP_CLASS_ID	 0x14
 
 struct mctp_usb_header_tx {
 	uint16_t dmtf_id;
@@ -60,6 +57,8 @@ struct mctp_binding_usb {
 	const struct libusb_pollfd **usb_poll_fds;
 	uint8_t bindingfds_cnt;
 	bool bindingfds_change;
+	uint8_t endpoint_in_addr;
+	uint8_t endpoint_out_addr;
 };
 
 int mctp_usb_handle_event(struct mctp_binding_usb *usb)
@@ -140,12 +139,50 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 		rc = libusb_get_device_descriptor(dev, &desc);
 		if (LIBUSB_SUCCESS == rc) {
 			printf("Device attached: %04x:%04x\n", desc.idVendor,
-			       desc.idProduct);			
+			       desc.idProduct);
 		} else {
 			printf("Device attached\n");
 			fprintf(stderr, "Error getting device descriptor: %s\n",
 				libusb_strerror((enum libusb_error)rc));
 		}
+		// Iterate through all usb configurations to get mctp info
+		struct libusb_config_descriptor *config;
+		for (uint8_t i = 0; i < desc.bNumConfigurations; i++) {
+			libusb_get_config_descriptor(dev, i, &config);
+			for (uint8_t j = 0; j < config->bNumInterfaces; ++j) {
+				const struct libusb_interface *itf =
+					&config->interface[j];
+				for (uint8_t k = 0; k < itf->num_altsetting;
+				     ++k) {
+					const struct libusb_interface_descriptor
+						*itf_desc = &itf->altsetting[k];
+					if (itf_desc->bInterfaceClass ==
+					    MCTP_CLASS_ID) {
+						for (uint8_t l = 0;
+						     l <
+						     itf_desc->bNumEndpoints;
+						     l++) {
+							const struct libusb_endpoint_descriptor
+								*ep_desc =
+									&itf_desc->endpoint
+										 [l];
+							// Get endpoints address
+							if ((ep_desc->bEndpointAddress &
+							     0x80) ==
+							    LIBUSB_ENDPOINT_OUT)
+								usb->endpoint_out_addr =
+									ep_desc->bEndpointAddress;
+							if ((ep_desc->bEndpointAddress &
+							     0x80) ==
+							    LIBUSB_ENDPOINT_IN)
+								usb->endpoint_in_addr =
+									ep_desc->bEndpointAddress;
+						}
+					}
+				}
+			}
+		}
+
 		rc = libusb_open(dev, &dev_handle);
 		if (LIBUSB_SUCCESS != rc) {
 			printf("Could not open USB device\n");
@@ -161,10 +198,10 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 		//Submit to get Rx
 		struct libusb_transfer *rx_xtr = libusb_alloc_transfer(0);
 		libusb_fill_bulk_transfer(rx_xtr, dev_handle,
-						USB_ENDPOINT_IN, // Endpoint ID
-						usb->rxbuf, sizeof(usb->rxbuf),
-						mctp_usb_rx_transfer_callback, usb,
-						0);
+					  usb->endpoint_in_addr, // Endpoint ID
+					  usb->rxbuf, sizeof(usb->rxbuf),
+					  mctp_usb_rx_transfer_callback, usb,
+					  0);
 		if (libusb_submit_transfer(rx_xtr) < 0) {
 			mctp_prerr("Rx: Error libusb_submit_transfer\n");
 			libusb_free_transfer(rx_xtr);
@@ -221,8 +258,7 @@ static int mctp_usb_tx(struct mctp_binding_usb *usb, uint8_t len)
 	struct libusb_transfer *tx_xfr = libusb_alloc_transfer(0);
 	void *data_tx = (void *)usb->txbuf;
 	libusb_fill_bulk_transfer(tx_xfr, usb->dev_handle,
-				  USB_ENDPOINT_OUT,
-				  data_tx, len,
+				  usb->endpoint_out_addr, data_tx, len,
 				  callbackUSBTxTransferComplete, NULL, 0);
 	if (libusb_submit_transfer(tx_xfr) < 0) {
 		// Error
