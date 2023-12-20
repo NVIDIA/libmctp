@@ -14,6 +14,7 @@
 #include "libmctp-cmds.h"
 #include "libmctp-astpcie.h"
 #include "libmctp-astspi.h"
+#include "libmctp-usb.h"
 #include "libmctp-log.h"
 
 #include "mctp-encode.h"
@@ -50,6 +51,8 @@ mctp_prepare_ep_discovery_send_request(int sock_fd, mctp_binding_ids_t bind_id)
 	void *pvt_binding = NULL;
 	struct mctp_astpcie_pkt_private pvt_binding_pcie;
 	struct mctp_astspi_pkt_private pvt_binding_spi;
+	struct mctp_usb_pkt_private pvt_binding_usb;
+
 	size_t binding_size = 0;
 
 	/* Set destination EID as broadcast */
@@ -66,9 +69,9 @@ mctp_prepare_ep_discovery_send_request(int sock_fd, mctp_binding_ids_t bind_id)
 		pvt_binding = &pvt_binding_spi;
 		binding_size = sizeof(pvt_binding_spi);
 	} else if (MCTP_BINDING_USB == bind_id) {
-		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
-		pvt_binding = &pvt_binding_spi;
-		binding_size = sizeof(pvt_binding_spi);
+		memset(&pvt_binding_usb, 0, sizeof(pvt_binding_usb));
+		pvt_binding = &pvt_binding_usb;
+		binding_size = sizeof(pvt_binding_usb);
 	}
 
 	/* Prepare the endpoint discovery message */

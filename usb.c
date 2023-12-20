@@ -31,8 +31,8 @@
 
 
 #define MCTP_USB_DMTF_ID 0x1AB4
-#define USB_ENDPOINT_OUT (LIBUSB_ENDPOINT_OUT | 2) /* endpoint address */
-#define USB_ENDPOINT_IN	 (LIBUSB_ENDPOINT_IN | 1) /* endpoint address */
+#define USB_ENDPOINT_OUT (LIBUSB_ENDPOINT_OUT | 1) /* endpoint address */
+#define USB_ENDPOINT_IN	 (LIBUSB_ENDPOINT_IN | 2) /* endpoint address */
 
 
 struct mctp_usb_header_tx {
@@ -212,6 +212,7 @@ void callbackUSBTxTransferComplete(struct libusb_transfer *xfr)
 	default:
 		break;
 	}
+	libusb_free_transfer(xfr);
 
 }
 

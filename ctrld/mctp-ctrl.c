@@ -202,7 +202,7 @@ static void usage_common(void)
 		"\t-v\tVerbose level\n"
 		"\t-e\tTarget Endpoint Id\n"
 		"\t-m\tMode: (0 - Commandline mode, 1 - daemon mode, 2 - SPI test mode)\n"
-		"\t-t\tBinding Type (0 - Resvd, 1 - I2C, 2 - PCIe, 6 - SPI)\n"
+		"\t-t\tBinding Type (0 - Resvd, 1 - I2C, 2 - PCIe, 3 - USB, 6 - SPI)\n"
 		"\t-b\tBinding data (pvt)\n"
 		"\t-d\tDelay in seconds (for MCTP enumeration)\n"
 		"\t-s\tTx data (MCTP packet payload: [Req-dgram]-[cmd-code]--)\n"
