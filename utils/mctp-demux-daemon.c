@@ -68,7 +68,7 @@
 // Question: offsets for smbus do not correspond to diagram in spec
 #define MCTP_USB_EID_OFFSET                                                  \
 	MCTP_BIND_INFO_OFFSET + sizeof(struct mctp_usb_pkt_private)
-#define MCTP_USB_MSG_OFFSET MCTP_SMBUS_EID_OFFSET + (sizeof(uint8_t))
+#define MCTP_USB_MSG_OFFSET MCTP_USB_EID_OFFSET + (sizeof(uint8_t))
 
 #include <systemd/sd-daemon.h>
 
@@ -149,6 +149,7 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 	const size_t min_packet_spi = MCTP_SPI_EID_OFFSET + 1;
 	const size_t min_packet_smbus = MCTP_SMBUS_EID_OFFSET + 1;
 	const size_t min_packet_usb = MCTP_USB_EID_OFFSET + 1;
+	mctp_prinfo("In tx pvt message ");
 
 	/* Get the bus type (binding ID) */
 	bind_id = *((uint8_t *)msg);
@@ -261,9 +262,8 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		/* Set MCTP payload size */
 		len = len - (MCTP_USB_MSG_OFFSET)-1;
 
-		printf("USB msg: ");
+		mctp_prinfo("USB msg data: ");
 		mctp_print_hex((uint8_t *)msg + MCTP_USB_MSG_OFFSET, len);
-		printf("\n");
 
 		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, MCTP_MESSAGE_TO_SRC, 0,
 					      (uint8_t *)msg + MCTP_USB_MSG_OFFSET, len,
@@ -1067,6 +1067,7 @@ static int socket_process(struct ctx *ctx)
 {
 	struct client *client;
 	int fd;
+	mctp_prinfo("In socket process\n");
 
 	fd = accept4(ctx->sock, NULL, 0, SOCK_NONBLOCK);
 	if (fd < 0)
@@ -1143,6 +1144,17 @@ static int client_process_recv(struct ctx *ctx, int idx)
 		rc = -1;
 		goto out_close;
 	}
+
+
+	/* Print message from socket */
+	if (ctx->verbose) {
+		mctp_prinfo("MCTP msg in socket recv: \n");
+		unsigned char *dt = (unsigned char *) ctx->buf;
+		for (uint8_t i=0; i< len; i++){
+			mctp_prinfo("%02X ", (unsigned int) dt[i]);
+		}
+	}
+	
 
 	/* Need a special handling for MCTP-Ctrl type
 	 * as it will use different packet formatting as mentioned
