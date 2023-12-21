@@ -59,6 +59,9 @@ struct mctp_binding_usb {
 	bool bindingfds_change;
 	uint8_t endpoint_in_addr;
 	uint8_t endpoint_out_addr;
+	/* stats for binding Tx */
+	uint16_t byte_cnt_failed;
+	uint16_t byte_cnt_tx;
 };
 
 int mctp_usb_handle_event(struct mctp_binding_usb *usb)
@@ -232,19 +235,23 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 	return 0;
 }
 
-void callbackUSBTxTransferComplete(struct libusb_transfer *xfr)
+void mctp_usb_tx_transfer_callback(struct libusb_transfer *xfr)
 {
 	printf("callbackWriteComplete, status: %d\n", xfr->status);
+	struct mctp_binding_usb *usb = (struct mctp_binding_usb *) xfr->user_data;
 	switch (xfr->status) {
 	case LIBUSB_TRANSFER_COMPLETED:
+		usb->byte_cnt_tx += 1;
 		break;
 	case LIBUSB_TRANSFER_ERROR:
         fprintf(stderr, "Transfer failed with error\n");
+		usb->byte_cnt_failed += 1;
 		//Retry?
         break;
     case LIBUSB_TRANSFER_CANCELLED:
-        //Retry?
 		printf("Transfer was canceled\n");
+		usb->byte_cnt_failed += 1;
+        //Retry?
         break;
 	default:
 		break;
@@ -256,10 +263,12 @@ void callbackUSBTxTransferComplete(struct libusb_transfer *xfr)
 static int mctp_usb_tx(struct mctp_binding_usb *usb, uint8_t len)
 {
 	struct libusb_transfer *tx_xfr = libusb_alloc_transfer(0);
+	mctp_prinfo("mctp_usb_tx \n");
+
 	void *data_tx = (void *)usb->txbuf;
 	libusb_fill_bulk_transfer(tx_xfr, usb->dev_handle,
 				  usb->endpoint_out_addr, data_tx, len,
-				  callbackUSBTxTransferComplete, NULL, 0);
+				  mctp_usb_tx_transfer_callback, usb, 0);
 	if (libusb_submit_transfer(tx_xfr) < 0) {
 		// Error
 		printf("Tx: Error libusb_submit_transfer\n");
@@ -276,6 +285,7 @@ static int mctp_binding_usb_tx(struct mctp_binding *b,
 				 struct mctp_pktbuf *pkt)
 {
 	mctp_prdebug("%s: Prepared MCTP packet\n", __func__);
+	mctp_prinfo("mctp_binding_usb_tx \n");
 
 	struct mctp_binding_usb *usb = binding_to_usb(b);
 	struct mctp_usb_header_tx *hdr;
@@ -391,6 +401,8 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 	}
 	usb->binding.start = mctp_usb_start;
 	usb->binding.tx = mctp_binding_usb_tx;
+	usb->byte_cnt_tx = 0;
+	usb->byte_cnt_failed = 0;
 	
 	return usb;
 }
