@@ -11,24 +11,18 @@ extern "C" {
 #include <poll.h>
 
 enum {
-	MCTP_USB_NO_ERROR = 0,
-	MCTP_USB_FD_CHANGE
-};
-
-/*
- * Routing types
- */
-enum mctp_usb_msg_routing {
-	USB_ROUTE_TO_RC = 0,
-	USB_ROUTE_BY_ID = 2,
-	USB_BROADCAST_FROM_RC = 3
+       MCTP_USB_NO_ERROR = 0,
+       MCTP_USB_FD_CHANGE
 };
 
 struct mctp_usb_pkt_private {
-	enum mctp_usb_msg_routing routing;
-	/* source (rx)/target (tx) endpoint bdf */
-	uint16_t remote_id;
-} __attribute__((__packed__));
+	/*
+	 * We are unsure if we really need this.
+	 * Let's reserve some memory in case we need to
+	 * store something useful here.
+	 */
+	uint8_t _reserved[32];
+} __attribute__((packed));
 
 struct mctp_binding_usb;
 

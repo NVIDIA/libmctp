@@ -425,7 +425,7 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 	return MCTP_CMD_SUCCESS;
 }
 
-uint16_t mctp_ctrl_get_target_bdf_pcie(const mctp_cmdline_args_t *cmd)
+uint16_t mctp_ctrl_get_target_bdf(const mctp_cmdline_args_t *cmd)
 {
 	struct mctp_astpcie_pkt_private pvt_binding;
 
@@ -445,25 +445,6 @@ uint16_t mctp_ctrl_get_target_bdf_pcie(const mctp_cmdline_args_t *cmd)
 	return (pvt_binding.remote_id);
 }
 
-uint16_t mctp_ctrl_get_target_bdf_usb(const mctp_cmdline_args_t *cmd)
-{
-	struct mctp_usb_pkt_private pvt_binding;
-
-	// Get binding information
-	if (cmd->binding_type == MCTP_BINDING_USB) {
-		memcpy(&pvt_binding, &cmd->bind_info,
-		       sizeof(struct mctp_usb_pkt_private));
-	} else {
-		MCTP_CTRL_INFO("%s: Invalid binding type: %d\n", __func__,
-			       cmd->binding_type);
-		return 0;
-	}
-
-	/* Update the target EID */
-	MCTP_CTRL_INFO("%s: Target BDF: 0x%x\n", __func__,
-		       pvt_binding.remote_id);
-	return (pvt_binding.remote_id);
-}
 
 int mctp_cmdline_copy_tx_buff(char src[], uint8_t *dest, int len)
 {

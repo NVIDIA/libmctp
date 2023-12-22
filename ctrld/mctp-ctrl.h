@@ -100,10 +100,7 @@ mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_fd,
 			      const mctp_binding_ids_t *bind_id,
 			      void *mctp_binding_info, size_t mctp_binding_len);
 
-uint16_t mctp_ctrl_get_target_bdf_pcie(const mctp_cmdline_args_t *cmd);
-
-uint16_t mctp_ctrl_get_target_bdf_usb(const mctp_cmdline_args_t *cmd);
-
+uint16_t mctp_ctrl_get_target_bdf(const mctp_cmdline_args_t *cmd);
 
 mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 				     uint8_t **mctp_resp_msg,

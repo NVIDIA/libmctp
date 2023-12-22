@@ -29,7 +29,7 @@
 #endif
 #define binding_to_usb(b)   container_of(b, struct mctp_binding_usb, binding)
 
-#define MCTP_USB_DMTF_ID 0x1AB4
+#define MCTP_USB_DMTF_ID 0xB41A
 #define MCTP_CLASS_ID	 0x14
 
 struct mctp_usb_header_tx {
@@ -237,19 +237,20 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 
 void mctp_usb_tx_transfer_callback(struct libusb_transfer *xfr)
 {
-	printf("callbackWriteComplete, status: %d\n", xfr->status);
+	mctp_prinfo("callbackWriteComplete, status: %d\n", xfr->status);
 	struct mctp_binding_usb *usb = (struct mctp_binding_usb *) xfr->user_data;
 	switch (xfr->status) {
 	case LIBUSB_TRANSFER_COMPLETED:
+		mctp_prinfo("Transfer completed");
 		usb->byte_cnt_tx += 1;
 		break;
 	case LIBUSB_TRANSFER_ERROR:
-        fprintf(stderr, "Transfer failed with error\n");
+        mctp_prerr("Transfer failed with error %d\n", (int) stderr);
 		usb->byte_cnt_failed += 1;
 		//Retry?
         break;
     case LIBUSB_TRANSFER_CANCELLED:
-		printf("Transfer was canceled\n");
+		mctp_prerr("Transfer was canceled");
 		usb->byte_cnt_failed += 1;
         //Retry?
         break;
@@ -271,7 +272,7 @@ static int mctp_usb_tx(struct mctp_binding_usb *usb, uint8_t len)
 				  mctp_usb_tx_transfer_callback, usb, 0);
 	if (libusb_submit_transfer(tx_xfr) < 0) {
 		// Error
-		printf("Tx: Error libusb_submit_transfer\n");
+		mctp_prerr("Tx: Error libusb_submit_transfer\n");
 		libusb_free_transfer(tx_xfr);
 		return -1;
 	}
@@ -299,7 +300,7 @@ static int mctp_binding_usb_tx(struct mctp_binding *b,
 	 * and escape sequences */
 	hdr = (struct mctp_usb_header_tx *)usb->txbuf;
 	hdr->dmtf_id = MCTP_USB_DMTF_ID;
-	hdr->length = (uint8_t)pkt_length + 1;
+	hdr->length = (uint8_t)pkt_length;
 	hdr->reserved=0x0;
 
 	// Check if endpoint support mctp, if no just drop send message

@@ -1002,23 +1002,16 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 
 	/* Update the EID lists */
 	switch (cmd->binding_type) {
-		case MCTP_BINDING_USB:
-			/* Update Target BDF */
-			g_target_bdf = mctp_ctrl_get_target_bdf_usb(cmd);
-
-			g_own_eid = cmd->usb.own_eid;
-			g_bridge_eid = cmd->usb.bridge_eid;
-			g_bridge_pool_start = cmd->usb.bridge_pool_start;
-			bind_id = MCTP_BINDING_USB;
-			break;
 		case MCTP_BINDING_PCIE:
 			/* Update Target BDF */
-			g_target_bdf = mctp_ctrl_get_target_bdf_pcie(cmd);
+			g_target_bdf = mctp_ctrl_get_target_bdf(cmd);
 
 			g_own_eid = cmd->pcie.own_eid;
 			g_bridge_eid = cmd->pcie.bridge_eid;
 			g_bridge_pool_start = cmd->pcie.bridge_pool_start;
 			break;
+		case MCTP_BINDING_USB:
+			bind_id = MCTP_BINDING_USB;
 		default:
 			break;
 	}

@@ -149,7 +149,7 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 	const size_t min_packet_spi = MCTP_SPI_EID_OFFSET + 1;
 	const size_t min_packet_smbus = MCTP_SMBUS_EID_OFFSET + 1;
 	const size_t min_packet_usb = MCTP_USB_EID_OFFSET + 1;
-	mctp_prinfo("In tx pvt message ");
+	mctp_prinfo("In tx pvt message. Len= %d", len);
 
 	/* Get the bus type (binding ID) */
 	bind_id = *((uint8_t *)msg);
@@ -262,20 +262,16 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		/* Set MCTP payload size */
 		len = len - (MCTP_USB_MSG_OFFSET)-1;
 
-		mctp_prinfo("USB msg data: ");
-		mctp_print_hex((uint8_t *)msg + MCTP_USB_MSG_OFFSET, len);
+		if (ctx->verbose){
+		mctp_prinfo("Offsets: \
+			MCTP_BIND_INFO_OFFSET: %d, MCTP_USB_EID_OFFSET: %d, MCTP_USB_MSG_OFFSET: %d", \
+			MCTP_BIND_INFO_OFFSET, MCTP_USB_EID_OFFSET, MCTP_USB_MSG_OFFSET \
+		);
+		}
 
 		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, MCTP_MESSAGE_TO_SRC, 0,
 					      (uint8_t *)msg + MCTP_USB_MSG_OFFSET, len,
 					      (void *)&pvt_binding.usb);
-
-		if (ctx->verbose) {
-			printf("%s: BindID: %d, Target EID: %d, msg len: %zi,\
-			    Routing:%d remote_id: 0x%x\n",
-			       __func__, bind_id, eid, len,
-			       pvt_binding.usb.routing,
-			       pvt_binding.usb.remote_id);
-		}
 		if (rc) {
 			warnx("Failed to send message: %d", rc);
 		}
