@@ -69,6 +69,9 @@ mctp_prepare_ep_discovery_send_request(int sock_fd, mctp_binding_ids_t bind_id)
 		pvt_binding = &pvt_binding_spi;
 		binding_size = sizeof(pvt_binding_spi);
 	} else if (MCTP_BINDING_USB == bind_id) {
+		printf("WAR********* set dest EID to 0\n");
+		/*Temporary WAR for USB. TODO: Needs to be removed*/
+		dest_eid = MCTP_NULL_ENDPOINT;
 		memset(&pvt_binding_usb, 0, sizeof(pvt_binding_usb));
 		pvt_binding = &pvt_binding_usb;
 		binding_size = sizeof(pvt_binding_usb);
@@ -150,6 +153,7 @@ mctp_ret_codes_t mctp_ep_discovery_send_request(int sock_fd,
 	void *pvt_binding = NULL;
 	struct mctp_astpcie_pkt_private pvt_binding_pcie;
 	struct mctp_astspi_pkt_private pvt_binding_spi;
+	struct mctp_usb_pkt_private pvt_binding_usb;
 	size_t binding_size = 0;
 
 	/* Set destination EID as broadcast */
@@ -165,6 +169,12 @@ mctp_ret_codes_t mctp_ep_discovery_send_request(int sock_fd,
 		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
 		pvt_binding = &pvt_binding_spi;
 		binding_size = sizeof(pvt_binding_spi);
+	} else if (MCTP_BINDING_USB == bind_id) {
+		/*Temporary WAR for USB. TODO: Needs to be removed*/
+		dest_eid = MCTP_NULL_ENDPOINT;
+		memset(&pvt_binding_usb, 0, sizeof(pvt_binding_usb));
+		pvt_binding = &pvt_binding_usb;
+		binding_size = sizeof(pvt_binding_usb);
 	}
 
 	/* Prepare the endpoint discovery message */
