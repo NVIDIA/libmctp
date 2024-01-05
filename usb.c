@@ -36,14 +36,13 @@ struct mctp_usb_header_tx {
 	uint16_t dmtf_id;
 	uint8_t reserved;
 	uint8_t length;
-};
+} __attribute__((packed));
 
 struct mctp_usb_header_rx {
 	uint16_t dmtf_id;
 	uint8_t rsvd;
 	uint8_t byte_count;
-};
-
+} __attribute__((packed));
 
 struct mctp_binding_usb {
 	struct mctp_binding binding;
@@ -97,10 +96,10 @@ void mctp_usb_rx_transfer_callback(struct libusb_transfer *xfr)
 			mctp_prerr("Got bad DMTF ID: %d", hdr->dmtf_id);
 			goto out;
 		}
-		if (hdr->byte_count != (xfr->actual_length - sizeof(*hdr))) {
+		if (hdr->byte_count != xfr->actual_length) {
 			// Got an incorrectly sized payload
 			mctp_prerr("Got usb payload sized %d, expecting %zu",
-				hdr->byte_count, xfr->actual_length - sizeof(*hdr));
+				   hdr->byte_count, xfr->actual_length);
 			mctp_trace_rx(xfr->buffer, 255);
 			goto out;
 		}
@@ -300,7 +299,7 @@ static int mctp_binding_usb_tx(struct mctp_binding *b,
 	 * and escape sequences */
 	hdr = (struct mctp_usb_header_tx *)usb->txbuf;
 	hdr->dmtf_id = MCTP_USB_DMTF_ID;
-	hdr->length = (uint8_t)pkt_length;
+	hdr->length = (uint8_t)pkt_length + (uint8_t)sizeof(hdr);
 	hdr->reserved=0x0;
 
 	// Check if endpoint support mctp, if no just drop send message
