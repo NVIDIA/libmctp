@@ -250,6 +250,7 @@ mctp_ret_codes_t mctp_set_eid_send_request(int sock_fd,
 	void *pvt_binding = NULL;
 	struct mctp_astpcie_pkt_private pvt_binding_pcie;
 	struct mctp_astspi_pkt_private pvt_binding_spi;
+	struct mctp_usb_pkt_private pvt_binding_usb;
 	size_t binding_size = 0;
 
 	/* Set destination EID as NULL */
@@ -265,6 +266,10 @@ mctp_ret_codes_t mctp_set_eid_send_request(int sock_fd,
 		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
 		pvt_binding = &pvt_binding_spi;
 		binding_size = sizeof(pvt_binding_spi);
+	} else if (MCTP_BINDING_USB == bind_id) {
+		memset(&pvt_binding_usb, 0, sizeof(pvt_binding_usb));
+		pvt_binding = &pvt_binding_usb;
+		binding_size = sizeof(pvt_binding_usb);
 	}
 
 	/* Encode Set Endpoint ID message */
@@ -389,6 +394,7 @@ mctp_ret_codes_t mctp_alloc_eid_send_request(
 	void *pvt_binding = NULL;
 	struct mctp_astpcie_pkt_private pvt_binding_pcie;
 	struct mctp_astspi_pkt_private pvt_binding_spi;
+	struct mctp_usb_pkt_private pvt_binding_usb;
 	size_t binding_size = 0;
 
 	/* Set destination EID as NULL */
@@ -404,6 +410,10 @@ mctp_ret_codes_t mctp_alloc_eid_send_request(
 		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
 		pvt_binding = &pvt_binding_spi;
 		binding_size = sizeof(pvt_binding_spi);
+	} else if (MCTP_BINDING_USB == bind_id) {
+		memset(&pvt_binding_usb, 0, sizeof(pvt_binding_usb));
+		pvt_binding = &pvt_binding_usb;
+		binding_size = sizeof(pvt_binding_usb);
 	}
 
 	/* Allocate Endpoint ID's message */
@@ -496,6 +506,7 @@ mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd,
 	void *pvt_binding = NULL;
 	struct mctp_astpcie_pkt_private pvt_binding_pcie;
 	struct mctp_astspi_pkt_private pvt_binding_spi;
+	struct mctp_usb_pkt_private pvt_binding_usb;
 	size_t binding_size = 0;
 	static int entry_count = 0;
 
@@ -514,6 +525,10 @@ mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd,
 		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
 		pvt_binding = &pvt_binding_spi;
 		binding_size = sizeof(pvt_binding_spi);
+	} else if (MCTP_BINDING_USB == bind_id) {
+		memset(&pvt_binding_usb, 0, sizeof(pvt_binding_usb));
+		pvt_binding = &pvt_binding_usb;
+		binding_size = sizeof(pvt_binding_usb);
 	}
 
 	/* Get routing table request message */
@@ -712,6 +727,7 @@ mctp_ret_codes_t mctp_get_endpoint_uuid_send_request(int sock_fd,
 	void *pvt_binding = NULL;
 	struct mctp_astpcie_pkt_private pvt_binding_pcie;
 	struct mctp_astspi_pkt_private pvt_binding_spi;
+	struct mctp_usb_pkt_private pvt_binding_usb;
 	size_t binding_size = 0;
 
 	/* Set destination EID */
@@ -727,6 +743,10 @@ mctp_ret_codes_t mctp_get_endpoint_uuid_send_request(int sock_fd,
 		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
 		pvt_binding = &pvt_binding_spi;
 		binding_size = sizeof(pvt_binding_spi);
+	} else if (MCTP_BINDING_USB == bind_id) {
+		memset(&pvt_binding_usb, 0, sizeof(pvt_binding_usb));
+		pvt_binding = &pvt_binding_usb;
+		binding_size = sizeof(pvt_binding_usb);
 	}
 
 	/* Encode for Get Endpoint UUID message */
@@ -817,6 +837,7 @@ mctp_ret_codes_t mctp_get_msg_type_request(int sock_fd,
 	void *pvt_binding = NULL;
 	struct mctp_astpcie_pkt_private pvt_binding_pcie;
 	struct mctp_astspi_pkt_private pvt_binding_spi;
+	struct mctp_usb_pkt_private pvt_binding_usb;
 	size_t binding_size = 0;
 
 	/* Set destination EID */
@@ -832,6 +853,10 @@ mctp_ret_codes_t mctp_get_msg_type_request(int sock_fd,
 		memset(&pvt_binding_spi, 0, sizeof(pvt_binding_spi));
 		pvt_binding = &pvt_binding_spi;
 		binding_size = sizeof(pvt_binding_spi);
+	} else if (MCTP_BINDING_USB == bind_id) {
+		memset(&pvt_binding_usb, 0, sizeof(pvt_binding_usb));
+		pvt_binding = &pvt_binding_usb;
+		binding_size = sizeof(pvt_binding_usb);
 	}
 
 	/* Encode for Get Endpoint UUID message */
