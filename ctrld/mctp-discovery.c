@@ -1046,6 +1046,9 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			g_bridge_pool_start = cmd->pcie.bridge_pool_start;
 			break;
 		case MCTP_BINDING_USB:
+			g_own_eid = cmd->usb.own_eid;
+			g_bridge_eid = cmd->usb.bridge_eid;
+			g_bridge_pool_start = cmd->usb.bridge_pool_start;
 			bind_id = MCTP_BINDING_USB;
 		default:
 			break;
