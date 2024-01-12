@@ -811,6 +811,7 @@ struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t bus_smq,
 	smbus->rx_pkt = NULL;
 	smbus->binding.name = "smbus";
 	smbus->binding.version = 1;
+	smbus->binding.mctp_send_tx_queue = NULL;
 
 	smbus->binding.pkt_size = MCTP_PACKET_SIZE(MCTP_BTU);
 	smbus->binding.pkt_header = 0;

@@ -381,6 +381,7 @@ struct mctp_binding_astpcie *mctp_astpcie_init_fileio(void)
 
 	astpcie->binding.name = "astpcie";
 	astpcie->binding.version = 1;
+	astpcie->binding.mctp_send_tx_queue = NULL;
 	astpcie->binding.tx = mctp_astpcie_tx;
 	astpcie->binding.start = mctp_astpcie_start;
 	astpcie->binding.pkt_size = MCTP_PACKET_SIZE(MCTP_BTU);

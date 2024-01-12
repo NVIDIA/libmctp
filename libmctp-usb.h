@@ -2,6 +2,7 @@
 
 #ifndef _LIBMCTP_USB_H
 #define _LIBMCTP_USB_H
+#define USB_BUF_MAX 512
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,6 +33,8 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id, 
 
 int mctp_usb_init_pollfd(struct mctp_binding_usb *usb,
 			   struct pollfd **pollfds);
+			   
+void mctp_send_tx_queue_usb(struct mctp_bus *bus);
 
 struct mctp_binding *mctp_binding_usb_core(struct mctp_binding_usb *usb);
 

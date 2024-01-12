@@ -287,6 +287,89 @@ static int mctp_usb_tx(struct mctp_binding_usb *usb, uint8_t len)
 	return 0;
 }
 
+static size_t prepare_usb_hdr(struct mctp_pktbuf *pkt, size_t pkt_length)
+{
+	struct mctp_usb_header_tx *hdr;
+	uint8_t mctp_pkt_length;
+
+	hdr = (struct mctp_usb_header_tx *)pkt->data;
+	hdr->dmtf_id = MCTP_USB_DMTF_ID;
+	mctp_pkt_length = (uint8_t)pkt_length + (uint8_t)sizeof(hdr);
+	hdr->length = mctp_pkt_length;
+	hdr->reserved=0x0;
+
+	return mctp_pkt_length;
+}
+
+
+/* 
+ * Batch Tx on bus, called from core.c
+ */
+void mctp_send_tx_queue_usb(struct mctp_bus *bus)
+{
+	struct mctp_pktbuf *pkt;
+	int rv;
+	char *buf_ptr;
+	size_t usb_buf_len =0; 
+	struct mctp_binding_usb *usb = binding_to_usb(bus->binding);
+	uint16_t usb_message_len;
+	buf_ptr = (char *)usb->txbuf;
+	unsigned char *dt;
+
+	if (bus->state != mctp_bus_state_tx_enabled){
+		mctp_prerr("Bus is in enabled state, cannot Tx");
+		return;
+	}
+	//Capture?
+
+	while ((pkt = bus->tx_queue_head)) {
+
+		size_t pkt_length = mctp_pktbuf_size(pkt);
+
+		/* data + binding header + mctp header */
+		usb_message_len = prepare_usb_hdr(pkt, pkt_length);
+
+		mctp_prinfo("Each packet after hdr: ");
+		// dt = (unsigned char *) pkt->data;
+		// for (uint8_t i=0; i< (pkt_length+4); i++){
+		// 	mctp_prinfo("%02X ", (unsigned int) dt[i]);
+		// }
+
+		if ((usb_buf_len + usb_message_len) >= USB_BUF_MAX){
+
+			mctp_prinfo("buffer: ");
+			dt = (unsigned char *)usb->txbuf;
+			for (uint8_t i=0; i< usb_buf_len; i++){
+				mctp_prinfo("%02X ", (unsigned int) dt[i]);
+			}
+
+			rv = mctp_usb_tx(usb, usb_buf_len);
+			MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
+			buf_ptr = (char  *)usb->txbuf - usb_message_len;
+			usb_buf_len = 0;
+		} else { 
+			usb_buf_len += usb_message_len;
+		}
+		
+		memcpy(buf_ptr, pkt->data, usb_message_len);
+
+		buf_ptr = buf_ptr + usb_message_len;
+
+		bus->tx_queue_head = pkt->next;
+		mctp_pktbuf_free(pkt);
+		mctp_prerr("Packet lengh: %d, bufptr: 0x%p, usb_buf len:  %d", usb_message_len, (void *)buf_ptr, usb_buf_len);
+	}
+
+	mctp_prinfo("buffer outside: ");
+	dt = (unsigned char *)usb->txbuf;
+	for (uint8_t i=0; i< usb_buf_len; i++){
+				mctp_prinfo("%02X ", (unsigned int) dt[i]);
+	}
+	rv = mctp_usb_tx(usb, usb_message_len);
+	MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
+
+}
+
 
 //Tx for MCTP over USB
 static int mctp_binding_usb_tx(struct mctp_binding *b,
@@ -295,29 +378,23 @@ static int mctp_binding_usb_tx(struct mctp_binding *b,
 	mctp_prdebug("%s: Prepared MCTP packet\n", __func__);
 	mctp_prinfo("mctp_binding_usb_tx \n");
 
-	struct mctp_binding_usb *usb = binding_to_usb(b);
-	struct mctp_usb_header_tx *hdr;
+	/* Payload + base mctp hdr = 68B */
 	size_t pkt_length = mctp_pktbuf_size(pkt);
+	struct mctp_binding_usb *usb = binding_to_usb(b);
+
+	/* BTU + binding header + mctp hdr */
+	size_t usb_message_len;
+	usb_message_len = prepare_usb_hdr(pkt, pkt_length);
+	
 	int rv;
 
-	uint8_t *buf_ptr;
-	uint8_t usb_message_len;
+	unsigned char *buf_ptr;
 
 	/* the length field in the header excludes usb framing
 	 * and escape sequences */
-	hdr = (struct mctp_usb_header_tx *)usb->txbuf;
-	hdr->dmtf_id = MCTP_USB_DMTF_ID;
-	hdr->length = (uint8_t)pkt_length + (uint8_t)sizeof(hdr);
-	hdr->reserved=0x0;
-
-	buf_ptr = (uint8_t *)usb->txbuf + sizeof(*hdr);
-	memcpy(buf_ptr, &pkt->data[pkt->start], pkt_length);
-
-	buf_ptr = buf_ptr + pkt_length;
+	buf_ptr = (unsigned char *)usb->txbuf;
+	memcpy(buf_ptr, &pkt->data, usb_message_len);
 	
-	//MCTP packet length of [ header, data]
-	usb_message_len = sizeof(*hdr) + pkt_length;
-
 	rv = mctp_usb_tx(usb, usb_message_len);
 	MCTP_ASSERT_RET(rv >= 0, -1, "mctp_usb_tx failed: %d", rv);
 
@@ -364,11 +441,18 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 	usb = __mctp_alloc(sizeof(*usb));
 	libusb_init(&usb->ctx);
 	usb->dev_handle=NULL;
-
 	usb->bindingfds_change = false;
 
 	usb->binding.name = "usb";
 	usb->binding.version = 1;
+
+	#ifdef MCTP_BATCH_TX
+	usb->binding.mctp_send_tx_queue = mctp_send_tx_queue_usb;
+	mctp_prinfo("Batch tx enabled from compiler");
+	#else
+	usb->binding.mctp_send_tx_queue = NULL;
+	#endif
+
 
 	usb->binding.pkt_size = MCTP_PACKET_SIZE(MCTP_BTU);
 	usb->binding.pkt_header = 4;

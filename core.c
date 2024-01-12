@@ -20,23 +20,6 @@
 
 /* Internal data structures */
 
-enum mctp_bus_state {
-	mctp_bus_state_constructed = 0,
-	mctp_bus_state_tx_enabled,
-	mctp_bus_state_tx_disabled,
-};
-
-struct mctp_bus {
-	mctp_eid_t eid;
-	struct mctp_binding *binding;
-	enum mctp_bus_state state;
-
-	struct mctp_pktbuf *tx_queue_head;
-	struct mctp_pktbuf *tx_queue_tail;
-
-	/* todo: routing */
-};
-
 struct mctp_msg_ctx {
 	uint8_t src;
 	uint8_t dest;
@@ -743,7 +726,14 @@ void mctp_binding_set_tx_enabled(struct mctp_binding *binding, bool enable)
 
 		bus->state = mctp_bus_state_tx_enabled;
 		mctp_prdebug("%s binding Tx enabled", binding->name);
-		mctp_send_tx_queue(bus);
+
+		if (bus->binding->mctp_send_tx_queue) {
+			bus->binding->mctp_send_tx_queue(bus);
+			mctp_prinfo("Sent batch Tx");
+		} else{
+			mctp_send_tx_queue(bus);
+			mctp_prinfo("Sent non-batch Tx");
+		}
 		return;
 	}
 }
@@ -823,7 +813,13 @@ static int mctp_message_tx_on_bus(struct mctp_bus *bus, mctp_eid_t src,
 	}
 
 	mctp_prdebug("%s: Enqueued %d packets", __func__, i);
-	mctp_send_tx_queue(bus);
+	if (bus->binding->mctp_send_tx_queue) {
+		bus->binding->mctp_send_tx_queue(bus);
+		mctp_prinfo("Sent batch Tx");
+	} else{
+		mctp_send_tx_queue(bus);
+		mctp_prinfo("Sent non-batch Tx");
+	}
 
 	return 0;
 }

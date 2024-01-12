@@ -263,9 +263,9 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		len = len - (MCTP_USB_MSG_OFFSET)-1;
 
 		if (ctx->verbose){
-		mctp_prinfo("Offsets: \
-			MCTP_BIND_INFO_OFFSET: %d, MCTP_USB_EID_OFFSET: %d, MCTP_USB_MSG_OFFSET: %d", \
-			MCTP_BIND_INFO_OFFSET, MCTP_USB_EID_OFFSET, MCTP_USB_MSG_OFFSET \
+			mctp_prinfo("Offsets: \
+				MCTP_BIND_INFO_OFFSET: %d, MCTP_USB_EID_OFFSET: %d, MCTP_USB_MSG_OFFSET: %d", \
+				MCTP_BIND_INFO_OFFSET, MCTP_USB_EID_OFFSET, MCTP_USB_MSG_OFFSET \
 		);
 		}
 

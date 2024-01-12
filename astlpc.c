@@ -1242,6 +1242,7 @@ static struct mctp_binding_astlpc *__mctp_astlpc_init(uint8_t mode,
 	astlpc->requested_mtu = mtu;
 	astlpc->binding.name = "astlpc";
 	astlpc->binding.version = 1;
+	astlpc->binding.mctp_send_tx_queue = NULL;
 	astlpc->binding.pkt_size =
 		MCTP_PACKET_SIZE(mtu > MCTP_BTU ? mtu : MCTP_BTU);
 	astlpc->binding.pkt_header = 4;

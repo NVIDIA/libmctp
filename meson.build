@@ -14,6 +14,11 @@ add_project_arguments('-DMCTP_HAVE_FILEIO', language: ['c', 'cpp'])
 add_project_arguments('-DMCTP_HAVE_STDIO', language: ['c', 'cpp'])
 add_project_arguments('-DMCTP_DEFAULT_ALLOC', language: ['c', 'cpp'])
 
+if get_option('mctp-batch-tx').enabled()
+  summary('mctp-batch-tx','-DMCTP_BATCH_TX', section : 'Enabled Features')
+  add_project_arguments('-DMCTP_BATCH_TX', language: ['c', 'cpp'])
+endif
+
 sources = [
   'alloc.c',
   'astlpc.c',

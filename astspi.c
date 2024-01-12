@@ -567,6 +567,7 @@ mctp_spi_bind_init(struct mctp_astspi_device_conf *conf)
 	spi->rx_pkt = NULL;
 	spi->binding.name = "spi";
 	spi->binding.version = 1;
+	spi->binding.mctp_send_tx_queue = NULL;
 	spi->binding.pkt_size = MCTP_PACKET_SIZE(MCTP_BTU);
 	spi->binding.pkt_priv_size = sizeof(struct mctp_astspi_pkt_private);
 

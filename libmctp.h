@@ -203,8 +203,26 @@ struct mctp_binding {
 	size_t pkt_trailer;
 	int (*start)(struct mctp_binding *binding);
 	int (*tx)(struct mctp_binding *binding, struct mctp_pktbuf *pkt);
+	void (*mctp_send_tx_queue)(struct mctp_bus *bus);
 	mctp_rx_fn control_rx;
 	void *control_rx_data;
+};
+
+enum mctp_bus_state {
+	mctp_bus_state_constructed = 0,
+	mctp_bus_state_tx_enabled,
+	mctp_bus_state_tx_disabled,
+};
+
+struct mctp_bus {
+	mctp_eid_t eid;
+	struct mctp_binding *binding;
+	enum mctp_bus_state state;
+
+	struct mctp_pktbuf *tx_queue_head;
+	struct mctp_pktbuf *tx_queue_tail;
+
+	/* todo: routing */
 };
 
 void mctp_binding_set_tx_enabled(struct mctp_binding *binding, bool enable);
