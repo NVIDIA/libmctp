@@ -620,11 +620,15 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 		MCTP_CTRL_DEBUG("%s: Setting up SMBus socket\n", __func__);
 		if(use_config_json_file_mc == false)
 			mctp_sock_path = MCTP_SOCK_PATH_I2C;
+	} else if (cmdline->binding_type == MCTP_BINDING_USB) {
+		MCTP_CTRL_DEBUG("%s: Setting up USB socket\n", __func__);
+		if(use_config_json_file_mc == false)
+			mctp_sock_path = MCTP_SOCK_PATH_USB;
 	}
 
 	/* Open the user socket file-descriptor */
 	if (cmdline->ops == MCTP_CMDLINE_OP_WRITE_DATA) {
-		MCTP_CTRL_DEBUG("%s: scoket init for Message Type:0x%x\n", __func__, cmdline->tx_data[0]);
+		MCTP_CTRL_DEBUG("%s: socket init for Message Type:0x%x\n", __func__, cmdline->tx_data[0]);
 		rc = mctp_usr_socket_init(&fd, mctp_sock_path,
 					  cmdline->tx_data[0],
 					  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
