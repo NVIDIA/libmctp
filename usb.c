@@ -87,7 +87,12 @@ void mctp_usb_rx_transfer_callback(struct libusb_transfer *xfr)
 	switch (xfr->status) {
 	case LIBUSB_TRANSFER_COMPLETED:
 
+		mctp_trace_rx(xfr->buffer, xfr->actual_length);
+
 		if (xfr->actual_length < (ssize_t)sizeof(*hdr)) {
+			mctp_prerr(
+				"Got bad length in MCTP Rx! Length is too short: %d\n",
+				xfr->actual_length);
 			goto out;
 		}
 
@@ -100,7 +105,7 @@ void mctp_usb_rx_transfer_callback(struct libusb_transfer *xfr)
 			// Got an incorrectly sized payload
 			mctp_prerr("Got usb payload sized %d, expecting %zu",
 				   hdr->byte_count, xfr->actual_length);
-			mctp_trace_rx(xfr->buffer, 255);
+			mctp_trace_rx(xfr->buffer, xfr->actual_length);
 			goto out;
 		}
 		usb->rx_pkt = mctp_pktbuf_alloc(&usb->binding, 0);
@@ -114,6 +119,7 @@ void mctp_usb_rx_transfer_callback(struct libusb_transfer *xfr)
 		usb->rx_pkt = NULL;
 		break;
 	default:
+		mctp_prerr("Rx transfer failed with status: %d\n", xfr->status);
 		break;
 	}
 out:
@@ -265,6 +271,8 @@ static int mctp_usb_tx(struct mctp_binding_usb *usb, uint8_t len)
 	struct libusb_transfer *tx_xfr = libusb_alloc_transfer(0);
 	mctp_prinfo("mctp_usb_tx \n");
 
+	mctp_trace_tx(usb->txbuf, len);
+
 	void *data_tx = (void *)usb->txbuf;
 	libusb_fill_bulk_transfer(tx_xfr, usb->dev_handle,
 				  usb->endpoint_out_addr, data_tx, len,
@@ -301,21 +309,6 @@ static int mctp_binding_usb_tx(struct mctp_binding *b,
 	hdr->dmtf_id = MCTP_USB_DMTF_ID;
 	hdr->length = (uint8_t)pkt_length + (uint8_t)sizeof(hdr);
 	hdr->reserved=0x0;
-
-	// Check if endpoint support mctp, if no just drop send message
-	// for (i = 0; i < smbus->static_endpoints_len; i++) {
-	// 	if (smbus->static_endpoints[i].slave_address ==
-	// 	    smbus->dest_slave_addr[0]) {
-	// 		if (smbus->static_endpoints[i].support_mctp == 0) {
-	// 			mctp_prerr(
-	// 				"EID: %d, address: %d, bus: %d does not support MCTP, dropping packet\n",
-	// 				smbus->static_endpoints[i].endpoint_num,
-	// 				smbus->static_endpoints[i].slave_address,
-	// 				smbus->static_endpoints[i].bus_num);
-	// 			return 0;
-	// 		}
-	// 	}
-	// }
 
 	buf_ptr = (uint8_t *)usb->txbuf + sizeof(*hdr);
 	memcpy(buf_ptr, &pkt->data[pkt->start], pkt_length);

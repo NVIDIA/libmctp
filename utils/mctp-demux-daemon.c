@@ -1461,8 +1461,6 @@ int main(int argc, char *const *argv)
 	ctx->pcap.socket.path = NULL;
 	ctx->pcap.socket.linktype = -1;
 
-	// Revertme: For debugging
-	ctx->verbose = true;
 	mctp_prinfo("MCTP demux started.");
 
 	for (;;) {
