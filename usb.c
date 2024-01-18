@@ -367,7 +367,7 @@ void mctp_send_tx_queue_usb(struct mctp_bus *bus)
 	for (uint8_t i=0; i< usb_buf_len; i++){
 				mctp_prinfo("%02X ", (unsigned int) dt[i]);
 	}
-	rv = mctp_usb_tx(usb, usb_message_len);
+	rv = mctp_usb_tx(usb, usb_buf_len);
 	MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
 
 }
