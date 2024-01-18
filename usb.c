@@ -359,6 +359,8 @@ void mctp_send_tx_queue_usb(struct mctp_bus *bus)
 		mctp_pktbuf_free(pkt);
 		mctp_prerr("Packet lengh: %d, bufptr: 0x%p, usb_buf len:  %d", usb_message_len, (void *)buf_ptr, usb_buf_len);
 	}
+	if (!bus->tx_queue_head)
+		bus->tx_queue_tail = NULL;
 
 	mctp_prinfo("buffer outside: ");
 	dt = (unsigned char *)usb->txbuf;
