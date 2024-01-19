@@ -62,7 +62,7 @@ static pthread_t g_keepalive_thread;
 extern const uint8_t MCTP_MSG_TYPE_HDR;
 extern const uint8_t MCTP_CTRL_MSG_TYPE;
 
-char *mctp_sock_path = NULL;
+char *mctp_sock_path;
 const char *mctp_medium_type;
 
 /* Static variables for clean up*/
@@ -70,6 +70,9 @@ int g_socket_fd = -1;
 int g_signal_fd = -1;
 static sd_bus *g_sdbus = NULL;
 
+static char *config_json_file_path = NULL;
+bool use_config_json_file_mc = false;
+extern json_object *parsed_json;
 static uint8_t chosen_eid_type = EID_TYPE_BRIDGE;
 
 extern void mctp_routing_entry_delete_all(void);
@@ -186,8 +189,7 @@ static void usage(void)
 		"(or if use script: mctp-<binding>-ctrl -h<binding>)\n"
 		"Available bindings:\n"
 		"  pcie\n"
-		"  spi\n"
-		"  smbus\n");
+		"  spi\n");
 }
 
 static void usage_common(void)
@@ -596,10 +598,12 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 	// Chosse binding type (PCIe or SMBus)
 	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		MCTP_CTRL_DEBUG("%s: Setting up PCIe socket\n", __func__);
-		mctp_sock_path = MCTP_SOCK_PATH_PCIE;
+		if(use_config_json_file_mc == false)
+			mctp_sock_path = MCTP_SOCK_PATH_PCIE;
 	} else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
 		MCTP_CTRL_DEBUG("%s: Setting up SMBus socket\n", __func__);
-		mctp_sock_path = MCTP_SOCK_PATH_I2C;
+		if(use_config_json_file_mc == false)
+			mctp_sock_path = MCTP_SOCK_PATH_I2C;
 	}
 
 	/* Open the user socket file-descriptor */
@@ -649,7 +653,8 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 
 	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		MCTP_CTRL_INFO("%s: Binding type: PCIe\n", __func__);
-		mctp_sock_path = MCTP_SOCK_PATH_PCIE;
+		if(use_config_json_file_mc == false)
+			mctp_sock_path = MCTP_SOCK_PATH_PCIE;
 		mctp_medium_type = "PCIe";
 
 		/* Open the user socket file-descriptor */
@@ -658,7 +663,8 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	}
 	else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 		MCTP_CTRL_INFO("%s: Binding type: SPI\n", __func__);
-		mctp_sock_path = MCTP_SOCK_PATH_SPI;
+		if(use_config_json_file_mc == false)
+			mctp_sock_path = MCTP_SOCK_PATH_SPI;
 		mctp_medium_type = "SPI";
 
 		/* Open the user socket file-descriptor for CTRL MSG type */
@@ -684,9 +690,8 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	}
 	else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
 		MCTP_CTRL_INFO("%s: Binding type: SMBus\n", __func__);
-		if ((mctp_sock_path == NULL) || (strlen(mctp_sock_path) <= 1)) {
+		if(use_config_json_file_mc == false)
 			mctp_sock_path = MCTP_SOCK_PATH_I2C;
-		}
 		mctp_medium_type = "SMBus";
 
 		/* Open the user socket file-descriptor */
@@ -823,76 +828,10 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	return EXIT_SUCCESS;
 }
 
-static void parse_json_config(
-	char *config_json_file_path,
-	mctp_cmdline_args_t *cmdline)
-{
-	json_object *parsed_json;
-	int rc;
-	rc = mctp_json_get_tokener_parse(&parsed_json, config_json_file_path);
-
-	if (rc == EXIT_FAILURE) {
-		MCTP_CTRL_ERR("Json tokener parse fail\n");
-		exit(EXIT_FAILURE);
-	}
-
-	// Get common parameters
-	mctp_json_i2c_get_common_params_ctrl(
-		parsed_json, &cmdline->i2c.bus_num,
-		&mctp_sock_path, &cmdline->i2c.own_eid,
-		cmdline->i2c.dest_slave_addr,
-		cmdline->i2c.logical_busses,
-		&cmdline->i2c.src_slave_addr);
-
-	// Set values for SMBus private binding used in discovery
-	set_g_val_for_pvt_binding(
-		cmdline->i2c.bus_num,
-		cmdline->i2c.dest_slave_addr[0],
-		cmdline->i2c.src_slave_addr);
-
-	// Get info about eid_type
-	chosen_eid_type = mctp_json_get_eid_type(parsed_json, "smbus", &cmdline->i2c.bus_num);
-
-	switch (chosen_eid_type)
-	{
-		case EID_TYPE_BRIDGE:
-			mctp_prinfo("Use bridge endpoint");
-			mctp_json_i2c_get_params_bridge_ctrl(parsed_json,
-				&cmdline->i2c.bus_num, &cmdline->i2c.bridge_eid, 
-				&cmdline->i2c.bridge_pool_start);
-
-			break;
-		case EID_TYPE_STATIC:
-			mctp_prinfo("Use static endpoint");
-			cmdline->dest_eid_tab = NULL;
-			mctp_json_i2c_get_params_static_ctrl(parsed_json,
-				&cmdline->i2c.bus_num, &cmdline->dest_eid_tab,
-				&cmdline->dest_eid_tab_len, &cmdline->uuid);
-
-			break;
-		case EID_TYPE_POOL:
-			mctp_prinfo("Use pool endpoints");
-			cmdline->dest_eid_tab = NULL;
-			mctp_json_i2c_get_params_pool_ctrl(parsed_json,
-				&cmdline->i2c.bus_num, &cmdline->dest_eid_tab,
-				&cmdline->dest_eid_tab_len);
-
-			break;
-
-		default:
-			break;
-	}
-
-	// free parsed json object
-	json_object_put(parsed_json);
-}
-
 static void parse_command_line(int argc, char *const *argv,
 			       mctp_cmdline_args_t *cmdline,
 			       mctp_ctrl_t *mctp_ctrl)
 {
-	char *config_json_file_path = NULL;
-
 	cmdline->verbose = false;
 	cmdline->binding_type = MCTP_BINDING_RESERVED;
 	cmdline->delay = MCTP_CTRL_DELAY_DEFAULT;
@@ -969,6 +908,7 @@ static void parse_command_line(int argc, char *const *argv,
 					malloc(strlen(optarg) + 1);
 				memcpy(config_json_file_path, optarg,
 				       (strlen(optarg) + 1));
+				use_config_json_file_mc = true;
 			}
 			break;
 		case 'p':
@@ -1032,36 +972,90 @@ static void parse_command_line(int argc, char *const *argv,
 			exit(EXIT_FAILURE);
 		}
 	}
-
 	switch (cmdline->binding_type) {
-		case MCTP_BINDING_PCIE:
-			cmdline->pcie.bridge_eid = bridge_eid;
-			cmdline->pcie.bridge_pool_start = bridge_pool;
-			cmdline->pcie.own_eid = own_eid;
-			cmdline->pcie.remove_duplicates = remove_duplicates;
-			break;
-		case MCTP_BINDING_SPI:
-			cmdline->spi.vdm_ops = vdm_ops;
-			cmdline->spi.cmd_mode = command_mode;
-			break;
-		case MCTP_BINDING_SMBUS:
-			if (config_json_file_path != NULL) {
-				parse_json_config(config_json_file_path, cmdline);
-				free(config_json_file_path);
+	case MCTP_BINDING_PCIE:
+		cmdline->pcie.bridge_eid = bridge_eid;
+		cmdline->pcie.bridge_pool_start = bridge_pool;
+		cmdline->pcie.own_eid = own_eid;
+		cmdline->pcie.remove_duplicates = remove_duplicates;
+		break;
+	case MCTP_BINDING_SPI:
+		cmdline->spi.vdm_ops = vdm_ops;
+		cmdline->spi.cmd_mode = command_mode;
+		break;
+	case MCTP_BINDING_SMBUS:
+		if (use_config_json_file_mc == true) {
+			int rc;
+
+			rc = mctp_json_get_tokener_parse(config_json_file_path);
+
+			if (rc == EXIT_FAILURE) {
+				MCTP_CTRL_ERR("Json tokener parse fail\n");
+				exit(EXIT_FAILURE);
 			}
 			else {
-				// Run as Bridge
+				// Get common parameters
+				mctp_json_i2c_get_common_params_ctrl(
+					parsed_json, &cmdline->i2c.bus_num,
+					&mctp_sock_path, &cmdline->i2c.own_eid,
+					cmdline->i2c.dest_slave_addr,
+					cmdline->i2c.logical_busses,
+					&cmdline->i2c.src_slave_addr);
+
+				// Set values for SMBus private binding used in discovery
 				set_g_val_for_pvt_binding(
-					MCTP_I2C_BUS_NUM_DEFAULT,
-					MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT,
-					MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT);
-				cmdline->i2c.bridge_eid = bridge_eid;
-				cmdline->i2c.bridge_pool_start = bridge_pool;
-				cmdline->i2c.own_eid = own_eid;
+					cmdline->i2c.bus_num,
+					cmdline->i2c.dest_slave_addr[0],
+					cmdline->i2c.src_slave_addr);
+
+				// Get info about eid_type
+				chosen_eid_type = mctp_json_get_eid_type(parsed_json, "smbus", &cmdline->i2c.bus_num);
+
+				switch (chosen_eid_type)
+				{
+				case EID_TYPE_BRIDGE:
+					mctp_prinfo("Use bridge endpoint");
+					mctp_json_i2c_get_params_bridge_ctrl(parsed_json,
+					&cmdline->i2c.bus_num, &cmdline->i2c.bridge_eid, &cmdline->i2c.bridge_pool_start);
+
+					break;
+				case EID_TYPE_STATIC:
+					mctp_prinfo("Use static endpoint");
+					cmdline->dest_eid_tab = NULL;
+					mctp_json_i2c_get_params_static_ctrl(parsed_json,
+					&cmdline->i2c.bus_num, &cmdline->dest_eid_tab,
+					&cmdline->dest_eid_tab_len, &cmdline->uuid);
+
+					break;
+				case EID_TYPE_POOL:
+					mctp_prinfo("Use pool endpoints");
+					cmdline->dest_eid_tab = NULL;
+					mctp_json_i2c_get_params_pool_ctrl(parsed_json,
+							&cmdline->i2c.bus_num, &cmdline->dest_eid_tab,
+							&cmdline->dest_eid_tab_len);
+
+					break;
+
+				default:
+					break;
+				}
 			}
-			break;
-		default:
-			break;
+
+			free(config_json_file_path);
+		}
+		else {
+			// Run as Bridge
+			set_g_val_for_pvt_binding(
+				MCTP_I2C_BUS_NUM_DEFAULT,
+				MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT,
+				MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT);
+			cmdline->i2c.bridge_eid = bridge_eid;
+			cmdline->i2c.bridge_pool_start = bridge_pool;
+			cmdline->i2c.own_eid = own_eid;
+		}
+		break;
+	default:
+		break;
 	}
 }
 

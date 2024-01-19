@@ -67,6 +67,8 @@ uint8_t i2c_bus_num = MCTP_SMBUS_BUS_NUM;
 uint8_t i2c_bus_num_smq = MCTP_SMBUS_BUS_NUM;
 uint8_t i2c_dest_slave_addr = MCTP_SMBUS_DEST_SLAVE_ADDR;
 uint8_t i2c_src_slave_addr = MCTP_SMBUS_SRC_SLAVE_ADDR;
+static char *config_json_file_path = NULL;
+extern json_object *parsed_json;
 
 static const mctp_eid_t local_eid_default = 8;
 
@@ -502,7 +504,8 @@ static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
 			if (strncmp(params[ii], prefix, len) == 0) {
 				int val = 0;
 				char *arg = strstr(params[ii], "=") + 1;
-				val = (int)strtoimax(arg, NULL, 10);
+
+				val = parse_num(arg);
 				*(int *)options[jj].target = val;
 				parsed = true;
 			}
@@ -610,105 +613,6 @@ static void fix_muxed_bus_numbers()
 	}
 }
 
-static void parse_joson_config(
-	char *config_json_file_path, 
-	struct binding *binding,
-	mctp_eid_t *eid)
-{
-	json_object *parsed_json;
-	int rc;
-
-	rc = mctp_json_get_tokener_parse(&parsed_json, 
-			config_json_file_path);
-
-	if (config_json_file_path != NULL) {
-		free(config_json_file_path);
-	}
-
-	if (rc == EXIT_FAILURE) {
-		mctp_prinfo(
-			"Use default config, JSON parsing failed\n");
-		binding_smbus_use_default_config();
-		return;
-	}
-
-	// Get common parameters
-	mctp_json_i2c_get_common_params_mctp_demux(parsed_json,
-		&i2c_bus_num, &i2c_bus_num_smq, &i2c_src_slave_addr,
-		&binding->sockname);
-
-	i2c_bus_num_smq = i2c_bus_num;
-
-	// Get info about eid_type
-	chosen_eid_type =
-		mctp_json_get_eid_type(parsed_json,
-						binding->name,
-						&i2c_bus_num);
-
-	mctp_prdebug("Chosen EID type: %d\n",
-				chosen_eid_type);
-
-	switch (chosen_eid_type) {
-		case EID_TYPE_BRIDGE:
-			mctp_prinfo("Use bridge endpoint\n");
-			rc = mctp_json_i2c_get_params_bridge_static_demux(
-				parsed_json, &i2c_bus_num,
-				&i2c_dest_slave_addr, eid);
-
-			if (rc == EXIT_FAILURE)
-				binding_smbus_use_default_config();
-
-			break;
-
-		case EID_TYPE_STATIC:
-			mctp_prinfo("Use static endpoint\n");
-			smbus_static_endpoints = malloc(
-				MCTP_I2C_MAX_BUSES *
-				sizeof(struct mctp_static_endpoint_mapper));
-			memset(smbus_static_endpoints, 0xFF,
-					MCTP_I2C_MAX_BUSES *
-						sizeof(struct mctp_static_endpoint_mapper));
-			smbus_static_endpoints_len =
-				MCTP_I2C_MAX_BUSES;
-			rc = mctp_json_i2c_get_params_bridge_static_demux(
-				parsed_json, &i2c_bus_num,
-				&i2c_dest_slave_addr, eid);
-			smbus_static_endpoints[0].slave_address =
-				i2c_dest_slave_addr;
-
-			if (rc == EXIT_FAILURE)
-				binding_smbus_use_default_config();
-
-			rc = mctp_json_i2c_get_params_static_demux(
-				parsed_json, &i2c_bus_num,
-				smbus_static_endpoints);
-
-			break;
-
-		case EID_TYPE_POOL:
-			mctp_prinfo("Use pool endpoints\n");
-
-			rc = mctp_json_i2c_get_params_pool_demux(
-				parsed_json, &i2c_bus_num,
-				&smbus_static_endpoints,
-				&smbus_static_endpoints_len);
-
-			if (rc == EXIT_FAILURE) {
-				mctp_prinfo(
-					"Get params for pool failed!");
-				binding_smbus_use_default_config();
-			}
-
-			break;
-
-		default:
-			break;
-	}
-
-	// free parsed json object
-	json_object_put(parsed_json);
-}
-
 static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 			      mctp_eid_t eid, int n_params,
 			      char *const *params __attribute__((unused)))
@@ -719,12 +623,13 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 		void *target;
 	} options[] = {
 		{ "i2c_bus=", &i2c_bus_num },
+		{ "i2c_config_file=", config_json_file_path},
 		{ "i2c_dest_addr=", &i2c_dest_slave_addr },
 		{ "i2c_src_addr=", &i2c_src_slave_addr},
 		{ NULL, NULL },
 	};
 
-	char *config_json_file_path = NULL;
+	bool use_config_json_file = false;
 
 	if(n_params != 0) {
 		for (int ii = 0; ii < n_params; ii++) {
@@ -746,12 +651,13 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 						    0) {
 						config_json_file_path = malloc(strlen(arg) + 1);
 						memcpy(config_json_file_path, arg, (strlen(arg) + 1));
+						use_config_json_file = true;
 					} else {
 						/* Check if a value is given in 'hex' or 'dec' */
 						if (strncmp(arg, "0x", 2) == 0)
 							val = strtoul(arg, NULL, 16);
 						else
-							val = (int)strtoimax(arg, NULL, 10);
+							val = parse_num(arg);
 
 						*(uint8_t *)options[jj].target =
 							val;
@@ -771,8 +677,89 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 		binding_smbus_use_default_config();
 	}
 
-	if (config_json_file_path != NULL) {
-		parse_joson_config(config_json_file_path, binding, &eid);
+	/* Check if is config file */
+	if (use_config_json_file == true) {
+		int rc;
+
+		rc = mctp_json_get_tokener_parse(config_json_file_path);
+
+		if (rc == EXIT_FAILURE) {
+			mctp_prinfo(
+				"Use default config, JSON parsing failed\n");
+			binding_smbus_use_default_config();
+		}
+		else {
+			// Get common parameters
+				mctp_json_i2c_get_common_params_mctp_demux(parsed_json,
+					&i2c_bus_num, &i2c_bus_num_smq, &i2c_src_slave_addr,
+					&binding->sockname);
+
+				i2c_bus_num_smq = i2c_bus_num;
+
+				// Get info about eid_type
+				chosen_eid_type =
+					mctp_json_get_eid_type(parsed_json,
+							       binding->name,
+							       &i2c_bus_num);
+
+				mctp_prdebug("Chosen EID type: %d\n",
+					     chosen_eid_type);
+
+				switch (chosen_eid_type) {
+				case EID_TYPE_BRIDGE:
+					mctp_prinfo("Use bridge endpoint\n");
+					rc = mctp_json_i2c_get_params_bridge_static_demux(
+						parsed_json, &i2c_bus_num,
+						&i2c_dest_slave_addr, &eid);
+
+					if (rc == EXIT_FAILURE)
+						binding_smbus_use_default_config();
+
+					break;
+				case EID_TYPE_STATIC:
+					mctp_prinfo("Use static endpoint\n");
+					smbus_static_endpoints = malloc(
+						MCTP_I2C_MAX_BUSES *
+						sizeof(struct mctp_static_endpoint_mapper));
+					memset(smbus_static_endpoints, 0xFF,
+					       MCTP_I2C_MAX_BUSES *
+						       sizeof(struct mctp_static_endpoint_mapper));
+					smbus_static_endpoints_len =
+						MCTP_I2C_MAX_BUSES;
+					rc = mctp_json_i2c_get_params_bridge_static_demux(
+						parsed_json, &i2c_bus_num,
+						&i2c_dest_slave_addr, &eid);
+					smbus_static_endpoints[0].slave_address =
+						i2c_dest_slave_addr;
+
+					if (rc == EXIT_FAILURE)
+						binding_smbus_use_default_config();
+
+					rc = mctp_json_i2c_get_params_static_demux(
+						parsed_json, &i2c_bus_num,
+						smbus_static_endpoints);
+
+					break;
+				case EID_TYPE_POOL:
+					mctp_prinfo("Use pool endpoints\n");
+
+					rc = mctp_json_i2c_get_params_pool_demux(
+						parsed_json, &i2c_bus_num,
+						&smbus_static_endpoints,
+						&smbus_static_endpoints_len);
+
+					if (rc == EXIT_FAILURE) {
+						mctp_prinfo(
+							"Get params for pool failed!");
+						binding_smbus_use_default_config();
+					}
+
+					break;
+
+				default:
+					break;
+				}
+		}
 		free(config_json_file_path);
 	}
 
