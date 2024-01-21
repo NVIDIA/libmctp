@@ -26,7 +26,7 @@ Supported commands:
              background_copy_query_status, background_copy_query_progress
              background_copy_query_pending      
 		     in_band_disable, in_band_enable
-             in_band_query_status
+             in_band_query_status, reset_erot
 
 Buffer allocation/deallocation: (implementation details)
 -------------------------------

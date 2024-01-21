@@ -107,6 +107,7 @@ static void usage(void)
 		query_force_grant_revoked_status\n \
 		enable_force_grant_revoked, disable_force_grant_revoked\n \
 		query_revoke_ap_otp_status\n \
+		reset_erot\n \
 		revoke_ap_otp\n \
 		");
 }
@@ -610,6 +611,10 @@ int main(int argc, char *const *argv)
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to force disable grant revoked %d\n",
 				    rc);
+	} else if (!strcmp(item, "reset_erot")) {
+		rc = reset_erot(fd, teid, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to reset EROT %d\n",
+				    rc);	
 	} else if (!strcmp(item, "revoke_ap_otp")) {
 		rc = revoke_ap_otp(fd, teid, MCTP_VDM_REVOKE_AP_OTP,
 				   VERBOSE_EN);
