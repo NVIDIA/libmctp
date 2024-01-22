@@ -1141,17 +1141,6 @@ static int client_process_recv(struct ctx *ctx, int idx)
 		goto out_close;
 	}
 
-
-	/* Print message from socket */
-	if (ctx->verbose) {
-		mctp_prinfo("MCTP msg in socket recv: \n");
-		unsigned char *dt = (unsigned char *) ctx->buf;
-		for (uint8_t i=0; i< len; i++){
-			mctp_prinfo("%02X ", (unsigned int) dt[i]);
-		}
-	}
-	
-
 	/* Need a special handling for MCTP-Ctrl type
 	 * as it will use different packet formatting as mentioned
 	 * below:
