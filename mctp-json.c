@@ -9,19 +9,18 @@
 #include "libmctp-log.h"
 #include "libmctp-smbus.h"
 
-json_object *parsed_json;
-char *buffer;
+#define MCTP_JSON_CONFIG_MAX_SIZE (128*1024)
 
-int parse_num(const char *param)
+static int parse_num(const char *param)
 {
 	intmax_t num;
-	char *endptr = NULL;
+	char *endptr;
 
 	num = strtoimax(param, &endptr, 10);
 
-	if (*endptr != '\0' && *endptr != ' ') {
-		fprintf(stderr, "Invalid number: %s\n", param);
-		exit(1);
+	if ((*endptr != '\0') && (*endptr != ' ')) {
+		MCTP_ERR("Invalid number: %s\n", param);
+		num = 0;
 	}
 
 	return (int)num;
@@ -34,63 +33,88 @@ int parse_num(const char *param)
  *
  * @return int return success or failure.
  */
-int mctp_json_get_tokener_parse(const char *path)
+int mctp_json_get_tokener_parse(json_object **jo, const char *path)
 {
 	int rc;
 	FILE *fp;
 	int file_size;
+	char *buffer = NULL;
+	enum json_tokener_error json_error;
+
+	*jo = NULL;
 
 	fp = fopen(path, "r");
 
 	if (fp == NULL) {
-		parsed_json = NULL;
-		printf("Unable to open: %s, err = %d\n", path, errno);
-		goto err_close;
+		MCTP_ERR("Unable to open: %s, err = %d\n", path, errno);
+		return EXIT_FAILURE;
 	}
 	else {
 		rc = fseek(fp, 0, SEEK_END);
 		if (rc == -1) {
-			printf("Failed to fseek\n");
+			MCTP_ERR("Failed to fseek\n");
 			goto err_close;
 		}
 
 		file_size = ftell(fp);
 		if (file_size == -1) {
-			printf("Failed to ftell\n");
+			MCTP_ERR("Failed to ftell\n");
+			goto err_close;
+		}
+
+		if (MCTP_JSON_CONFIG_MAX_SIZE <= file_size) {
+			MCTP_ERR("Config file size is too big = %d, expected up to %d\n", 
+				file_size, MCTP_JSON_CONFIG_MAX_SIZE);
 			goto err_close;
 		}
 
 		rc = fseek(fp, 0, SEEK_SET);
 		if (rc == -1) {
-			printf("Failed to fseek\n");
+			MCTP_ERR("Failed to fseek\n");
 			goto err_close;
 		}
 
-		buffer = malloc(file_size);
-		rc = fread(buffer, file_size, 1, fp);
-		if (rc <= 0) {
-			printf("Failed to fread\n");
+		buffer = malloc(file_size+1);
+
+		if (buffer == NULL) {
+			MCTP_ERR("Failed to allocate %d bytes\n", file_size+1);
 			goto err_close;
 		}
+
+		rc = fread(buffer, 1, file_size, fp);
+		if (rc != file_size) {
+			MCTP_ERR("Failed to fread, rc = %d\n", rc);
+			goto err_free_and_close;
+		}
+
+		// json_tokener_parse parses string finished with \0
+		buffer[file_size] = 0;
 	}
+
 	fclose(fp);
 
 	/* Get parameters from *.json */
-	parsed_json = json_tokener_parse(buffer);
+	*jo = json_tokener_parse_verbose(buffer, &json_error);
 
 	free(buffer);
 
-	if (parsed_json == NULL) {
-		printf("Json tokener parse fail\n\n");
+	if (*jo == NULL) {
+		MCTP_ERR("Json tokener parse fail, json parser error = %d\n\n",
+		    (int)json_error);
 		return EXIT_FAILURE;
 	}
 
 	return EXIT_SUCCESS;
 
+err_free_and_close:	
+	if (buffer != NULL) {
+		free(buffer);
+	}
 err_close:
 	if (fp) {
 		fclose(fp);
 	}
+
 	return EXIT_FAILURE;
 }
 
@@ -106,10 +130,10 @@ err_close:
 int mctp_json_get_eid_type(json_object *jo, const char *binding_name, uint8_t *bus_num)
 {
 	if (strcmp(binding_name, "astpcie") == 0) {
-		printf("Parameters for PCIe from JSON file not supported\n");
+		MCTP_ERR("Parameters for PCIe from JSON file not supported\n");
 	}
 	else if (strcmp(binding_name, "astspi") == 0) {
-		printf("Parameters for SPI from JSON file not supported\n");
+		MCTP_ERR("Parameters for SPI from JSON file not supported\n");
 	}
 	else if (strcmp(binding_name, "smbus") == 0) {
 		json_object *jo_i2c_struct;
@@ -117,7 +141,7 @@ int mctp_json_get_eid_type(json_object *jo, const char *binding_name, uint8_t *b
 		json_object *jo_i2c_obj_i, *jo_i2c_obj_j;
 
 		const char *string_val;
-		uint8_t val;
+		uint8_t val = 0;
 		size_t i, j;
 
 		jo_i2c_struct = json_object_object_get(jo, "i2c");
@@ -129,8 +153,14 @@ int mctp_json_get_eid_type(json_object *jo, const char *binding_name, uint8_t *b
 			jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_main, i);
 			jo_i2c_obj_i = json_object_object_get(jo_i2c_struct,
 							      "bus_number_smq");
-			string_val = json_object_get_string(jo_i2c_obj_i);
-			val = parse_num(string_val + 3);
+			if (jo_i2c_obj_i != NULL) {
+				string_val = json_object_get_string(jo_i2c_obj_i);
+				if (string_val != NULL) {
+					if (strncmp(string_val, "i2c", 3) == 0) {
+						val = parse_num(string_val + 3);
+					}
+				}
+			}
 
 			if (val == *bus_num) {
 				jo_i2c_obj_i = json_object_object_get(jo_i2c_struct, "endpoints");
@@ -175,7 +205,7 @@ int mctp_json_i2c_get_common_params_mctp_demux(json_object *jo, uint8_t *bus_num
 	json_object *jo_i2c_obj_i = NULL;
 
 	const char *string_val;
-	uint8_t val;
+	uint8_t val = 0;
 	size_t i;
 
 	jo_i2c_struct = json_object_object_get(jo, "i2c");
@@ -187,19 +217,29 @@ int mctp_json_i2c_get_common_params_mctp_demux(json_object *jo, uint8_t *bus_num
 	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "buses");
 	size_t val_conf_i2c = json_object_array_length(jo_i2c_obj_main);
 
-	for(i = 0; i < val_conf_i2c; i++) {
+	for (i = 0; i < val_conf_i2c; i++) {
 		jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_main, i);
 		jo_i2c_obj_i =
 			json_object_object_get(jo_i2c_struct, "bus_number_smq");
-		string_val = json_object_get_string(jo_i2c_obj_i);
-		val = parse_num(string_val + 3);
+		if (jo_i2c_obj_i != NULL) {
+			string_val = json_object_get_string(jo_i2c_obj_i);
+			if (string_val != NULL) {
+				if (strncmp(string_val, "i2c", 3) == 0) {
+					val = parse_num(string_val + 3);
+				}
+			}
+		}
 
 		if (val == *bus_num) {
 			/* Get bus number for slave mqueue*/
 			jo_i2c_obj_i = json_object_object_get(jo_i2c_struct, "bus_number_smq");
 			if ( jo_i2c_obj_i != NULL ) {
 				string_val = json_object_get_string(jo_i2c_obj_i);
-				*bus_num_smq = (uint8_t)parse_num(string_val + 3);
+				if (string_val != NULL) {
+					if (strncmp(string_val, "i2c", 3) == 0) {
+						*bus_num_smq = (uint8_t)parse_num(string_val + 3);
+					}
+				}
 			} else {
 				*bus_num_smq = val;
 			}
@@ -295,7 +335,7 @@ int mctp_json_i2c_get_params_static_demux(
 	json_object *jo_i2c_obj_i, *jo_i2c_obj_j;
 
 	const char *string_val;
-	uint8_t val;
+	uint8_t val = 0;
 	size_t i, j, k = 0;
 
 	jo_i2c_struct = json_object_object_get(jo, "i2c");
@@ -307,8 +347,14 @@ int mctp_json_i2c_get_params_static_demux(
 		jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_main, i);
 		jo_i2c_obj_i =
 			json_object_object_get(jo_i2c_struct, "bus_number_smq");
-		string_val = json_object_get_string(jo_i2c_obj_i);
-		val = parse_num(string_val + 3);
+		if (jo_i2c_obj_i != NULL) {
+			string_val = json_object_get_string(jo_i2c_obj_i);
+			if (string_val != NULL) {
+				if (strncmp(string_val, "i2c", 3) == 0) {
+					val = parse_num(string_val + 3);
+				}
+			}
+		}
 
 		if (val == *bus_num) {
 			jo_i2c_obj_i = json_object_object_get(jo_i2c_struct,
@@ -430,6 +476,7 @@ int mctp_json_i2c_get_params_pool_demux(json_object *jo, uint8_t *bus_num,
 			}
 		}
 	}
+	
 	return EXIT_SUCCESS;
 }
 
@@ -455,7 +502,7 @@ void mctp_json_i2c_get_common_params_ctrl(json_object *jo, uint8_t *bus_num,
 	json_object *jo_i2c_obj_i, *jo_i2c_obj_j;
 
 	const char *string_val;
-	uint8_t val;
+	uint8_t val = 0;
 	size_t i, j, k = 0;
 	*sockname = NULL;
 
@@ -478,8 +525,14 @@ void mctp_json_i2c_get_common_params_ctrl(json_object *jo, uint8_t *bus_num,
 		jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_main, i);
 		jo_i2c_obj_i =
 			json_object_object_get(jo_i2c_struct, "bus_number_smq");
-		string_val = json_object_get_string(jo_i2c_obj_i);
-		val = parse_num(string_val + 3);
+		if (jo_i2c_obj_i != NULL) {
+			string_val = json_object_get_string(jo_i2c_obj_i);
+			if (string_val != NULL) {
+				if (strncmp(string_val, "i2c", 3) == 0) {
+					val = parse_num(string_val + 3);
+				}
+			}
+		}
 
 		if (val == *bus_num) {
 			jo_i2c_obj_i = json_object_object_get(jo_i2c_struct,
@@ -601,7 +654,7 @@ int mctp_json_i2c_get_params_static_ctrl(json_object *jo, uint8_t *bus_num,
 	json_object *jo_i2c_obj_i, *jo_i2c_obj_j;
 
 	const char *string_val;
-	uint8_t val;
+	uint8_t val = 0;
 	size_t i, j, k = 0;
 
 	jo_i2c_struct = json_object_object_get(jo, "i2c");
@@ -609,7 +662,7 @@ int mctp_json_i2c_get_params_static_ctrl(json_object *jo, uint8_t *bus_num,
 	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "buses");
 	size_t val_conf_i2c = json_object_array_length(jo_i2c_obj_main);
 
-	*dest_eid_len = 4;
+	*dest_eid_len = MCTP_I2C_MAX_BUSES;
 	*dest_eid_tab = malloc(*dest_eid_len * sizeof(uint8_t));
 	if (*dest_eid_tab == NULL) {
 		mctp_prerr("Malloc static endpoints failed!");
@@ -620,8 +673,14 @@ int mctp_json_i2c_get_params_static_ctrl(json_object *jo, uint8_t *bus_num,
 		jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_main, i);
 		jo_i2c_obj_i =
 			json_object_object_get(jo_i2c_struct, "bus_number_smq");
-		string_val = json_object_get_string(jo_i2c_obj_i);
-		val = parse_num(string_val + 3);
+		if (jo_i2c_obj_i != NULL) {
+			string_val = json_object_get_string(jo_i2c_obj_i);
+			if (string_val != NULL) {
+				if (strncmp(string_val, "i2c", 3) == 0) {
+					val = parse_num(string_val + 3);
+				}
+			}
+		}
 
 		if (val == *bus_num) {
 			/* Get parameters for endpoints*/
@@ -648,10 +707,15 @@ int mctp_json_i2c_get_params_static_ctrl(json_object *jo, uint8_t *bus_num,
 						*uuid = 0;
 					else
 						*uuid = (uint8_t)parse_num(string_val);
+
+					if (k >= MCTP_I2C_MAX_BUSES) {
+						break;
+					}
 				}
 			}
 		}
 	}
+
 	return EXIT_SUCCESS;
 }
 
@@ -672,7 +736,7 @@ int mctp_json_i2c_get_params_pool_ctrl(json_object *jo, uint8_t *bus_num,
 	json_object *jo_i2c_obj_i, *jo_i2c_obj_j;
 
 	const char *string_val;
-	uint8_t val;
+	uint8_t val = 0;
 	size_t i, j, k;
 
 	jo_i2c_struct = json_object_object_get(jo, "i2c");
@@ -684,8 +748,14 @@ int mctp_json_i2c_get_params_pool_ctrl(json_object *jo, uint8_t *bus_num,
 		jo_i2c_struct = json_object_array_get_idx(jo_i2c_obj_main, i);
 		jo_i2c_obj_i =
 			json_object_object_get(jo_i2c_struct, "bus_number_smq");
-		string_val = json_object_get_string(jo_i2c_obj_i);
-		val = parse_num(string_val + 3);
+		if (jo_i2c_obj_i != NULL) {
+			string_val = json_object_get_string(jo_i2c_obj_i);
+			if (string_val != NULL) {
+				if (strncmp(string_val, "i2c", 3) == 0) {
+					val = parse_num(string_val + 3);
+				}
+			}
+		}
 
 		if (val == *bus_num) {
 			/* Get parameters for endpoints*/
@@ -718,5 +788,6 @@ int mctp_json_i2c_get_params_pool_ctrl(json_object *jo, uint8_t *bus_num,
 			}
 		}
 	}
+
 	return EXIT_SUCCESS;
 }

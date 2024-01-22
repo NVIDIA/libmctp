@@ -8,8 +8,7 @@ enum eid_types {
 	EID_TYPE_POOL,
 };
 
-int parse_num(const char *param);
-int mctp_json_get_tokener_parse(const char *path);
+int mctp_json_get_tokener_parse(json_object **jo, const char *path);
 int mctp_json_get_eid_type(json_object *jo, const char *binding_name, uint8_t *bus_num);
 
 int mctp_json_i2c_get_common_params_mctp_demux(json_object *jo, uint8_t *bus_num,
