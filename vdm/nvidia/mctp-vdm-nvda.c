@@ -58,6 +58,7 @@ static char *dbus_services[] = {
 	"xyz.openbmc_project.MCTP.Control.PCIe",
 	"xyz.openbmc_project.MCTP.Control.SPI",
 	"xyz.openbmc_project.MCTP.Control.SMBus",
+	"xyz.openbmc_project.MCTP.Control.USB"
 };
 
 #define VMD_CMD_ASSERT_GOTO(cond, label, fmt, ...)                             \
