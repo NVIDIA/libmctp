@@ -266,16 +266,13 @@ void mctp_usb_tx_transfer_callback(struct libusb_transfer *xfr)
 
 }
 
-static int mctp_usb_tx(struct mctp_binding_usb *usb, uint8_t len)
+static int mctp_usb_tx(struct mctp_binding_usb *usb, size_t len)
 {
 	struct libusb_transfer *tx_xfr = libusb_alloc_transfer(0);
-	// mctp_prinfo("mctp_usb_tx \n");
 
 	mctp_trace_tx(usb->txbuf, len);
 
 	void *data_tx = (void *)usb->txbuf;
-
-	// mctp_prinfo("Dev handle %p", (void *) usb->dev_handle);
 
 	if (!usb->dev_handle){
 		return -1;
@@ -316,77 +313,51 @@ void mctp_send_tx_queue_usb(struct mctp_bus *bus)
 	struct mctp_pktbuf *pkt;
 	int rv;
 	char *buf_ptr;
-	size_t usb_buf_len =0; 
+	size_t usb_buf_len = 0;
 	struct mctp_binding_usb *usb = binding_to_usb(bus->binding);
 	uint16_t usb_message_len;
 	buf_ptr = (char *)usb->txbuf;
-	// unsigned char *dt;
 
 	if (bus->state != mctp_bus_state_tx_enabled){
 		mctp_prerr("Bus is in enabled state, cannot Tx");
 		return;
 	}
-	//Capture?
-	// mctp_prinfo("oIn tx queue");
-	// mctp_prinfo("1out Dev handle %p", (void *) usb->dev_handle);
-
 
 	while ((pkt = bus->tx_queue_head)) {
-		// mctp_prinfo("1 Dev handle %p", (void *) usb->dev_handle);
-
-
 		size_t pkt_length = mctp_pktbuf_size(pkt);
 
 		/* data + binding header + mctp header */
 		usb_message_len = prepare_usb_hdr(pkt, pkt_length);
 
-		// mctp_prinfo("Each packet after hdr: ");
-		// dt = (unsigned char *) pkt->data;
-		// for (uint8_t i=0; i< (pkt_length+4); i++){
-		// 	mctp_prinfo("%02X ", (unsigned int) dt[i]);
-		// }
-
-		if ((usb_buf_len + usb_message_len) >= USB_BUF_MAX){
-
-			// mctp_prinfo("buffer: ");
-			// dt = (unsigned char *)usb->txbuf;
-			// for (unsigned int i=0; i< usb_buf_len; i++){
-			// 	mctp_prinfo("%02X ", (unsigned int) dt[i]);
-			// }
-
+		if ((usb_buf_len + usb_message_len) > USB_BUF_MAX) {
+			mctp_prinfo("Calling USB Tx with length: %d\n",
+				    usb_buf_len);
 			rv = mctp_usb_tx(usb, usb_buf_len);
-			// mctp_prinfo("after tx in loop, Dev handle %p %d", (void *) usb->dev_handle, rv);
 
 			MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
 			buf_ptr = (char  *)usb->txbuf;
 			usb_buf_len = 0;
-			memcpy(buf_ptr, pkt->data, usb_message_len);
+			continue;
 
-		} else { 
+		} else {
 			usb_buf_len += usb_message_len;
 			memcpy(buf_ptr, pkt->data, usb_message_len);
 		}
-		
 
 		buf_ptr = buf_ptr + usb_message_len;
 
 		bus->tx_queue_head = pkt->next;
 		mctp_pktbuf_free(pkt);
-		mctp_prerr("Packet lengh: %d, bufptr: 0x%p, usb_buf len:  %d", usb_message_len, (void *)buf_ptr, usb_buf_len);
+		mctp_prinfo("Packet lengh: %d, bufptr: 0x%p, usb_buf len:  %d",
+			    usb_message_len, (void *)buf_ptr, usb_buf_len);
 	}
 	if (!bus->tx_queue_head)
 		bus->tx_queue_tail = NULL;
 
-	// mctp_prinfo("buffer outside: ");
-	// dt = (unsigned char *)usb->txbuf;
-	// for (unsigned int i=0; i< usb_buf_len; i++){
-	// 			mctp_prinfo("%02X ", (unsigned int) dt[i]);
-	// }
-	// mctp_prinfo("out Dev handle %p", (void *) usb->dev_handle);
-
+	mctp_prinfo("Calling final batch USB Tx with length: %d\n",
+		    usb_buf_len);
 	rv = mctp_usb_tx(usb, usb_buf_len);
 	MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
-
 }
 
 

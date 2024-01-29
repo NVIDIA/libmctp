@@ -18,7 +18,7 @@ enum { MCTP_LOG_NONE,
 static int log_stdio_level;
 static void (*log_custom_fn)(int, const char *, va_list);
 
-#define MAX_TRACE_BYTES 128
+#define MAX_TRACE_BYTES	  512
 #define TRACE_FORMAT "%02X "
 #define TRACE_FORMAT_SIZE 3
 
