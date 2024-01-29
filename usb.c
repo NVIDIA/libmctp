@@ -339,7 +339,7 @@ void mctp_send_tx_queue_usb(struct mctp_bus *bus)
 
 			mctp_prinfo("buffer: ");
 			dt = (unsigned char *)usb->txbuf;
-			for (uint8_t i=0; i< usb_buf_len; i++){
+			for (unsigned int i=0; i< usb_buf_len; i++){
 				mctp_prinfo("%02X ", (unsigned int) dt[i]);
 			}
 
@@ -364,7 +364,7 @@ void mctp_send_tx_queue_usb(struct mctp_bus *bus)
 
 	mctp_prinfo("buffer outside: ");
 	dt = (unsigned char *)usb->txbuf;
-	for (uint8_t i=0; i< usb_buf_len; i++){
+	for (unsigned int i=0; i< usb_buf_len; i++){
 				mctp_prinfo("%02X ", (unsigned int) dt[i]);
 	}
 	rv = mctp_usb_tx(usb, usb_buf_len);
