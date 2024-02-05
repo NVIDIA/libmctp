@@ -1031,10 +1031,16 @@ static int binding_smbus_process(struct binding *binding)
 
 static void binding_usb_usage(void)
 {
-	fprintf(stderr, "Usage: usb (use dec or hex value)\n"
-			"\tvendor_id=<vendor id> - usb vendor id to filter\n"
-			"\tproduct_id=<product id> - usb product id to filter\n"
-			"\tclass_id=<class id> - usb class id to filter\n");
+	fprintf(stderr,
+		"Usage: usb (use dec or hex value)\n"
+		"\tvendor_id=<vendor id> - usb vendor id to filter\n"
+		"\tproduct_id=<product id> - usb product id to filter\n"
+		"\tclass_id=<class id> - usb class id to filter\n"
+		"\tmode=<class id> - USB packetization mode.\n"
+		"\t\t0 - One MCTP packet per transfer\n"
+		"\t\t1 - Batch MCTP packets (upto a maximum of 512 bytes)\n"
+		"\t\t2 - Allow batched packets to be fragmented across USB packets\n"
+		"\t\t3 - Batched mode, like 1 but with 0-padded USB packets\n");
 
 	fprintf(stderr,
 		"Example: usb vendor_id=0x0483 product_id=0xffff class_id=0x00\n");
@@ -1048,6 +1054,7 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 	uint16_t vendor_id;
 	uint16_t product_id;
 	uint16_t class_id;
+	uint16_t mode = 0;
 	struct {
 		char *prefix;
 		void *target;
@@ -1055,6 +1062,7 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 		{ "vendor_id=", &vendor_id },
 		{ "product_id=", &product_id },
 		{ "class_id=", &class_id },
+		{ "mode=", &mode },
 		{ NULL, NULL },
 	};
 	binding->bindings_changed = false;
@@ -1094,7 +1102,7 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 		mctp_prinfo("Using default config .. no params\n");
 	}
 
-	usb = mctp_usb_init(vendor_id, product_id, class_id);
+	usb = mctp_usb_init(vendor_id, product_id, class_id, mode);
 
 	MCTP_ASSERT_RET(usb != NULL, -1, "could not initialise usb binding");
 	mctp_prinfo("registering bus");

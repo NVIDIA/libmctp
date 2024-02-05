@@ -18,7 +18,7 @@
 
 #ifndef _LIBMCTP_USB_H
 #define _LIBMCTP_USB_H
-#define USB_BUF_MAX 512
+#define USB_BUF_MAX 5120
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,6 +28,13 @@ extern "C" {
 #include <poll.h>
 
 enum { MCTP_USB_NO_ERROR = 0, MCTP_USB_FD_CHANGE };
+
+typedef enum {
+	MCTP_USB_BATCH_NONE = 0,
+	MCTP_USB_BATCH_REG = 1,
+	MCTP_USB_BATCH_FRAG = 2,
+	MCTP_USB_BATCH_ZPAD = 3
+} MctpUsbBatchMode;
 
 struct mctp_usb_pkt_private {
 	/*
@@ -43,7 +50,8 @@ struct mctp_binding_usb;
 int mctp_usb_handle_event(struct mctp_binding_usb *usb);
 
 struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
-				       uint16_t class_id);
+				       uint16_t class_id,
+				       MctpUsbBatchMode mode);
 
 int mctp_usb_init_pollfd(struct mctp_binding_usb *usb, struct pollfd **pollfds);
 

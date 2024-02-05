@@ -66,7 +66,7 @@ struct mctp_binding_usb {
 	libusb_context *ctx;
 	libusb_device_handle *dev_handle;
 	/* temporary transmit buffer */
-	uint8_t txbuf[512];
+	uint8_t txbuf[512 * 10];
 	/* receive buffer */
 	uint8_t rxbuf[512];
 	struct mctp_pktbuf *rx_pkt;
@@ -78,6 +78,7 @@ struct mctp_binding_usb {
 	/* stats for binding Tx */
 	uint16_t tx_failed_cntr;
 	uint16_t tx_cntr;
+	MctpUsbBatchMode mode;
 };
 
 int mctp_usb_handle_event(struct mctp_binding_usb *usb)
@@ -376,6 +377,118 @@ void mctp_send_tx_queue_usb(struct mctp_bus *bus)
 	MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
 }
 
+/* 
+ * Batch Tx on bus with zero padding, called from core.c
+ */
+void mctp_send_tx_queue_usb_zpad(struct mctp_bus *bus)
+{
+	struct mctp_pktbuf *pkt;
+	int rv;
+	char *buf_ptr;
+	size_t usb_buf_len = 0;
+	size_t usb_segment_len = 0;
+	struct mctp_binding_usb *usb = binding_to_usb(bus->binding);
+	uint16_t usb_message_len;
+
+	buf_ptr = (char *)usb->txbuf;
+
+	if (bus->state != mctp_bus_state_tx_enabled) {
+		mctp_prerr("Bus is in enabled state, cannot Tx");
+		return;
+	}
+
+	while ((pkt = bus->tx_queue_head)) {
+		size_t pkt_length = mctp_pktbuf_size(pkt);
+
+		/* data + binding header + mctp header */
+		usb_message_len = prepare_usb_hdr(pkt, pkt_length);
+
+		if ((usb_buf_len + usb_message_len) > USB_BUF_MAX) {
+			rv = mctp_usb_tx(usb, usb_buf_len);
+
+			MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
+			buf_ptr = (char *)usb->txbuf;
+			usb_buf_len = 0;
+			continue;
+
+		} else {
+			if (usb_segment_len + usb_message_len > 512) {
+				memset(buf_ptr, 0, (512 - usb_segment_len));
+				buf_ptr += (512 - usb_segment_len);
+				usb_buf_len += (512 - usb_segment_len);
+				usb_segment_len = 0;
+				continue;
+			} else {
+				usb_segment_len += usb_message_len;
+				usb_buf_len += usb_message_len;
+				memcpy(buf_ptr, pkt->data, usb_message_len);
+			}
+		}
+
+		buf_ptr = buf_ptr + usb_message_len;
+
+		bus->tx_queue_head = pkt->next;
+		mctp_pktbuf_free(pkt);
+	}
+	if (!bus->tx_queue_head)
+		bus->tx_queue_tail = NULL;
+
+	rv = mctp_usb_tx(usb, usb_buf_len);
+	MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
+}
+
+/* 
+ * Batch Tx on bus with fragmentation, called from core.c
+ */
+void mctp_send_tx_queue_usb_frag(struct mctp_bus *bus)
+{
+	struct mctp_pktbuf *pkt;
+	int rv;
+	char *buf_ptr;
+	size_t usb_buf_len = 0;
+	size_t usb_segment_len = 0;
+	struct mctp_binding_usb *usb = binding_to_usb(bus->binding);
+	uint16_t usb_message_len;
+
+	buf_ptr = (char *)usb->txbuf;
+
+	if (bus->state != mctp_bus_state_tx_enabled) {
+		mctp_prerr("Bus is in enabled state, cannot Tx");
+		return;
+	}
+
+	while ((pkt = bus->tx_queue_head)) {
+		size_t pkt_length = mctp_pktbuf_size(pkt);
+
+		/* data + binding header + mctp header */
+		usb_message_len = prepare_usb_hdr(pkt, pkt_length);
+
+		if ((usb_buf_len + usb_message_len) > USB_BUF_MAX) {
+			rv = mctp_usb_tx(usb, usb_buf_len);
+
+			MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
+			buf_ptr = (char *)usb->txbuf;
+			usb_buf_len = 0;
+			continue;
+
+		} else {
+			usb_segment_len += usb_message_len;
+			usb_buf_len += usb_message_len;
+			memcpy(buf_ptr, pkt->data, usb_message_len);
+		}
+
+		buf_ptr = buf_ptr + usb_message_len;
+
+		bus->tx_queue_head = pkt->next;
+		mctp_pktbuf_free(pkt);
+	}
+	if (!bus->tx_queue_head)
+		bus->tx_queue_tail = NULL;
+
+	rv = mctp_usb_tx(usb, usb_buf_len);
+	MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
+}
+
 //Tx for MCTP over USB
 static int mctp_binding_usb_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 {
@@ -432,7 +545,7 @@ struct mctp_binding *mctp_binding_usb_core(struct mctp_binding_usb *usb)
 }
 
 struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
-				       uint16_t class_id)
+				       uint16_t class_id, MctpUsbBatchMode mode)
 {
 	(void)class_id;
 	struct mctp_binding_usb *usb;
@@ -446,11 +559,19 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 	usb->binding.name = "usb";
 	usb->binding.version = 1;
 
-#ifdef MCTP_BATCH_TX
-	usb->binding.mctp_send_tx_queue = mctp_send_tx_queue_usb;
-#else
-	usb->binding.mctp_send_tx_queue = NULL;
-#endif
+	if (MCTP_USB_BATCH_NONE == mode) {
+		usb->binding.mctp_send_tx_queue = NULL;
+	} else if (MCTP_USB_BATCH_REG == mode) {
+		usb->binding.mctp_send_tx_queue = mctp_send_tx_queue_usb;
+	} else if (MCTP_USB_BATCH_FRAG == mode) {
+		usb->binding.mctp_send_tx_queue = mctp_send_tx_queue_usb_frag;
+	} else if (MCTP_USB_BATCH_ZPAD == mode) {
+		usb->binding.mctp_send_tx_queue = mctp_send_tx_queue_usb_zpad;
+	} else {
+		mctp_prinfo(
+			"Unknown USB batch mode %d detected, revert to no batching!\n",
+			mode);
+	}
 
 	usb->binding.pkt_size = MCTP_PACKET_SIZE(MCTP_BTU);
 	usb->binding.pkt_header = 4;
@@ -477,6 +598,7 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 	usb->binding.tx = mctp_binding_usb_tx;
 	usb->tx_cntr = 0;
 	usb->tx_failed_cntr = 0;
+	usb->mode = mode;
 
 	return usb;
 }
