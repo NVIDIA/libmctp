@@ -64,7 +64,7 @@ extern "C" {
 #define MCTP_VDM_DOWNLOAD_LOG_SESSION_ID_START 0xff
 
 /* MCTP-VDM Header size */
-#define MCTP_VDM_SEND_HDR_LENGTH 2
+#define MCTP_VDM_SEND_HDR_LENGTH 3
 
 /* MCTP Tx/Rx waittime in milli-seconds */
 #define MCTP_VDM_CMD_WAIT_SECONDS (1 * 1000)

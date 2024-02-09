@@ -14,6 +14,7 @@
 #include "libmctp.h"
 #include "libmctp-log.h"
 #include "libmctp-cmds.h"
+#include "libmctp-externals.h"
 
 #include "ctrld/mctp-ctrl-log.h"
 #include "ctrld/mctp-ctrl-cmds.h"
@@ -99,11 +100,12 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 				     uint8_t **mctp_resp_msg,
 				     size_t *resp_msg_len, mctp_eid_t *resp_eid)
 {
-	size_t mctp_prefix_len = sizeof(eid);
+	uint8_t tag = 0;
+	size_t mctp_prefix_len = sizeof(tag) + sizeof(eid);
 	uint8_t mctp_prefix[mctp_prefix_len];
 	struct iovec iov[2];
 	size_t mctp_len;
-	size_t min_len = sizeof(eid) + sizeof(MCTP_MSG_TYPE_HDR) +
+	size_t min_len = sizeof(tag) + sizeof(eid) + sizeof(MCTP_MSG_TYPE_HDR) +
 			 sizeof(struct mctp_ctrl_cmd_msg_hdr);
 	ssize_t length;
 
@@ -160,7 +162,7 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 			free(*mctp_resp_msg);
 			return MCTP_REQUESTER_INVALID_RECV_LEN;
 		}
-		*resp_eid = mctp_prefix[0];
+		*resp_eid = mctp_prefix[1];
 
 		/* Update the response length */
 		*resp_msg_len = mctp_len;
@@ -254,7 +256,11 @@ mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
 				     const uint8_t *mctp_req_msg,
 				     size_t req_msg_len)
 {
-	uint8_t hdr[2] = { dest_eid, msgtype };
+	uint8_t hdr[3] = { LIBMCTP_TAG_OWNER_MASK |
+				   ((msgtype == MCTP_MESSAGE_TYPE_VDIANA) ?
+					    MCTP_TAG_VDM :
+					    0),
+			   dest_eid, msgtype };
 
 	struct iovec iov[2];
 	iov[0].iov_base = hdr;

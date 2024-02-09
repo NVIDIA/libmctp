@@ -11,6 +11,7 @@
 #include <libmctp.h>
 #include <libmctp-cmds.h>
 
+#include "../libmctp-externals.h"
 #include "mctp-vdm-nvda.h"
 #include "libmctp-vdm-cmds.h"
 
@@ -129,8 +130,9 @@ int mctp_vdm_socket_init(const char *intf, uint8_t msgtype)
 int mctp_vdm_recv(mctp_eid_t eid, int mctp_fd, uint8_t msgtype,
 		  uint8_t **mctp_resp_msg, size_t *resp_msg_len)
 {
-	ssize_t min_len =
-		sizeof(eid) + sizeof(msgtype) + MCTP_VDM_RESP_HDR_SIZE;
+	uint8_t tag = 0;
+	ssize_t min_len = sizeof(tag) + sizeof(eid) + sizeof(msgtype) +
+			  MCTP_VDM_RESP_HDR_SIZE;
 	ssize_t length = 0;
 
 	/* Receive the MCTP-VDM packet length */
@@ -147,9 +149,10 @@ int mctp_vdm_recv(mctp_eid_t eid, int mctp_fd, uint8_t msgtype,
 		return MCTP_ERR_INVALID_LEN;
 	} else {
 		struct iovec iov[MCTP_VDM_IO_VECTOR_MAX];
-		size_t mctp_prefix_len = (msgtype == 0) ?
-						 sizeof(eid) :
-						 sizeof(eid) + sizeof(msgtype);
+		size_t mctp_prefix_len =
+			(msgtype == 0) ?
+				sizeof(tag) + sizeof(eid) :
+				sizeof(tag) + sizeof(eid) + sizeof(msgtype);
 		uint8_t mctp_prefix[mctp_prefix_len];
 		size_t mctp_len = length - mctp_prefix_len;
 		struct msghdr msg = { 0 };
@@ -190,9 +193,8 @@ int mctp_vdm_recv(mctp_eid_t eid, int mctp_fd, uint8_t msgtype,
 		}
 
 		/* Make sure the EID and messgae type are matching as expected */
-		if ((mctp_prefix[MCTP_VDM_IO_VECTOR_0] != eid) ||
-		    (msgtype &&
-		     (mctp_prefix[MCTP_VDM_IO_VECTOR_1] != msgtype))) {
+		if ((mctp_prefix[1] != eid) ||
+		    (msgtype && (mctp_prefix[2] != msgtype))) {
 			fprintf(stderr,
 				"%s: [err: %d] Invalid data: EID: 0x%x, msgtype: 0x%x\n",
 				__func__, errno, eid, msgtype);
@@ -223,7 +225,9 @@ int mctp_vdm_recv(mctp_eid_t eid, int mctp_fd, uint8_t msgtype,
 int mctp_vdm_send(mctp_eid_t eid, int mctp_fd, uint8_t msgtype,
 		  const uint8_t *mctp_req_msg, size_t req_msg_len)
 {
-	uint8_t hdr[MCTP_VDM_SEND_HDR_LENGTH] = { eid, msgtype };
+	uint8_t hdr[MCTP_VDM_SEND_HDR_LENGTH] = {
+		LIBMCTP_TAG_OWNER_MASK | MCTP_TAG_VDM, eid, msgtype
+	};
 	struct iovec iov[MCTP_VDM_IO_VECTOR_MAX];
 	struct msghdr msg = { 0 };
 	ssize_t rc = -1;

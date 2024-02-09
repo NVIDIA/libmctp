@@ -31,6 +31,7 @@
 #include "libmctp-astlpc.h"
 #include "libmctp-astpcie.h"
 #include "libmctp-astspi.h"
+#include "libmctp-externals.h"
 #include "libmctp-log.h"
 #include "libmctp-smbus.h"
 #include "libmctp-usb.h"
@@ -289,11 +290,14 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 	}
 }
 
-static void tx_message(struct ctx *ctx, mctp_eid_t eid, void *msg, size_t len)
+static void tx_message(struct ctx *ctx, uint8_t tag_owner_and_tag,
+		       mctp_eid_t eid, void *msg, size_t len)
 {
 	int rc;
 
-	rc = mctp_message_tx(ctx->mctp, eid, MCTP_MESSAGE_TO_SRC, 0, msg, len);
+	rc = mctp_message_tx(ctx->mctp, eid,
+			     (tag_owner_and_tag & LIBMCTP_TAG_OWNER_MASK),
+			     (tag_owner_and_tag & LIBMCTP_TAG_MASK), msg, len);
 	if (rc)
 		warnx("Failed to send message: %d", rc);
 }
@@ -335,15 +339,17 @@ static void clean_all_clients(struct ctx *ctx)
 	ctx->clients = NULL;
 }
 
-static void rx_message(uint8_t eid, bool tag_owner __unused,
-		       uint8_t msg_tag __unused, void *data, void *msg,
-		       size_t len)
+static void rx_message(uint8_t eid, bool tag_owner, uint8_t msg_tag, void *data,
+		       void *msg, size_t len)
 {
 	struct ctx *ctx = data;
 	struct iovec iov[2];
 	struct msghdr msghdr;
 	uint8_t type;
 	int i, rc;
+	uint8_t tag_eid[2] = {
+		((tag_owner << 3) | (msg_tag & LIBMCTP_TAG_MASK)), eid
+	};
 
 	if (len < 2)
 		return;
@@ -357,8 +363,8 @@ static void rx_message(uint8_t eid, bool tag_owner __unused,
 	memset(&msghdr, 0, sizeof(msghdr));
 	msghdr.msg_iov = iov;
 	msghdr.msg_iovlen = 2;
-	iov[0].iov_base = &eid;
-	iov[0].iov_len = 1;
+	iov[0].iov_base = &tag_eid;
+	iov[0].iov_len = 2;
 	iov[1].iov_base = msg;
 	iov[1].iov_len = len;
 
@@ -375,11 +381,14 @@ static void rx_message(uint8_t eid, bool tag_owner __unused,
 		if (ctx->verbose)
 			fprintf(stderr, "  forwarding to client %d\n", i);
 
+		mctp_trace_common(">SOCK RX HDR>", &tag_eid, 2);
+		mctp_trace_common(">SOCK RX>", msg, len);
+
 		rc = sendmsg(client->sock, &msghdr, 0);
 		/* EAGAIN shouldn't close socket. Otherwise,spi-ctrl daemon will fail 
 		 * to communicate with demux due to socket close.
 		 */
-		if ( errno != EAGAIN && rc != (ssize_t)(len + 1)) {
+		if (errno != EAGAIN && rc != (ssize_t)(len + 2)) {
 			client->active = false;
 			ctx->clients_changed = true;
 		}
@@ -1244,17 +1253,19 @@ static int client_process_recv(struct ctx *ctx, int idx)
 	if (ctx->pcap.socket.path)
 		capture_socket(ctx->pcap.socket.dumper, ctx->buf, rc);
 
-	eid = *(uint8_t *)ctx->buf;
+	mctp_trace_common("<SOCK TX<", ctx->buf, len);
+	eid = *((uint8_t *)ctx->buf + 1);
 
 	if (ctx->verbose)
 		fprintf(stderr, "client[%d] sent message: dest 0x%02x len %d\n",
-			idx, eid, rc - 1);
+			idx, eid, rc - 2);
 
 	if (eid == ctx->local_eid)
-		rx_message(eid, MCTP_MESSAGE_TO_DST, 0, ctx, (uint8_t *)ctx->buf + 1,
-			   rc - 1);
+		rx_message(eid, MCTP_MESSAGE_TO_DST, 0, ctx,
+			   (uint8_t *)ctx->buf + 2, rc - 2);
 	else
-		tx_message(ctx, eid, (uint8_t *)ctx->buf + 1, rc - 1);
+		tx_message(ctx, *((uint8_t *)ctx->buf), eid,
+			   (uint8_t *)ctx->buf + 2, rc - 2);
 
 	return 0;
 
