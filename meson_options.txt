@@ -8,3 +8,9 @@ option(
     description: '''Enable multiple MCTP packets to be transferred in a single
                     transaction of the binding. Currently only supported for USB.'''
 )
+option(
+    'enable-usb',
+    type: 'feature',
+    value: 'disabled',
+    description: '''Enable MCTPoUSB functionality. Also required libmctp dependency during runtime.'''
+)

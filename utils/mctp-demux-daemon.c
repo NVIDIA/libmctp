@@ -856,6 +856,8 @@ static int binding_smbus_process(struct binding *binding)
 	return 0;
 }
 
+#ifdef ENABLE_USB
+
 static void binding_usb_usage(void)
 {
 	fprintf(stderr,
@@ -949,6 +951,8 @@ static int binding_usb_process(struct binding *binding)
 	return rc;
 }
 
+#endif
+
 struct binding bindings[] = { {
 				      .name = "null",
 				      .init = binding_null_init,
@@ -994,6 +998,8 @@ struct binding bindings[] = { {
 				      .process = binding_smbus_process,
 				      .sockname = "\0mctp-i2c-mux",
 			      },
+
+				  #ifdef ENABLE_USB
 				  {
 				      .name = "usb",
 				      .init = binding_usb_init,
@@ -1001,7 +1007,9 @@ struct binding bindings[] = { {
 				      .init_pollfd = binding_usb_init_pollfd,
 				      .process = binding_usb_process,
 				      .sockname = "\0mctp-usb-mux",
-			      } };
+			      } 
+				  #endif
+				  };
 
 struct binding *binding_lookup(const char *name)
 {

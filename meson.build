@@ -14,10 +14,6 @@ add_project_arguments('-DMCTP_HAVE_FILEIO', language: ['c', 'cpp'])
 add_project_arguments('-DMCTP_HAVE_STDIO', language: ['c', 'cpp'])
 add_project_arguments('-DMCTP_DEFAULT_ALLOC', language: ['c', 'cpp'])
 
-if get_option('mctp-batch-tx').enabled()
-  summary('mctp-batch-tx','-DMCTP_BATCH_TX', section : 'Enabled Features')
-  add_project_arguments('-DMCTP_BATCH_TX', language: ['c', 'cpp'])
-endif
 
 sources = [
   'alloc.c',
@@ -30,9 +26,25 @@ sources = [
   'glacier-spb-ap.c',
   'log.c',
   'serial.c',
-  'smbus.c',
-  'usb.c'
+  'smbus.c'
 ]
+deps = []
+
+# Add USB functionality to SRC 
+if get_option('enable-usb').enabled()
+    sources += 'usb.c'
+    summary('enable-usb','-DENABLE_USB', section : 'Enabled Features')
+    add_project_arguments('-DENABLE_USB', language: ['c', 'cpp'])
+    usb_lib = declare_dependency(dependencies: [comp.find_library('usb-1.0')])
+    deps += [usb_lib]
+
+    # Check if batching is enabled
+    if get_option('mctp-batch-tx').enabled()
+      summary('mctp-batch-tx','-DMCTP_BATCH_TX', section : 'Enabled Features')
+      add_project_arguments('-DMCTP_BATCH_TX', language: ['c', 'cpp'])
+    endif
+
+endif
 
 conf_data = configuration_data()
 conf_data.set('HAVE_PCAP', get_option('capture').enabled() ? 1 : 0)
@@ -43,8 +55,6 @@ configure_file(
   configuration: conf_data,
 )
 
-usb_lib = declare_dependency(dependencies: [comp.find_library('usb-1.0')])
-deps = [usb_lib]
 
 libmctp = library('mctp',
   sources,
