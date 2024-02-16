@@ -1,6 +1,6 @@
 #!/bin/sh
 : '
-The script allows to run the unified "mctp-ctrl" binary with the binding type for the PCIe interface (-t 2).
+The script allows to run the unified "mctp-ctrl" binary with the binding type for the USB interface (-t 3).
 The script maintains backward compatibility
 '
 

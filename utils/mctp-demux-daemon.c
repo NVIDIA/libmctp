@@ -149,7 +149,6 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 	const size_t min_packet_spi = MCTP_SPI_EID_OFFSET + 1;
 	const size_t min_packet_smbus = MCTP_SMBUS_EID_OFFSET + 1;
 	const size_t min_packet_usb = MCTP_USB_EID_OFFSET + 1;
-	mctp_prinfo("In tx pvt message. Len= %d", len);
 
 	/* Get the bus type (binding ID) */
 	bind_id = *((uint8_t *)msg);
@@ -1071,7 +1070,6 @@ static int socket_process(struct ctx *ctx)
 {
 	struct client *client;
 	int fd;
-	mctp_prinfo("In socket process\n");
 
 	fd = accept4(ctx->sock, NULL, 0, SOCK_NONBLOCK);
 	if (fd < 0)
@@ -1176,7 +1174,7 @@ static int client_process_recv(struct ctx *ctx, int idx)
 		rx_message(eid, MCTP_MESSAGE_TO_DST, 0, ctx, (uint8_t *)ctx->buf + 1,
 			   rc - 1);
 	else
-		tx_message(ctx, eid, (uint8_t *)ctx->buf + 1, rc - 1); //Question - +1 what 8B data is removed?
+		tx_message(ctx, eid, (uint8_t *)ctx->buf + 1, rc - 1);
 
 	return 0;
 
@@ -1323,6 +1321,7 @@ static int run_daemon(struct ctx *ctx)
 				}
 				else {
 					/*At present, we assume that the size of the binding fds is not changed, just the content changed*/
+					mctp_prerr("Number of bindings changed. Original: %d, New Initialized: %d", ctx->n_bindings, fds_size );
 				}
 			}
 		}
@@ -1492,9 +1491,6 @@ int main(int argc, char *const *argv)
 		}
 	}
 
-	mctp_prinfo("initial parsing of cmdline done");
-
-
 	if (optind >= argc) {
 		fprintf(stderr, "missing binding argument\n");
 		usage(argv[0]);
@@ -1522,7 +1518,6 @@ int main(int argc, char *const *argv)
 
 	rc = sd_notifyf(0, "STATUS=Initializing MCTP.\nMAINPID=%d", getpid());
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
-	mctp_prinfo("initing mctp!");
 
 	ctx->mctp = mctp_init();
 	MCTP_ASSERT_RET(ctx->mctp != NULL, EXIT_FAILURE, "ctx->mctp is NULL");
@@ -1560,10 +1555,11 @@ int main(int argc, char *const *argv)
 	rc = sd_notify(0, "STATUS=Initializing binding.");
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
 
-	mctp_prinfo("Binding init called!");
 	rc = binding_init(ctx, argv[optind], argc - optind - 1,
 			  argv + optind + 1);
-	mctp_prinfo("Binding init returned: %d.", rc);
+	if (ctx->verbose)
+		mctp_prinfo("Binding init returned: %d.", rc);
+
 	if (rc)
 		return EXIT_FAILURE;
 

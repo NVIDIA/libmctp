@@ -32,7 +32,7 @@ extern uint8_t g_eid_pool_start;
 extern mctp_routing_table_t *g_routing_table_entries;
 extern const uint8_t MCTP_ROUTING_ENTRY_START;
 
-/* PCIe or USB target bdf */
+/* PCIe or target bdf */
 static int g_target_bdf = 0;
 
 /* The EIDs and pool start information would be obtaind from commandline */
@@ -69,9 +69,6 @@ mctp_prepare_ep_discovery_send_request(int sock_fd, mctp_binding_ids_t bind_id)
 		pvt_binding = &pvt_binding_spi;
 		binding_size = sizeof(pvt_binding_spi);
 	} else if (MCTP_BINDING_USB == bind_id) {
-		printf("WAR********* set dest EID to 0\n");
-		/*Temporary WAR for USB. TODO: Needs to be removed*/
-		dest_eid = MCTP_NULL_ENDPOINT;
 		memset(&pvt_binding_usb, 0, sizeof(pvt_binding_usb));
 		pvt_binding = &pvt_binding_usb;
 		binding_size = sizeof(pvt_binding_usb);
@@ -170,8 +167,6 @@ mctp_ret_codes_t mctp_ep_discovery_send_request(int sock_fd,
 		pvt_binding = &pvt_binding_spi;
 		binding_size = sizeof(pvt_binding_spi);
 	} else if (MCTP_BINDING_USB == bind_id) {
-		/*Temporary WAR for USB. TODO: Needs to be removed*/
-		dest_eid = MCTP_NULL_ENDPOINT;
 		memset(&pvt_binding_usb, 0, sizeof(pvt_binding_usb));
 		pvt_binding = &pvt_binding_usb;
 		binding_size = sizeof(pvt_binding_usb);

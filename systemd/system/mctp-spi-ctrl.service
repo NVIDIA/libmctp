@@ -8,7 +8,7 @@ Restart=always
 Environment=MCTP_SPI_CTRL_OPTS=null
 EnvironmentFile=-/usr/share/mctp/mctp
 ExecStart=/usr/bin/mctp-spi-ctrl $MCTP_SPI_CTRL_OPTS
-SyslogIdentifier=mctp-spi-ctrl
+ExecStop=/usr/bin/mctp-vdm-util -c restart_notification -t 0
 
 [Install]
 WantedBy=multi-user.target

@@ -221,8 +221,6 @@ struct mctp_bus {
 
 	struct mctp_pktbuf *tx_queue_head;
 	struct mctp_pktbuf *tx_queue_tail;
-
-	/* todo: routing */
 };
 
 void mctp_binding_set_tx_enabled(struct mctp_binding *binding, bool enable);

@@ -729,10 +729,8 @@ void mctp_binding_set_tx_enabled(struct mctp_binding *binding, bool enable)
 
 		if (bus->binding->mctp_send_tx_queue) {
 			bus->binding->mctp_send_tx_queue(bus);
-			mctp_prinfo("Sent batch Tx");
 		} else{
 			mctp_send_tx_queue(bus);
-			mctp_prinfo("Sent non-batch Tx");
 		}
 		return;
 	}

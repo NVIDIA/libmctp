@@ -59,8 +59,8 @@ struct mctp_binding_usb {
 	uint8_t endpoint_in_addr;
 	uint8_t endpoint_out_addr;
 	/* stats for binding Tx */
-	uint16_t byte_cnt_failed;
-	uint16_t byte_cnt_tx;
+	uint16_t tx_failed_cntr;
+	uint16_t tx_cntr;
 };
 
 int mctp_usb_handle_event(struct mctp_binding_usb *usb)
@@ -103,7 +103,7 @@ void mctp_usb_rx_transfer_callback(struct libusb_transfer *xfr)
 		}
 		if (hdr->byte_count != xfr->actual_length) {
 			// Got an incorrectly sized payload
-			mctp_prerr("Got usb payload sized %d, expecting %zu",
+			mctp_prerr("Expecting payload sized %d, got %zu",
 				   hdr->byte_count, xfr->actual_length);
 			mctp_trace_rx(xfr->buffer, xfr->actual_length);
 			goto out;
@@ -112,7 +112,7 @@ void mctp_usb_rx_transfer_callback(struct libusb_transfer *xfr)
 		MCTP_ASSERT(usb->rx_pkt != NULL, -1, "Could not allocate pktbuf.");
 		if (mctp_pktbuf_push(usb->rx_pkt, &usb->rxbuf[sizeof(*hdr)],
 			xfr->actual_length - sizeof(*hdr)) != 0) {
-			mctp_prerr("Can't push tok pktbuf.");
+			mctp_prerr("Can't push to pktbuf.");
 			goto out;
 		}
 		mctp_bus_rx(&usb->binding, usb->rx_pkt);
@@ -242,24 +242,23 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 
 void mctp_usb_tx_transfer_callback(struct libusb_transfer *xfr)
 {
-	mctp_prinfo("callbackWriteComplete, status: %d\n", xfr->status);
 	struct mctp_binding_usb *usb = (struct mctp_binding_usb *) xfr->user_data;
 	switch (xfr->status) {
 	case LIBUSB_TRANSFER_COMPLETED:
-		mctp_prinfo("Transfer completed");
-		usb->byte_cnt_tx += 1;
+		usb->tx_cntr += 1;
 		break;
 	case LIBUSB_TRANSFER_ERROR:
-        mctp_prerr("Transfer failed with error %d\n", (int) stderr);
-		usb->byte_cnt_failed += 1;
+        mctp_prerr("Transfer FAILED with status %d\n", xfr->status);
+		usb->tx_failed_cntr += 1;
 		//Retry?
         break;
     case LIBUSB_TRANSFER_CANCELLED:
-		mctp_prerr("Transfer was canceled");
-		usb->byte_cnt_failed += 1;
+		mctp_prerr("Transfer was CANCELLED with status %d\n", xfr->status);
+		usb->tx_failed_cntr += 1;
         //Retry?
         break;
 	default:
+		mctp_prerr("Tx transfer error: %d\n", xfr->status);
 		break;
 	}
 	libusb_free_transfer(xfr);
@@ -330,8 +329,6 @@ void mctp_send_tx_queue_usb(struct mctp_bus *bus)
 		usb_message_len = prepare_usb_hdr(pkt, pkt_length);
 
 		if ((usb_buf_len + usb_message_len) > USB_BUF_MAX) {
-			mctp_prinfo("Calling USB Tx with length: %d\n",
-				    usb_buf_len);
 			rv = mctp_usb_tx(usb, usb_buf_len);
 
 			MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
@@ -348,14 +345,10 @@ void mctp_send_tx_queue_usb(struct mctp_bus *bus)
 
 		bus->tx_queue_head = pkt->next;
 		mctp_pktbuf_free(pkt);
-		mctp_prinfo("Packet lengh: %d, bufptr: 0x%p, usb_buf len:  %d",
-			    usb_message_len, (void *)buf_ptr, usb_buf_len);
 	}
 	if (!bus->tx_queue_head)
 		bus->tx_queue_tail = NULL;
 
-	mctp_prinfo("Calling final batch USB Tx with length: %d\n",
-		    usb_buf_len);
 	rv = mctp_usb_tx(usb, usb_buf_len);
 	MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
 }
@@ -365,9 +358,6 @@ void mctp_send_tx_queue_usb(struct mctp_bus *bus)
 static int mctp_binding_usb_tx(struct mctp_binding *b,
 				 struct mctp_pktbuf *pkt)
 {
-	mctp_prdebug("%s: Prepared MCTP packet\n", __func__);
-	mctp_prinfo("mctp_binding_usb_tx \n");
-
 	/* Payload + base mctp hdr = 68B */
 	size_t pkt_length = mctp_pktbuf_size(pkt);
 	struct mctp_binding_usb *usb = binding_to_usb(b);
@@ -438,7 +428,6 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 
 	#ifdef MCTP_BATCH_TX
 	usb->binding.mctp_send_tx_queue = mctp_send_tx_queue_usb;
-	mctp_prinfo("Batch tx enabled from compiler");
 	#else
 	usb->binding.mctp_send_tx_queue = NULL;
 	#endif
@@ -449,8 +438,6 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 	usb->binding.pkt_trailer = 0;
 	usb->binding.pkt_priv_size = sizeof(struct mctp_usb_pkt_private);
 
-	mctp_prinfo("Creating a hotplug callback\n");
-
 	rc = libusb_hotplug_register_callback(
 		NULL,
 		LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED |
@@ -458,7 +445,7 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 		LIBUSB_HOTPLUG_ENUMERATE, vendor_id, product_id, LIBUSB_HOTPLUG_MATCH_ANY,
 		mctp_usb_hotplug_callback, usb, &callback_handle);
 	if (LIBUSB_SUCCESS != rc) {
-		printf("Error creating a hotplug callback\n");
+		mctp_prerr("Error creating a hotplug callback\n");
 		libusb_exit(NULL);
 	}
 	usb->usb_poll_fds = libusb_get_pollfds(usb->ctx);
@@ -468,8 +455,8 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 	}
 	usb->binding.start = mctp_usb_start;
 	usb->binding.tx = mctp_binding_usb_tx;
-	usb->byte_cnt_tx = 0;
-	usb->byte_cnt_failed = 0;
+	usb->tx_cntr = 0;
+	usb->tx_failed_cntr = 0;
 	
 	return usb;
 }
