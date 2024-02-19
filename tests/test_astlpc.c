@@ -1379,6 +1379,7 @@ static void astlpc_test_async_exchange(void)
 	mctp_astlpc_init_pollfd(ctx.bmc.astlpc, &pollfd);
 	assert(pollfd->events & POLLIN);
 	assert(!(pollfd->events & POLLOUT));
+	free(pollfd);
 
 	network_destroy(&ctx);
 }

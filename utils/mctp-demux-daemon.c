@@ -261,13 +261,6 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		/* Set MCTP payload size */
 		len = len - (MCTP_USB_MSG_OFFSET)-1;
 
-		if (ctx->verbose){
-			mctp_prinfo("Offsets: \
-				MCTP_BIND_INFO_OFFSET: %d, MCTP_USB_EID_OFFSET: %d, MCTP_USB_MSG_OFFSET: %d", \
-				MCTP_BIND_INFO_OFFSET, MCTP_USB_EID_OFFSET, MCTP_USB_MSG_OFFSET \
-		);
-		}
-
 		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, MCTP_MESSAGE_TO_SRC, 0,
 					      (uint8_t *)msg + MCTP_USB_MSG_OFFSET, len,
 					      (void *)&pvt_binding.usb);
