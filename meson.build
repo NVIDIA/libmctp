@@ -92,29 +92,31 @@ configure_file(
     output: 'mctp-pcie-ctrl.service',
 )
 
-configure_file(
-    copy: true,
-    input: 'systemd/system/mctp-usb-demux.service',
-    install: true,
-    install_dir: systemd_system_unit_dir,
-    output: 'mctp-usb-demux.service',
-)
+if get_option('enable-usb').enabled()
+  configure_file(
+      copy: true,
+      input: 'systemd/system/mctp-usb-demux.service',
+      install: true,
+      install_dir: systemd_system_unit_dir,
+      output: 'mctp-usb-demux.service',
+  )
 
-configure_file(
-    copy: true,
-    input: 'systemd/system/mctp-usb-demux.socket',
-    install: true,
-    install_dir: systemd_system_unit_dir,
-    output: 'mctp-usb-demux.socket',
-)
+  configure_file(
+      copy: true,
+      input: 'systemd/system/mctp-usb-demux.socket',
+      install: true,
+      install_dir: systemd_system_unit_dir,
+      output: 'mctp-usb-demux.socket',
+  )
 
-configure_file(
-    copy: true,
-    input: 'systemd/system/mctp-usb-ctrl.service',
-    install: true,
-    install_dir: systemd_system_unit_dir,
-    output: 'mctp-usb-ctrl.service',
-)
+  configure_file(
+      copy: true,
+      input: 'systemd/system/mctp-usb-ctrl.service',
+      install: true,
+      install_dir: systemd_system_unit_dir,
+      output: 'mctp-usb-ctrl.service',
+  )
+endif
 
 configure_file(
     copy: true,
