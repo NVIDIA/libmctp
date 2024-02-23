@@ -76,6 +76,9 @@ struct mctp_binding_smbus {
 
 #define MCTP_COMMAND_CODE 0x0F
 
+/* Default smbus slave address for get UDID command */
+#define MCTP_SMBUS_DEFAULT_GET_UDID_SLAVE_ADDRESS	0x61
+
 #define MCTP_I2C_POLL_DELAY 1000
 
 #define SMBUS_PEC_BYTE_SIZE	1
@@ -161,7 +164,7 @@ static int get_out_fd(struct mctp_binding_smbus *smbus, uint8_t eid)
 		}
 	}
 
-	return -1;
+	return smbus->out_fd[0];
 }
 
 static int get_dest_i2c_addr(struct mctp_binding_smbus *smbus, uint8_t eid)
@@ -286,7 +289,7 @@ static int mctp_binding_smbus_tx(struct mctp_binding *b,
 	/* 8 bit address */
 	hdr->source_slave_address = (smbus->src_slave_addr << 1) | 0x01;
 
-	// Check if endpoint support mctp, if no just drop send message
+	// Check if static endpoints support mctp, if no just drop send message
 	for (i = 0; i < smbus->static_endpoints_len; i++) {
 		if (smbus->static_endpoints[i].slave_address ==
 		    smbus->dest_slave_addr[0]) {
@@ -335,9 +338,9 @@ int mctp_smbus_open_in_bus(struct mctp_binding_smbus *smbus, int in_bus,
 		 "/sys/bus/i2c/devices/i2c-%d/%d-%04x/slave-mqueue", in_bus,
 		 in_bus, SMBUS_ADDR_OFFSET_SLAVE | address_7_bit);
 
-	mctp_prdebug("%s: Open: %s\n", __func__, filename);
+	mctp_prdebug("%s: Open: %s", __func__, filename);
 	ret = open(filename, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-	mctp_prdebug("%s: ret = : %d\n", __func__, ret);
+	mctp_prdebug("%s: ret = : %d", __func__, ret);
 
 	if (ret >= 0)
 		return ret;
@@ -355,7 +358,7 @@ int mctp_smbus_open_in_bus(struct mctp_binding_smbus *smbus, int in_bus,
 
 	mqueue_size = sizeof(slave_mqueue);
 
-	mctp_prdebug("%s: mqueue_size: %zu\n", __func__, mqueue_size);
+	mctp_prdebug("%s: mqueue_size: %zu", __func__, mqueue_size);
 
 	snprintf(slave_mqueue, mqueue_size, "slave-mqueue %#04x",
 		 SMBUS_ADDR_OFFSET_SLAVE | address_7_bit);
@@ -440,7 +443,7 @@ int send_get_udid_command(struct mctp_binding_smbus *smbus, size_t idx,
 	uint8_t outbuf[1] = { 0x03 }; // Set 'Get UDID' command
 	struct i2c_msg msgs[2];
 	struct i2c_rdwr_ioctl_data msgset[1];
-	int slave_addr = 0x61; // As 7-bit
+	int slave_addr = MCTP_SMBUS_DEFAULT_GET_UDID_SLAVE_ADDRESS;
 
 	/* Prepare message to send Get UDID */
 	msgs[0].addr = slave_addr;
@@ -594,7 +597,7 @@ int check_mctp_get_ver_support(struct mctp_binding_smbus *smbus, size_t idx,
 
 int find_and_set_pool_of_endpoints(struct mctp_binding_smbus *smbus)
 {
-	uint8_t inbuf[20];
+	uint8_t inbuf[20] = { 0 };
 	uint8_t inbuf_len = 19;
 	uint8_t quantity_of_udid = 1; //at the moment only one CX7 card
 	uint8_t i, slave_address;
@@ -617,7 +620,7 @@ int find_and_set_pool_of_endpoints(struct mctp_binding_smbus *smbus)
 
 int check_device_supports_mctp(struct mctp_binding_smbus *smbus)
 {
-	uint8_t inbuf[19];
+	uint8_t inbuf[19] = { 0 };
 	uint8_t inbuf_len = 19;
 
 	for (size_t i = 0;
@@ -768,7 +771,7 @@ static int mctp_smbus_start(struct mctp_binding *b)
 	mctp_prdebug("%s: Set param: %lu, %hhu, %hhu", __func__, smbus->bus_id,
 		     smbus->bus_num_smq, smbus->dest_slave_addr[0]);
 
-	/* Open all applicable I2C nodes */
+	/* Open all applicable I2C nodes for static endpoints */
 	for (uint8_t i = 0; i < smbus->static_endpoints_len; ++i) {
 		if (smbus->static_endpoints[i].bus_num == 0xFF) {
 			continue;
@@ -781,11 +784,21 @@ static int mctp_smbus_start(struct mctp_binding *b)
 		smbus->static_endpoints[i].out_fd = outfd;
 	}
 
+	/* Open default i2c node for non-static endpoints */
+	if ((smbus->static_endpoints_len == 0) && (outfd == -1)) {
+		mctp_prdebug("%s: Setting up I2C output fd", __func__);
+		outfd = mctp_smbus_open_out_bus(smbus, smbus->bus_num[0]);
+		MCTP_ASSERT_RET(outfd >= 0, -1,
+				"Failed to open I2C Tx node: %d", outfd);
+		smbus->out_fd[0] = outfd;
+	}
+
 	/* Open I2C in node */
 	mctp_prdebug("%s: Setting up I2C input fd: %d %d", __func__,
 		     smbus->bus_num_smq, smbus->dest_slave_addr[0]);
 	smbus->in_fd = mctp_smbus_open_in_bus(smbus, smbus->bus_num_smq,
 					      smbus->src_slave_addr);
+
 	MCTP_ASSERT_RET(smbus->in_fd >= 0, -1, "Failed to open I2C Rx node: %d",
 			smbus->in_fd);
 

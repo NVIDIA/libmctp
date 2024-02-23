@@ -374,7 +374,10 @@ void mctp_unregister_bus(struct mctp *mctp, struct mctp_binding *binding)
 	mctp->n_busses = 0;
 	binding->mctp = NULL;
 	binding->bus = NULL;
-	free(mctp->busses);
+	if (mctp->busses != NULL) {
+		free(mctp->busses);
+		mctp->busses = NULL;
+	}
 }
 
 int mctp_bridge_busses(struct mctp *mctp,

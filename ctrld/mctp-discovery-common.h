@@ -53,7 +53,7 @@ typedef struct mctp_routing_table {
 /* List for MCTP Message types */
 typedef struct mctp_msg_type_table {
 	uint8_t eid;
-	int data_len;
+	uint16_t data_len;
 	uint8_t data[MCTP_MSG_TYPE_MAX_SIZE];
 	struct mctp_msg_type_table *next;
 } mctp_msg_type_table_t;

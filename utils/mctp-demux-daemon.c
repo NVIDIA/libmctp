@@ -36,6 +36,7 @@
 #include "libmctp-usb.h"
 #include "utils/mctp-capture.h"
 #include "mctp-json.h"
+#include "astpcie.h"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #define __unused      __attribute__((unused))
@@ -143,9 +144,9 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		struct mctp_usb_pkt_private usb;
 	} pvt_binding = { 0 };
 	mctp_eid_t eid = 0;
-	const size_t min_packet_pcie = MCTP_BIND_INFO_OFFSET + 1;
-	const size_t min_packet_spi = MCTP_SPI_EID_OFFSET + 1;
-	const size_t min_packet_smbus = MCTP_SMBUS_EID_OFFSET + 1;
+	const size_t min_packet_pcie = MCTP_PCIE_MSG_OFFSET + 1;
+	const size_t min_packet_spi = MCTP_SPI_MSG_OFFSET + 1;
+	const size_t min_packet_smbus = MCTP_SMBUS_MSG_OFFSET + 1;
 	const size_t min_packet_usb = MCTP_USB_EID_OFFSET + 1;
 
 	/* Get the bus type (binding ID) */
@@ -154,8 +155,9 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 	/* Handle based on bind ID's */
 	switch (bind_id) {
 	case MCTP_BINDING_PCIE:
-		if (len < min_packet_pcie) {
-			mctp_prwarn("Packet too short for PCIe");
+		if (len <= min_packet_pcie) {
+			mctp_prwarn("Packet too short for PCIe, len = %zi, expected > %zi\n",
+						len, min_packet_pcie);
 			return;
 		}
 
@@ -167,8 +169,11 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		eid = *((uint8_t *)msg + MCTP_PCIE_EID_OFFSET);
 
 		/* Set MCTP payload size */
-		len = len - (MCTP_PCIE_MSG_OFFSET)-1;
-		mctp_print_hex((uint8_t *)msg + MCTP_PCIE_MSG_OFFSET, len);
+		len = len - min_packet_pcie;
+		mctp_prdebug("Printing packet length, PCIE binding: %zi", len);
+		if (ctx->verbose) {
+			mctp_print_hex((uint8_t *)msg + MCTP_PCIE_MSG_OFFSET, len);
+		}
 		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid, MCTP_MESSAGE_TO_SRC, 0,
 					      (uint8_t *)msg + MCTP_PCIE_MSG_OFFSET, len,
 					      (void *)&pvt_binding.pcie);
@@ -186,7 +191,8 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		break;
 	case MCTP_BINDING_SPI:
 		if (len < min_packet_spi) {
-			mctp_prwarn("Packet too short for SPI.");
+			mctp_prwarn("Packet too short for SPI, len = %zi, expected > %zi\n",
+						len, min_packet_spi);
 			return;
 		}
 
@@ -196,7 +202,10 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		eid = *((uint8_t *)msg + MCTP_SPI_EID_OFFSET);
 
 		len = len - (MCTP_SPI_MSG_OFFSET)-1;
-		mctp_print_hex((uint8_t *)msg + MCTP_SPI_MSG_OFFSET, len);
+		mctp_prdebug("Printing packet length, SPI binding: %zi", len);
+		if (ctx->verbose) {
+			mctp_print_hex((uint8_t *)msg + MCTP_SPI_MSG_OFFSET, len);
+		}
 		rc = mctp_message_pvt_bind_tx(ctx->mctp, eid,
 					      MCTP_MESSAGE_TO_SRC, 0,
 					      (uint8_t *)msg + MCTP_SPI_MSG_OFFSET, len,
@@ -204,8 +213,9 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 
 		break;
 	case MCTP_BINDING_SMBUS:
-		if (len < min_packet_smbus) {
-			mctp_prwarn("Packet too short for SMBUS.");
+		if (len <= min_packet_smbus) {
+			mctp_prwarn("Packet too short for SMBUS, len = %zi, expected > %zi\n",
+						len, min_packet_smbus);
 			return;
 		}
 
@@ -217,11 +227,14 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		eid = *((uint8_t *)msg + MCTP_SMBUS_EID_OFFSET);
 
 		/* Set MCTP payload size */
-		len = len - (MCTP_SMBUS_MSG_OFFSET)-1;
+		len = len - min_packet_smbus;
 
-		printf("Print msg: ");
-		mctp_print_hex((uint8_t *)msg + MCTP_SMBUS_MSG_OFFSET, len);
-		printf("\n");
+		mctp_prdebug("Print msg: ");
+		mctp_prdebug("Printing packet length, SMBUS binding: %zi", len);
+		if (ctx->verbose) {
+			mctp_print_hex((uint8_t *)msg + MCTP_SMBUS_MSG_OFFSET, len);
+		}
+		mctp_prdebug("\n");
 
 		pvt_binding.i2c.i2c_bus = i2c_bus_num;
 		pvt_binding.i2c.dest_slave_addr = i2c_dest_slave_addr;
@@ -271,6 +284,7 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 
 	default:
 		warnx("Invalid/Unsupported binding ID %d", bind_id);
+		mctp_print_hex((uint8_t *)msg, len);
 		break;
 	}
 }
@@ -302,6 +316,23 @@ static void client_remove_inactive(struct ctx *ctx)
 		ctx->clients = realloc(ctx->clients,
 				       ctx->n_clients * sizeof(*ctx->clients));
 	}
+}
+
+static void clean_all_clients(struct ctx *ctx)
+{
+	int i;
+
+	for (i = 0; i < ctx->n_clients; i++) {
+		struct client *client = &ctx->clients[i];
+		if (client->sock) {
+			close(client->sock);
+		}
+	}
+
+	free(ctx->clients);
+	ctx->n_clients = 0;
+
+	ctx->clients = NULL;
 }
 
 static void rx_message(uint8_t eid, bool tag_owner __unused,
@@ -476,6 +507,15 @@ static int binding_astpcie_init(struct mctp *mctp, struct binding *binding,
 	return 0;
 }
 
+static void binding_astpcie_destroy(
+	struct mctp *mctp __attribute__((unused)), 
+	struct binding *binding)
+{
+	struct mctp_binding_astpcie *astpcie = binding->data;
+
+	mctp_astpcie_free(astpcie);
+}
+
 static int binding_astpcie_init_pollfd(struct binding *binding,
 				       struct pollfd **pollfd)
 {
@@ -593,6 +633,7 @@ static void binding_smbus_usage(void)
 	fprintf(stderr,
 		"Usage: smbus (use dec or hex value)\n"
 		"\ti2c_bus=<bus num>              - i2c bus to use\n"
+		"\ti2c_config_file=<config.json>  - i2c json config file\n"
 		"\ti2c_dest_addr=<7-bit addr num> - i2c destination slave address to use\n"
 		"\ti2c_src_addr=<7-bit addr num>  - i2c source slave address to use\n");
 
@@ -665,10 +706,6 @@ static void parse_joson_config(
 	rc = mctp_json_get_tokener_parse(&parsed_json, 
 			config_json_file_path);
 
-	if (config_json_file_path != NULL) {
-		free(config_json_file_path);
-	}
-
 	if (rc == EXIT_FAILURE) {
 		mctp_prinfo(
 			"Use default config, JSON parsing failed\n");
@@ -680,6 +717,16 @@ static void parse_joson_config(
 	mctp_json_i2c_get_common_params_mctp_demux(parsed_json,
 		&i2c_bus_num, &i2c_bus_num_smq, &i2c_src_slave_addr,
 		&binding->sockname);
+	if (binding->sockname == NULL) {
+		mctp_prerr("Get null socket name");
+		return;
+	} else if (binding->sockname[0] == '\0') {
+		mctp_prdebug("Chosen socket path unix: %s\n",
+				&(binding->sockname[1]));
+	} else {
+		mctp_prdebug("Chosen socket path: %s\n",
+				binding->sockname);
+	}
 
 	i2c_bus_num_smq = i2c_bus_num;
 
@@ -738,7 +785,7 @@ static void parse_joson_config(
 				&smbus_static_endpoints_len);
 
 			if (rc == EXIT_FAILURE) {
-				mctp_prinfo(
+				mctp_prerr(
 					"Get params for pool failed!");
 				binding_smbus_use_default_config();
 			}
@@ -764,6 +811,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 		void *target;
 	} options[] = {
 		{ "i2c_bus=", &i2c_bus_num },
+		{ "i2c_config_file=", NULL},
 		{ "i2c_dest_addr=", &i2c_dest_slave_addr },
 		{ "i2c_src_addr=", &i2c_src_slave_addr},
 		{ NULL, NULL },
@@ -772,7 +820,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 
 	char *config_json_file_path = NULL;
 
-	if(n_params != 0) {
+	if (n_params != 0) {
 		for (int ii = 0; ii < n_params; ii++) {
 			bool parsed = false;
 
@@ -785,13 +833,14 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 					char *arg = strstr(params[ii], "=") + 1;	// Get string after "="
 
 					/* Check if path or values are given */
-					if ((config_json_file_path == NULL) &&
-					    strncmp(params[ii],
+					if (strncmp(params[ii],
 						    options[1].prefix,
 						    strlen(options[1].prefix)) ==
 						    0) {
-						config_json_file_path = malloc(strlen(arg) + 1);
-						memcpy(config_json_file_path, arg, (strlen(arg) + 1));
+						if (config_json_file_path == NULL) {
+							config_json_file_path = malloc(strlen(arg) + 1);
+							memcpy(config_json_file_path, arg, (strlen(arg) + 1));
+						}
 					} else {
 						/* Check if a value is given in 'hex' or 'dec' */
 						if (strncmp(arg, "0x", 2) == 0)
@@ -799,26 +848,44 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 						else
 							val = (int)strtoimax(arg, NULL, 10);
 
-						*(uint8_t *)options[jj].target =
-							val;
+						*(uint8_t *)options[jj].target = val;
 					}
+
 					parsed = true;
 				}
 			}
 
+			/* Exit only if a passed parameter is not supported */
 			if (!parsed) {
+				mctp_prinfo("[%s] Unsupported param = %s\n", __func__, params[ii]);
 				binding_smbus_usage();
-				exit(1);
+				if (config_json_file_path != NULL) {
+					free(config_json_file_path);
+				}
+				return -1;
 			}
 		}
 	}
 	else {
-		mctp_prinfo("Using default config .. no params\n");
+		mctp_prinfo("[%s] Using default config .. no params\n", __func__);
 		binding_smbus_use_default_config();
 	}
 
 	if (config_json_file_path != NULL) {
 		parse_joson_config(config_json_file_path, binding, &eid);
+		free(config_json_file_path);
+	} 
+	
+	if (smbus_static_endpoints_len == 0) {
+		/* Set one default static endpoint - bridge one */
+		mctp_prinfo("[%s] Using predefined static endpoint .. no proper config file\n", __func__);
+		smbus_static_endpoints = malloc(sizeof(struct mctp_static_endpoint_mapper));
+		memset(smbus_static_endpoints, 0xFF,
+				sizeof(struct mctp_static_endpoint_mapper));
+		smbus_static_endpoints[0].endpoint_num = 13;
+		smbus_static_endpoints[0].bus_num = i2c_bus_num;
+		smbus_static_endpoints[0].slave_address = i2c_dest_slave_addr;
+		smbus_static_endpoints_len = 1;
 	}
 
 	/* Bus numbers for muxed busses can be dynamic, fix them if needed */
@@ -826,10 +893,12 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 
 	mctp_prdebug("No of endpoints to handle: %d\n", smbus_static_endpoints_len);
 	for (uint8_t i = 0; i < smbus_static_endpoints_len; ++i) {
-		mctp_prdebug("Endpoint: bus: %d, addr: %d\n",
+		mctp_prdebug("Endpoint: bus: %d, addr: %d, eid: %d\n",
+				 smbus_static_endpoints[0].endpoint_num,
 			     smbus_static_endpoints[i].bus_num,
 			     smbus_static_endpoints[i].slave_address);
 	}
+
 	smbus = mctp_smbus_init(i2c_bus_num, i2c_bus_num_smq,
 				i2c_dest_slave_addr, i2c_src_slave_addr,
 				smbus_static_endpoints_len, smbus_static_endpoints);
@@ -908,7 +977,8 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 					if (strncmp(arg, "0x", 2) == 0)
 						val = strtoul(arg, NULL, 16);
 					else
-						val = parse_num(arg);
+						val = (int)strtoimax(arg, NULL,
+								     10);
 
 					*(uint16_t *)options[jj].target =
 						val;
@@ -980,7 +1050,7 @@ struct binding bindings[] = { {
 			      {
 				      .name = "astpcie",
 				      .init = binding_astpcie_init,
-				      .destroy = NULL,
+				      .destroy = binding_astpcie_destroy,
 				      .init_pollfd =
 					      binding_astpcie_init_pollfd,
 				      .process = binding_astpcie_process,
@@ -1106,12 +1176,17 @@ static int client_process_recv(struct ctx *ctx, int idx)
 	if (client->type == 0xff) {
 		uint8_t type;
 		rc = read(client->sock, &type, 1);
-		if (rc <= 0)
+		if (rc <= 0) {
+			mctp_prdebug("[%s] Error on reading one byte from socket: %d (errno = %d, %s)",
+				__func__, rc, errno, strerror(errno));
 			goto out_close;
+		}
 
 		if (ctx->verbose)
-			fprintf(stderr, "client[%d] registered for type %u\n",
-				idx, type);
+			fprintf(stderr, "[%s] client[%d] registered for type %u",
+				__func__, idx, type);
+
+		mctp_prdebug("[%s] Set client %d type to %u\n", __func__, idx, type);
 		client->type = type;
 		return 0;
 	}
@@ -1346,14 +1421,14 @@ static int run_daemon(struct ctx *ctx)
 
 			got = read(ctx->pollfds[FD_SIGNAL].fd, &si, sizeof(si));
 			if (got == sizeof(si)) {
-				warnx("Received %s, quitting",
+				warnx("Received %s, quitting\n",
 				      strsignal(si.ssi_signo));
 				rc = 0;
 				break;
 			} else {
-				warnx("Unexpected read result for signalfd: %d",
+				warnx("Unexpected read result for signalfd: %d\n",
 				      rc);
-				warnx("Quitting on the basis that signalfd became ready");
+				warnx("Quitting on the basis that signalfd became ready\n");
 				rc = -1;
 				break;
 			}
@@ -1380,12 +1455,27 @@ static int run_daemon(struct ctx *ctx)
 		}
 		//Question: Where are we resetting revents?
 		for (i = 0; i < ctx->n_clients; i++) {
-			if (!ctx->pollfds[ctx->n_bindings + FD_NR + i].revents)
+			int fds_number = ctx->n_bindings + FD_NR + i;
+			if (!ctx->pollfds[fds_number].revents)
 				continue;
 
-			rc = client_process_recv(ctx, i);
-			if (rc)
+			if ((ctx->pollfds[fds_number].revents & POLLHUP) ||
+				(ctx->pollfds[fds_number].revents & POLLERR)) {
+				/* Manage disconnection case - this client is not active anymore */
+				mctp_prinfo("\n%s: Client %d was disconnected, events = 0x%04x", 
+					__func__, i, ctx->pollfds[fds_number].revents);
+				ctx->clients[i].active = false;
 				ctx->clients_changed = true;
+			}
+			else if (ctx->pollfds[fds_number].revents & POLLIN) {
+				rc = client_process_recv(ctx, i);
+				if (rc)
+					ctx->clients_changed = true;
+			}
+			else {
+				warnx("%s: Received unsupported event 0x%04x from client %d", 
+					__func__, ctx->pollfds[fds_number].revents, i);
+			}
 		}
 
 		if (ctx->pollfds[FD_SOCKET].revents) {
@@ -1399,6 +1489,8 @@ static int run_daemon(struct ctx *ctx)
 			client_remove_inactive(ctx);
 	}
 
+	clean_all_clients(ctx);
+	
 	free(ctx->pollfds);
 	if (smbus_static_endpoints != NULL) {
 		free(smbus_static_endpoints);
@@ -1432,7 +1524,7 @@ static void exact_usage(void)
 	fprintf(stderr, "Example of use:\n");
 	fprintf(stderr, "With default parameters (i2c_bus = 2, i2c_dest_addr = 0x30, i2c_src_addr = 0x18):\n");
 	fprintf(stderr, "\tmctp-demux-daemon smbus (--v)\n");
-	fprintf(stderr, "With custom parameters");
+	fprintf(stderr, "With custom parameters\n");
 	fprintf(stderr, "\tmctp-demux-daemon smbus i2c_bus=2 i2c_dest_addr=0x30 i2c_src_addr=0x18 (--v)\n");
 }
 
@@ -1489,43 +1581,53 @@ int main(int argc, char *const *argv)
 			break;
 		case 'h':
 			exact_usage();
-			return EXIT_SUCCESS;
+			rc = EXIT_SUCCESS;
+			goto initialize_exit;
 		default:
 			fprintf(stderr, "Invalid argument\n");
-			return EXIT_FAILURE;
+			rc = EXIT_FAILURE;
+			goto initialize_exit;
 		}
 	}
 
 	if (optind >= argc) {
 		fprintf(stderr, "missing binding argument\n");
 		usage(argv[0]);
-		return EXIT_FAILURE;
+		rc = EXIT_FAILURE;
+		goto initialize_exit;
 	}
 
 	if (ctx->pcap.binding.linktype < 0 && ctx->pcap.binding.path) {
 		fprintf(stderr, "missing binding-linktype argument\n");
 		usage(argv[0]);
-		return EXIT_FAILURE;
+		rc = EXIT_FAILURE;
+		goto initialize_exit;
 	}
 
 	if (ctx->pcap.socket.linktype < 0 && ctx->pcap.socket.path) {
 		fprintf(stderr, "missing socket-linktype argument\n");
 		usage(argv[0]);
-		return EXIT_FAILURE;
+		rc = EXIT_FAILURE;
+		goto initialize_exit;
 	}
-
-	/* setup initial buffer */
-	ctx->buf_size = 4096;
-	ctx->buf = malloc(ctx->buf_size);
 
 	mctp_set_log_stdio(ctx->verbose ? MCTP_LOG_DEBUG : MCTP_LOG_WARNING);
 	mctp_set_tracing_enabled(true);
 
 	rc = sd_notifyf(0, "STATUS=Initializing MCTP.\nMAINPID=%d", getpid());
-	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
+	if (rc < 0) {
+		fprintf(stderr, "[%s] Could not notify systemd: %d\n",
+			__func__, rc);
+		rc = EXIT_FAILURE;
+		goto initialize_exit;
+	}
 
 	ctx->mctp = mctp_init();
-	MCTP_ASSERT_RET(ctx->mctp != NULL, EXIT_FAILURE, "ctx->mctp is NULL");
+	if (ctx->mctp == NULL) {
+		fprintf(stderr, "[%s] ctx->mctp is NULL\n", __func__);
+		rc = EXIT_FAILURE;
+		goto initialize_exit;
+	}
 
 	if (ctx->pcap.binding.path || ctx->pcap.socket.path) {
 		if (capture_init()) {
@@ -1562,11 +1664,13 @@ int main(int argc, char *const *argv)
 
 	rc = binding_init(ctx, argv[optind], argc - optind - 1,
 			  argv + optind + 1);
-	if (ctx->verbose)
-		mctp_prinfo("Binding init returned: %d.", rc);
 
-	if (rc)
-		return EXIT_FAILURE;
+	mctp_prdebug("Binding init returned: %d.", rc);
+	if (rc) {
+		fprintf(stderr, "Failed to initialise binding: %d\n", rc);
+		rc = EXIT_FAILURE;
+		goto cleanup_pcap_binding;
+	}
 
 	rc = sd_notify(0, "STATUS=Creating sockets.");
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
@@ -1585,7 +1689,16 @@ int main(int argc, char *const *argv)
 	rc = sd_notify(0, "STATUS=Daemon is running.\nREADY=1");
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
 
+	/* setup initial buffer */
+	ctx->buf_size = 4096;
+	ctx->buf = malloc(ctx->buf_size);
+
 	rc = run_daemon(ctx);
+
+	if (ctx->buf != NULL) {
+		free(ctx->buf);
+	}
+
 cleanup_binding:
 	binding_destroy(ctx);
 
@@ -1601,5 +1714,6 @@ cleanup_pcap_binding:
 cleanup_mctp:
 	mctp_destroy(ctx->mctp);
 
+initialize_exit:
 	return rc;
 }

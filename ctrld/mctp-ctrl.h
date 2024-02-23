@@ -27,6 +27,9 @@ extern "C" {
 /* Define Max buffer size */
 #define MCTP_RX_BUFFER_MAX_SIZE 64
 
+/* Default destination eid table size */
+#define MCTP_DEST_EID_TABLE_MAX	256
+
 typedef uint8_t mctp_eid_t;
 
 typedef enum {
@@ -51,6 +54,7 @@ typedef struct {
 	/* Used only by MCTP SPI ctrl. */
 	pthread_cond_t worker_cv;
 	pthread_mutex_t worker_mtx;
+	bool worker_is_ready;
 } mctp_ctrl_t;
 
 /* MCTP ctrl requester return codes */

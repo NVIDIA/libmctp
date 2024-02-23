@@ -480,8 +480,8 @@ static int mctp_ctrl_monitor_signal_events(mctp_sdbus_context_t *context)
 		ret = read(context->fds[MCTP_CTRL_SIGNAL_FD].fd, &si,
 			   sizeof(si));
 		if (ret < 0 || ret != sizeof(si)) {
-			MCTP_CTRL_ERR("Error read signal event: %s\n",
-				      strerror(-ret));
+			MCTP_CTRL_ERR("[%s] Error read signal event: %s\n",
+				      __func__, strerror(-ret));
 			return 0;
 		}
 
@@ -582,6 +582,7 @@ int mctp_ctrl_sdbus_dispatch(mctp_sdbus_context_t *context)
 		MCTP_CTRL_ERR("Error handling D-Bus event: %s\n", strerror(-r));
 		return -1;
 	}
+
 	return SDBUS_PROCESS_EVENT;
 }
 
@@ -619,6 +620,7 @@ mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
 			 MCTP_CTRL_DBUS_NAME, mctp_medium_type);
 	}
 	MCTP_CTRL_TRACE("Requesting D-Bus name: %s\n", mctp_ctrl_busname);
+	
 	r = sd_bus_request_name(context->bus, mctp_ctrl_busname,
 				SD_BUS_NAME_ALLOW_REPLACEMENT |
 					SD_BUS_NAME_REPLACE_EXISTING);
@@ -746,6 +748,7 @@ int mctp_ctrl_sdbus_init(sd_bus *bus, int signal_fd,
 
 	context = mctp_ctrl_sdbus_create_context(bus, cmdline);
 	if (!context) {
+		MCTP_CTRL_ERR("%s: mctp_ctrl_sdbus_create_context did return an error\n", __func__);
 		return -1;
 	}
 	context->fds[MCTP_CTRL_SIGNAL_FD].fd = signal_fd;

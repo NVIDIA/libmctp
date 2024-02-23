@@ -59,12 +59,15 @@
 /* Global definitions */
 uint8_t g_verbose_level = 0;
 
-static pthread_t g_keepalive_thread;
+static pthread_t g_keepalive_thread = 0;
 extern const uint8_t MCTP_MSG_TYPE_HDR;
 extern const uint8_t MCTP_CTRL_MSG_TYPE;
 
 char *mctp_sock_path = NULL;
 const char *mctp_medium_type;
+
+// Table with destination EIDs
+static uint8_t g_dest_eid_tab[MCTP_DEST_EID_TABLE_MAX];
 
 /* Static variables for clean up*/
 int g_socket_fd = -1;
@@ -85,14 +88,26 @@ extern mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl);
 
 static void mctp_ctrl_clean_up(void)
 {
+	/* Make sure opened threads are closed */
+	if (g_keepalive_thread != 0) {
+		pthread_kill(g_keepalive_thread, SIGUSR2);
+		pthread_join(g_keepalive_thread, NULL);
+	}
+
 	/* Close the socket connection */
-	close(g_socket_fd);
+	if (g_socket_fd != -1) {
+		close(g_socket_fd);
+	}
 
 	/* Close the signalfd socket */
-	close(g_signal_fd);
+	if (g_signal_fd != -1) {
+		close(g_signal_fd);
+	}
 
 	/* Close D-Bus */
-	sd_bus_unref(g_sdbus);
+	if (g_sdbus != NULL) {
+		sd_bus_unref(g_sdbus);
+	}
 
 	/* Delete Routing table entries */
 	mctp_routing_entry_delete_all();
@@ -498,17 +513,26 @@ static int mctp_start_daemon(mctp_ctrl_t *ctrl)
 		if (!rc)
 			continue;
 
-		if (ctrl->pollfds[MCTP_CTRL_FD_SOCKET].revents) {
-			MCTP_CTRL_DEBUG("%s: Rx socket event...\n", __func__);
+		if ((ctrl->pollfds[MCTP_CTRL_FD_SOCKET].revents & POLLHUP) ||
+		    (ctrl->pollfds[MCTP_CTRL_FD_SOCKET].revents & POLLERR)) {
+			/* Connection hang up or closed on other side */
+			MCTP_CTRL_ERR("%s: Rx socket hang up or closed, closing the loop\n", 
+				__func__);
+			break;
+		} else if (ctrl->pollfds[MCTP_CTRL_FD_SOCKET].revents & POLLIN) {
+			MCTP_CTRL_DEBUG("%s: Rx socket event [0x%x]...\n", 
+				__func__, ctrl->pollfds[MCTP_CTRL_FD_SOCKET].revents);
 
 			/* Read the Socket */
 			rc = mctp_event_monitor(ctrl);
 			if (rc != MCTP_REQUESTER_SUCCESS) {
 				MCTP_CTRL_ERR("%s: Invalid data..\n", __func__);
 			}
-
-		} else {
+		} else if (ctrl->pollfds[MCTP_CTRL_FD_SOCKET].revents == 0) {
 			MCTP_CTRL_INFO("%s: Rx Timeout\n", __func__);
+		} else {
+			MCTP_CTRL_WARN("%s: Unsupported rx socket event: 0x%x\n", 
+				__func__, ctrl->pollfds[MCTP_CTRL_FD_SOCKET].revents);
 		}
 	}
 
@@ -632,7 +656,7 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
 	}
 	if (rc != MCTP_REQUESTER_SUCCESS) {
-		MCTP_CTRL_ERR("Failed to open mctp socket\n");
+		MCTP_CTRL_ERR("[%s] Failed to open mctp socket\n", __func__);
 
 		close(g_signal_fd);
 		return EXIT_FAILURE;
@@ -652,24 +676,20 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 			    mctp_ctrl_t *mctp_ctrl)
 {
-	int rc = -1, fd, ret;
+	int rc = -1, fd;
 	mctp_ret_codes_t mctp_err_ret;
-	pthread_t keepalive_thread;
 
 	/* Create D-Bus for loging event and handling D-Bus request*/
 	rc = sd_bus_default_system(&mctp_ctrl->bus);
 	if (rc < 0) {
 		MCTP_CTRL_ERR("D-Bus failed to create\n");
-		close(g_signal_fd);
 		return EXIT_FAILURE;
 	}
 	g_sdbus = mctp_ctrl->bus;
 
 	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		MCTP_CTRL_INFO("%s: Binding type: PCIe\n", __func__);
-		if ((mctp_sock_path == NULL) || (strlen(mctp_sock_path) <= 1)) {
-			mctp_sock_path = MCTP_SOCK_PATH_PCIE;
-		}
+		mctp_sock_path = MCTP_SOCK_PATH_PCIE;
 		mctp_medium_type = "PCIe";
 
 		/* Open the user socket file-descriptor */
@@ -678,9 +698,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	}
 	else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 		MCTP_CTRL_INFO("%s: Binding type: SPI\n", __func__);
-		if ((mctp_sock_path == NULL) || (strlen(mctp_sock_path) <= 1)) {
-			mctp_sock_path = MCTP_SOCK_PATH_SPI;
-		}
+		mctp_sock_path = MCTP_SOCK_PATH_SPI;
 		mctp_medium_type = "SPI";
 
 		/* Open the user socket file-descriptor for CTRL MSG type */
@@ -689,24 +707,14 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
 
 		MCTP_ASSERT_RET(MCTP_REQUESTER_SUCCESS == rc, EXIT_FAILURE,
-				"Failed to open mctp socket\n");
-
-		mctp_ctrl->sock = fd;
+				"[%s] Failed to open mctp socket\n", __func__);
 
 		mctp_set_log_stdio(cmdline->verbose ? MCTP_LOG_DEBUG :
 						     MCTP_LOG_WARNING);
-
-		/* Create static endpoint 0 for spi ctrl daemon */
-		mctp_spi_discover_endpoint(mctp_ctrl);
-		close(fd);
-
-		/* Open the user socket file-descriptor */
-		rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_MESSAGE_TYPE_VDIANA,
-					  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
 	}
 	else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
 		MCTP_CTRL_INFO("%s: Binding type: SMBus\n", __func__);
-		if ((mctp_sock_path == NULL) || (strlen(mctp_sock_path) <= 1)) {
+		if (mctp_sock_path == NULL) {
 			mctp_sock_path = MCTP_SOCK_PATH_I2C;
 		}
 		mctp_medium_type = "SMBus";
@@ -716,8 +724,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
 	} else if (cmdline->binding_type == MCTP_BINDING_USB) {
 		MCTP_CTRL_INFO("%s: Binding type: USB\n", __func__);
-		if(use_config_json_file_mc == false)
-			mctp_sock_path = MCTP_SOCK_PATH_USB;
+		mctp_sock_path = MCTP_SOCK_PATH_USB;
 		mctp_medium_type = "USB";
 
 		/* Open the user socket file-descriptor */
@@ -726,16 +733,11 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	} else {
 		MCTP_CTRL_ERR("Unknown binding type: %d\n",
 			      cmdline->binding_type);
-		close(g_signal_fd);
-		sd_bus_unref(mctp_ctrl->bus);
 		return EXIT_FAILURE;
 	}
 
 	if (rc != MCTP_REQUESTER_SUCCESS) {
-		MCTP_CTRL_ERR("Failed to open mctp socket\n");
-
-		close(g_signal_fd);
-		sd_bus_unref(mctp_ctrl->bus);
+		MCTP_CTRL_ERR("[%s] Failed to open mctp socket\n", __func__);
 		return EXIT_FAILURE;
 	}
 
@@ -746,34 +748,44 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	g_socket_fd = fd;
 
 	if (cmdline->binding_type == MCTP_BINDING_SPI) {
-		ret = pthread_cond_init(&mctp_ctrl->worker_cv, NULL);
+		/* Discover endpoints via PCIe*/
+		MCTP_CTRL_INFO("%s: Start MCTP-over-SPI Discovery\n",
+			       __func__);
+
+		/* Create static endpoint 0 for spi ctrl daemon */
+		mctp_spi_discover_endpoint(mctp_ctrl);
+
+		mctp_ctrl->worker_is_ready = false;
+
+		int ret = pthread_cond_init(&mctp_ctrl->worker_cv, NULL);
 		if (ret != 0) {
 			MCTP_CTRL_ERR("pthread_cond_init(3) failed.\n");
-			close(g_socket_fd);
-			close(g_signal_fd);
-			sd_bus_unref(mctp_ctrl->bus);
 			return EXIT_FAILURE;
 		}
 
 		ret = pthread_mutex_init(&mctp_ctrl->worker_mtx, NULL);
 		if (ret != 0) {
 			MCTP_CTRL_ERR("pthread_mutex_init(3) failed.\n");
-			close(g_socket_fd);
-			close(g_signal_fd);
-			sd_bus_unref(mctp_ctrl->bus);
 			return EXIT_FAILURE;
 		}
-	}
 
-	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
+		/* Create pthread for sening keepalive messages */
+		pthread_create(&g_keepalive_thread, NULL,
+			       &mctp_spi_keepalive_event, (void *)mctp_ctrl);
+
+		/* Wait until we can populate Dbus objects. */
+		pthread_mutex_lock(&mctp_ctrl->worker_mtx);
+		if (!mctp_ctrl->worker_is_ready) {
+			pthread_cond_wait(&mctp_ctrl->worker_cv,
+				  &mctp_ctrl->worker_mtx);
+		}
+		pthread_mutex_unlock(&mctp_ctrl->worker_mtx);
+	} else if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		/* Make sure all PCIe EID options are available from commandline */
 		rc = mctp_eids_sanity_check(cmdline->pcie.own_eid,
 						cmdline->pcie.bridge_eid,
 						cmdline->pcie.bridge_pool_start);
 		if (rc < 0) {
-			close(g_socket_fd);
-			close(g_signal_fd);
-			sd_bus_unref(mctp_ctrl->bus);
 			MCTP_CTRL_ERR("MCTP-Ctrl sanity check unsuccessful\n");
 			return EXIT_FAILURE;
 		}
@@ -784,19 +796,8 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		mctp_err_ret = mctp_discover_endpoints(cmdline, mctp_ctrl);
 		if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
 			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
-			mctp_ctrl_clean_up();
 			return EXIT_FAILURE;
 		}
-	} else if (cmdline->binding_type == MCTP_BINDING_SPI) {
-		/* Create pthread for sening keepalive messages */
-		pthread_create(&keepalive_thread, NULL,
-			       &mctp_spi_keepalive_event, (void *)mctp_ctrl);
-
-		g_keepalive_thread = keepalive_thread;
-
-		/* Wait until we can populate Dbus objects. */
-		pthread_cond_wait(&mctp_ctrl->worker_cv,
-				  &mctp_ctrl->worker_mtx);
 	} else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
 		switch (chosen_eid_type) {
 		case EID_TYPE_BRIDGE:
@@ -805,9 +806,6 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 				cmdline->i2c.own_eid, cmdline->i2c.bridge_eid,
 				cmdline->i2c.bridge_pool_start);
 			if (rc < 0) {
-				close(g_socket_fd);
-				close(g_signal_fd);
-				sd_bus_unref(mctp_ctrl->bus);
 				MCTP_CTRL_ERR(
 					"MCTP-Ctrl sanity check unsuccessful\n");
 				return EXIT_FAILURE;
@@ -886,7 +884,7 @@ static void parse_json_config(
 	rc = mctp_json_get_tokener_parse(&parsed_json, config_json_file_path);
 
 	if (rc == EXIT_FAILURE) {
-		MCTP_CTRL_ERR("Json tokener parse fail\n");
+		MCTP_CTRL_ERR("[%s] Json tokener parse fail\n", __func__);
 		exit(EXIT_FAILURE);
 	}
 
@@ -910,25 +908,25 @@ static void parse_json_config(
 	switch (chosen_eid_type)
 	{
 		case EID_TYPE_BRIDGE:
-			mctp_prinfo("Use bridge endpoint");
+			MCTP_CTRL_INFO("[%s] Use bridge endpoint", __func__);
 			mctp_json_i2c_get_params_bridge_ctrl(parsed_json,
-				&cmdline->i2c.bus_num, &cmdline->i2c.bridge_eid, 
+				&cmdline->i2c.bus_num, &cmdline->i2c.bridge_eid,
 				&cmdline->i2c.bridge_pool_start);
 
 			break;
 		case EID_TYPE_STATIC:
-			mctp_prinfo("Use static endpoint");
-			cmdline->dest_eid_tab = NULL;
+			MCTP_CTRL_INFO("[%s] Use static endpoint", __func__);
+			cmdline->dest_eid_tab = g_dest_eid_tab;
 			mctp_json_i2c_get_params_static_ctrl(parsed_json,
-				&cmdline->i2c.bus_num, &cmdline->dest_eid_tab,
+				&cmdline->i2c.bus_num, g_dest_eid_tab,
 				&cmdline->dest_eid_tab_len, &cmdline->uuid);
 
 			break;
 		case EID_TYPE_POOL:
-			mctp_prinfo("Use pool endpoints");
-			cmdline->dest_eid_tab = NULL;
+			MCTP_CTRL_INFO("[%s] Use pool endpoints", __func__);
+			cmdline->dest_eid_tab = g_dest_eid_tab;
 			mctp_json_i2c_get_params_pool_ctrl(parsed_json,
-				&cmdline->i2c.bus_num, &cmdline->dest_eid_tab,
+				&cmdline->i2c.bus_num, g_dest_eid_tab,
 				&cmdline->dest_eid_tab_len);
 
 			break;
@@ -1119,6 +1117,7 @@ static void parse_command_line(int argc, char *const *argv,
 				cmdline->i2c.bridge_pool_start = bridge_pool;
 				cmdline->i2c.own_eid = own_eid;
 			}
+			break;
 		case MCTP_BINDING_USB:
 			cmdline->usb.bridge_eid = bridge_eid;
 			cmdline->usb.bridge_pool_start = bridge_pool;
@@ -1136,6 +1135,7 @@ int main(int argc, char *const *argv)
 	sigset_t mask;
 	mctp_ctrl_t *mctp_ctrl, _mctp_ctrl;
 	mctp_cmdline_args_t cmdline;
+	int ret_val = EXIT_SUCCESS;
 
 	/* Initialize MCTP ctrl structure */
 	mctp_ctrl = &_mctp_ctrl;
@@ -1167,52 +1167,43 @@ int main(int argc, char *const *argv)
 	sleep(cmdline.delay);
 
 	/* Run this application only if set as daemon mode */
-	if (cmdline.mode == MCTP_MODE_CMDLINE) { // Run mode: c. mode
+	if (cmdline.mode == MCTP_MODE_CMDLINE) { 
+		// Run mode: command line mode
 		exec_command_line_mode(&cmdline, mctp_ctrl);
 	} else if (cmdline.mode == MCTP_SPI_MODE_TEST) {
+		// Run mode: SPI test mode
 		if (exec_spi_test(&cmdline, mctp_ctrl) != EXIT_SUCCESS) {
-			close(g_socket_fd);
-			close(g_signal_fd);
-			return EXIT_FAILURE;
+			MCTP_CTRL_ERR("Sending SPI test command failure\n");
+			ret_val = EXIT_FAILURE;
 		}
-	} else { // Run mode: d. mode
-
+	} else { 
+		// Run mode: daemon mode
 		MCTP_CTRL_INFO("%s: Run mode: Daemon mode\n", __func__);
 
 		if (exec_daemon_mode(&cmdline, mctp_ctrl) != EXIT_SUCCESS) {
-			return EXIT_FAILURE;
-		}
+			MCTP_CTRL_ERR("Running demon mode failure\n");
+			ret_val = EXIT_FAILURE;
+		} else {
+			MCTP_CTRL_INFO("%s: Initiate dbus\n", __func__);
+			/* Start D-Bus initialization and monitoring */
+			rc = mctp_ctrl_sdbus_init(mctp_ctrl->bus, g_signal_fd,
+						&cmdline);
 
-		/* Start D-Bus initialization and monitoring */
-		rc = mctp_ctrl_sdbus_init(mctp_ctrl->bus, g_signal_fd,
-					  &cmdline);
+			MCTP_CTRL_INFO("%s: Initiate dbus: result = %d\n", __func__, rc);
 
-		if (rc < 0) {
-			/* Pass the signal to threads and notify we are going to exit */
-			if (cmdline.binding_type == MCTP_BINDING_SPI) {
-				MCTP_CTRL_INFO(
-					"Deliver the termination signal to keepalive thread\n");
-				pthread_kill(g_keepalive_thread, SIGUSR2);
+			if (rc < 0) {
+				MCTP_CTRL_INFO("MCTP-Ctrl is going to terminate.\n");
+				ret_val = EXIT_FAILURE;
+			} else {
+				/* Start MCTP control daemon */
+				MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....\n",
+						__func__);
+				mctp_start_daemon(mctp_ctrl);
 			}
-			
-			MCTP_CTRL_INFO("MCTP-Ctrl is going to terminate.\n");
-			mctp_ctrl_clean_up();
-			return EXIT_SUCCESS;
-		}
-
-		if (rc >= 0) {
-			/* Start MCTP control daemon */
-			MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....\n",
-				       __func__);
-			mctp_start_daemon(mctp_ctrl);
 		}
 	}
 
-	if (cmdline.binding_type == MCTP_BINDING_SPI &&
-	    cmdline.mode != MCTP_SPI_MODE_TEST)
-		cleanup_daemon_spi();
-
 	mctp_ctrl_clean_up();
 
-	return EXIT_SUCCESS;
+	return ret_val;
 }

@@ -717,13 +717,19 @@ int mctp_i2c_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 			((struct mctp_ctrl_resp *)mctp_resp_msg)->data[0]);
 
 	/* Update Message type private params to export to upper layer */
+	msg_type_table.next = NULL;
 	msg_type_table.eid = eid;
 	msg_type_table.data_len = ((struct mctp_ctrl_resp *)mctp_resp_msg)
 						->data[MCTP_MSG_TYPE_DATA_LEN_OFFSET];
-	msg_type_table.next = NULL;
-	memcpy(&msg_type_table.data,
-			&((struct mctp_ctrl_resp *)mctp_resp_msg)
-			->data[MCTP_MSG_TYPE_DATA_OFFSET],
+	if (msg_type_table.data_len > (MCTP_BTU - 1)) {
+		MCTP_CTRL_INFO("%s: EID: %d, Data length: %u, but in the response there is only: %zi\n",
+			__func__, eid, msg_type_table.data_len, resp_msg_len);
+		msg_type_table.data_len = MCTP_BTU - 1;
+	}
+
+	memcpy(msg_type_table.data,
+			&(((struct mctp_ctrl_resp *)mctp_resp_msg)
+			->data[MCTP_MSG_TYPE_DATA_OFFSET]),
 			msg_type_table.data_len);
 
 	/* Create a new Msg type entry and add to list */

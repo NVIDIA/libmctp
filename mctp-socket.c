@@ -57,7 +57,7 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 	*fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
 
 	MCTP_ASSERT_RET(*fd != -1, MCTP_REQUESTER_OPEN_FAIL,
-			"open socket failed\n");
+			"open socket failed, errno=%d\n", errno);
 
 	/* Register socket operations timeouts */
 	if (setsockopt(*fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
@@ -79,11 +79,11 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 	if (-1 == rc) {
 		close(*fd);
 		MCTP_CTRL_ERR("%s: connect socket[%d] failed, error = %d, path = %s\n", 
-                       __func__, *fd, rc, path);
+                       __func__, *fd, errno, path);
 		return MCTP_REQUESTER_OPEN_FAIL;
 	}
 
-	/* Register the type  the server */
+	/* Register the type of the server */
 	rc = write(*fd, &msgtype, sizeof(msgtype));
 	if (-1 == rc) {
 		MCTP_CTRL_ERR("%s: register to socket[%d] failed\n", __func__,
@@ -97,7 +97,7 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 
 static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 				     uint8_t **mctp_resp_msg,
-				     size_t *resp_msg_len, char *resp_eid)
+				     size_t *resp_msg_len, mctp_eid_t *resp_eid)
 {
 	size_t mctp_prefix_len = sizeof(eid);
 	uint8_t mctp_prefix[mctp_prefix_len];
@@ -180,7 +180,7 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 				     uint8_t **mctp_resp_msg,
 				     size_t *resp_msg_len)
 {
-	char resp_eid[1] = { 0 };
+	mctp_eid_t resp_eid[1] = { 0 };
 	return mctp_recv(eid, mctp_fd, mctp_resp_msg, resp_msg_len, resp_eid);
 }
 
@@ -193,7 +193,7 @@ static mctp_requester_rc_t mctp_client_recv_from_eid(mctp_eid_t eid,
 						     uint8_t **mctp_resp_msg,
 						     size_t *resp_msg_len)
 {
-	char resp_eid[1] = { 0 };
+	mctp_eid_t resp_eid[1] = { 0 };
 	mctp_requester_rc_t rc;
 	struct mctp_vendor_msg_hdr *resp;
 	struct timespec now = { 0 };
@@ -218,6 +218,9 @@ static mctp_requester_rc_t mctp_client_recv_from_eid(mctp_eid_t eid,
 			break;
 		}
 
+		/* Remember command code before freeing the message */
+		uint8_t resp_command_code = resp->command_code;
+
 		/* free the msg and will read it again */
 		free(*mctp_resp_msg);
 		*mctp_resp_msg = NULL;
@@ -231,8 +234,16 @@ static mctp_requester_rc_t mctp_client_recv_from_eid(mctp_eid_t eid,
 			return MCTP_REQUESTER_TIMEOUT;
 		}
 
-		MCTP_CTRL_DEBUG("%s: I'm not the requester - %d, EID: %d\n",
-				__func__, eid, resp_eid[0]);
+		if (eid != resp_eid[0]) {
+			MCTP_CTRL_DEBUG("%s: I'm not the requester - %d, EID: %d\n",
+					__func__, eid, resp_eid[0]);
+		}
+
+		if (cmd_code != resp_command_code) {
+			MCTP_CTRL_DEBUG("%s: Command code 0x%02x is not requested command code 0x%02x\n",
+					__func__, resp->command_code, cmd_code);
+		}
+
 	} while (1);
 
 	return rc;

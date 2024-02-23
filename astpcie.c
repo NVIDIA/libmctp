@@ -398,8 +398,10 @@ struct mctp_binding_astpcie *mctp_astpcie_init_fileio(void)
  */
 void mctp_astpcie_free(struct mctp_binding_astpcie *astpcie)
 {
-	mctp_astpcie_close(astpcie);
-	__mctp_free(astpcie);
+	if (astpcie != NULL) {
+		mctp_astpcie_close(astpcie);
+		__mctp_free(astpcie);
+	}
 }
 
 /*
