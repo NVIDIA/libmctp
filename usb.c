@@ -103,7 +103,7 @@ void mctp_usb_rx_transfer_callback(struct libusb_transfer *xfr)
 		}
 		if (hdr->byte_count != xfr->actual_length) {
 			// Got an incorrectly sized payload
-			mctp_prerr("Expecting payload sized %d, got %zu",
+			mctp_prerr("Expecting payload sized %d, got %d",
 				   hdr->byte_count, xfr->actual_length);
 			mctp_trace_rx(xfr->buffer, xfr->actual_length);
 			goto out;
