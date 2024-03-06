@@ -5,59 +5,55 @@
     "src_eid": 11,
     "buses": [
       {
-        "bus_number": "i2c2",
-        "socket_name": "mctp-i2c-mux",
+        "bus_number": "i2c1",
+        "bus_number_smq": "i2c1",
+        "socket_name": "mctp-i2c1-mux",
         "endpoints": [
           {
             "eid_type": "bridge",
             "eid": 30,
             "eid_pool_start": 32,
-            "i2c_slave_address": 48,
+            "i2c_slave_address": 20,
             "description": "Sample configuration for FPGA bridge endpoints."
           }
         ]
       },
       {
-        "bus_number": "i2c1",
-        "socket_name": "mctp-i2c1-mux",
+        "bus_number": "i2c2",
+        "bus_number_smq": "i2c2",
+        "socket_name": "mctp-i2c2-mux",
         "endpoints": [
         {
           "eid_type": "static",
-          "eid": 13,
+          "eid": 100,
           "i2c_slave_address": 55,
-          "uuid": null,
           "description": "Sample configuration of static EID assignment."
-        },
-        {
-          "eid_type": "pool",
-          "eid": [ 45, 46, 47, 48, 49],
-          "description": "Definition of a pool of eids assigned for automatic discovery on i2c bus 1"
         }
         ]
       },
       {
         "bus_number": "i2c15",
         "bus_number_smq": "i2c5",
-        "socket_name": "mctp-i2c2-mux",
+        "socket_name": "mctp-i2c5-mux",
         "endpoints": [
           {
             "eid_type": "static",
-            "eid": 100,
+            "eid": 101,
             "i2c_slave_address": 50,
-            "uuid": null,
-            "description": "Static configurtion for CX7."
+            "description": "Static configurtion for EID on muxed bus 15, phy bus 5"
           }
         ]
       },
       {
         "bus_number": "i2c16",
         "bus_number_smq": "i2c5",
-        "socket_name": "mctp-i2c2-mux",
+        "socket_name": "mctp-i2c5-mux",
         "endpoints": [
           {
-            "eid_type": "pool",
-            "eid": [ 101, 102, 103],
-            "description": "Definition of a pool of eids assigned for automatic discovery on i2c bus"
+            "eid_type": "static",
+            "eid": 102,
+            "i2c_slave_address": 50,
+            "description": "Static configurtion for EID on muxed bus 16, phy bus 5"
           }
         ]
       }
