@@ -65,6 +65,10 @@ libmctp = library('mctp',
   dependencies: deps
 )
 
+install_headers(
+  'libmctp-externals.h'
+)
+
 systemd_system_unit_dir = dependency('systemd').get_variable(
           pkgconfig: 'systemdsystemunitdir')
 
