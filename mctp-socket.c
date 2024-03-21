@@ -11,6 +11,8 @@
 #include <sys/un.h>
 #include <sys/time.h>
 
+#define pr_fmt(x) "mctp-socket: " x
+
 #include "libmctp.h"
 #include "libmctp-log.h"
 #include "libmctp-cmds.h"
@@ -34,14 +36,6 @@ const uint8_t MCTP_MSG_TYPE_HDR = 0;
 /* MCTP TX/RX retry threshold */
 #define MCTP_CMD_THRESHOLD 2
 
-void mctp_ctrl_print_buffer(const char *str, const uint8_t *buffer, int size)
-{
-	MCTP_CTRL_TRACE("%s: ", str);
-	for (int i = 0; i < size; i++)
-		MCTP_CTRL_TRACE("0x%x ", buffer[i]);
-	MCTP_CTRL_TRACE("\n");
-}
-
 mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 					 uint8_t msgtype, time_t time_out)
 {
@@ -63,8 +57,7 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 	/* Register socket operations timeouts */
 	if (setsockopt(*fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
 		       sizeof(timeout)) < 0) {
-		MCTP_CTRL_ERR("%s: socket[%d] setsockopt failed\n", __func__,
-			      *fd);
+		MCTP_ERR("socket[%d] setsockopt failed\n", *fd);
 	}
 
 	addr.sun_family = AF_UNIX;
@@ -93,8 +86,7 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 	/* Register the type of the server */
 	rc = write(*fd, &msgtype, sizeof(msgtype));
 	if (-1 == rc) {
-		MCTP_CTRL_ERR("%s: register to socket[%d] failed\n", __func__,
-			      *fd);
+		MCTP_ERR("register to socket[%d] failed\n", *fd);
 		close(*fd);
 		return MCTP_REQUESTER_OPEN_FAIL;
 	}
@@ -118,12 +110,12 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 	length = recv(mctp_fd, NULL, 0, MSG_PEEK | MSG_TRUNC);
 
 	if (length < 0 && errno == EAGAIN) {
-		MCTP_CTRL_INFO("%s: Recv failed: due to timedout\n", __func__);
+		mctp_prinfo("%s: Recv failed: due to timedout\n", __func__);
 		return MCTP_REQUESTER_TIMEOUT;
 	}
 
 	if ((length <= 0) || (length > MCTP_MAX_MESSAGE_SIZE)) {
-		MCTP_CTRL_INFO(
+		mctp_prinfo(
 			"%s: Recv failed: Invalid length: %zi or timedout\n",
 			__func__, length);
 		return MCTP_REQUESTER_RECV_FAIL;
@@ -132,7 +124,7 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 		uint8_t buf[length];
 
 		length = recv(mctp_fd, buf, length, 0);
-		mctp_ctrl_print_buffer("mctp_recv_msg_invalid_len", buf,
+		mctp_trace_common("mctp_recv_msg_invalid_len >", buf,
 				       length);
 		return MCTP_REQUESTER_INVALID_RECV_LEN;
 	} else {
@@ -156,15 +148,13 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 		msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
 		int bytes = recvmsg(mctp_fd, &msg, 0);
 
-		mctp_ctrl_print_buffer("mctp_prefix_msg", mctp_prefix,
+		mctp_trace_common("mctp_prefix_msg >", mctp_prefix,
 				       mctp_prefix_len);
-		mctp_ctrl_print_buffer("mctp_resp_msg", *mctp_resp_msg,
+		mctp_trace_common("mctp_resp_msg >", *mctp_resp_msg,
 				       mctp_len);
 
 		if (length != bytes) {
-			MCTP_CTRL_ERR(
-				"%s: free mctp_resp_msg MCTP_REQUESTER_INVALID_RECV_LEN\n",
-				__func__);
+			MCTP_ERR("free mctp_resp_msg MCTP_REQUESTER_INVALID_RECV_LEN\n");
 			free(*mctp_resp_msg);
 			return MCTP_REQUESTER_INVALID_RECV_LEN;
 		}
@@ -173,7 +163,7 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 		/* Update the response length */
 		*resp_msg_len = mctp_len;
 
-		MCTP_CTRL_DEBUG("%s: resp_msg_len: %zu, mctp_len: %zu\n",
+		mctp_prdebug("%s: resp_msg_len: %zu, mctp_len: %zu\n",
 				__func__, *resp_msg_len, mctp_len);
 		return MCTP_REQUESTER_SUCCESS;
 	}
@@ -243,12 +233,12 @@ static mctp_requester_rc_t mctp_client_recv_from_eid(mctp_eid_t eid,
 		}
 
 		if (eid != resp_eid[0]) {
-			MCTP_CTRL_DEBUG("%s: I'm not the requester - %d, EID: %d\n",
+			mctp_prdebug("%s: I'm not the requester - %d, EID: %d\n",
 					__func__, eid, resp_eid[0]);
 		}
 
 		if (cmd_code != resp_command_code) {
-			MCTP_CTRL_DEBUG("%s: Command code 0x%02x is not requested command code 0x%02x\n",
+			mctp_prdebug("%s: Command code 0x%02x is not requested command code 0x%02x\n",
 					__func__, resp->command_code, cmd_code);
 		}
 
@@ -278,7 +268,7 @@ mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
 	msg.msg_iov = iov;
 	msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
 
-	mctp_ctrl_print_buffer("mctp_req_msg >> ", mctp_req_msg, req_msg_len);
+	mctp_trace_common("mctp_req_msg >", mctp_req_msg, req_msg_len);
 	ssize_t rc = sendmsg(mctp_fd, &msg, 0);
 
 	MCTP_ASSERT_RET(rc != -1, MCTP_REQUESTER_SEND_FAIL,
@@ -335,5 +325,6 @@ mctp_requester_rc_t mctp_client_send_recv(mctp_eid_t eid, int fd,
 			return rc;
 		}
 	}
+
 	return rc;
 }

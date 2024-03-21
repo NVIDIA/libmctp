@@ -14,7 +14,6 @@ add_project_arguments('-DMCTP_HAVE_FILEIO', language: ['c', 'cpp'])
 add_project_arguments('-DMCTP_HAVE_STDIO', language: ['c', 'cpp'])
 add_project_arguments('-DMCTP_DEFAULT_ALLOC', language: ['c', 'cpp'])
 
-
 sources = [
   'alloc.c',
   'astlpc.c',
@@ -26,9 +25,14 @@ sources = [
   'glacier-spb-ap.c',
   'log.c',
   'serial.c',
-  'smbus.c'
+  'smbus.c',
+  'mctp-json.c',
+  'mctp-socket.c'
 ]
-deps = []
+
+json_c = declare_dependency(dependencies: [comp.find_library('json-c')])
+
+deps = [json_c]
 
 # Add USB functionality to SRC 
 if get_option('enable-usb').enabled()
@@ -54,7 +58,6 @@ configure_file(
   output: 'config.h',
   configuration: conf_data,
 )
-
 
 libmctp = library('mctp',
   sources,

@@ -7,8 +7,7 @@ headers = [
 sources = [
   'mctp-vdm-nvda.c',
   'mctp-vdm-commands.c',
-  'mctp-vdm-encode.c',
-  '../../mctp-socket.c',
+  'mctp-vdm-encode.c'
 ]
 
 comp = meson.get_compiler('c')

@@ -148,12 +148,12 @@ mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_fd,
 	msg.msg_iov = iov;
 	msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
 
-	mctp_ctrl_print_buffer("mctp_bind_id  >> ", (uint8_t *)bind_id,
+	mctp_trace_common("mctp_bind_id  >> ", (uint8_t *)bind_id,
 			       sizeof(uint8_t));
-	mctp_ctrl_print_buffer("mctp_pvt_data >> ", mctp_binding_info,
+	mctp_trace_common("mctp_pvt_data >> ", mctp_binding_info,
 			       mctp_binding_len);
-	mctp_ctrl_print_buffer("mctp_req_hdr  >> ", hdr, sizeof(hdr));
-	mctp_ctrl_print_buffer("mctp_req_msg  >> ", mctp_req_msg, req_msg_len);
+	mctp_trace_common("mctp_req_hdr  >> ", hdr, sizeof(hdr));
+	mctp_trace_common("mctp_req_msg  >> ", mctp_req_msg, req_msg_len);
 
 	ssize_t rc = sendmsg(mctp_fd, &msg, 0);
 	MCTP_ASSERT_RET(rc >= 0, MCTP_REQUESTER_SEND_FAIL,

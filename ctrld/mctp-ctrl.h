@@ -89,8 +89,6 @@ typedef enum {
 } mctp_ret_codes_t;
 
 /* Function prototypes */
-void mctp_ctrl_print_buffer(const char *str, const uint8_t *buffer, int size);
-
 int mctp_event_monitor(mctp_ctrl_t *mctp_evt);
 
 mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,

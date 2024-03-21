@@ -5,7 +5,6 @@ headers = [
 
 sources = [
   'mctp-demux-daemon.c',
-  '../mctp-json.c'
 ]
 
 if get_option('capture').enabled()
