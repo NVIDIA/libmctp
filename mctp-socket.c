@@ -79,8 +79,14 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 		     sizeof(addr.sun_family) + len);
 	if (-1 == rc) {
 		close(*fd);
-		MCTP_CTRL_ERR("%s: connect socket[%d] failed, error = %d, path = %s\n", 
-                       __func__, *fd, errno, path);
+		if (path[0] == 0) {
+			MCTP_CTRL_ERR("%s: connect socket[%d] failed, error = %d, path = \\0%s\n", 
+                	__func__, *fd, errno, &(path[1]));
+		}
+		else {
+			MCTP_CTRL_ERR("%s: connect socket[%d] failed, error = %d, path = %s\n", 
+                	__func__, *fd, errno, path);
+		}
 		return MCTP_REQUESTER_OPEN_FAIL;
 	}
 

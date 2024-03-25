@@ -188,6 +188,36 @@ int mctp_json_get_eid_type(json_object *jo, const char *binding_name, uint8_t *b
 }
 
 /**
+ * Auxiliary function to get socket name from string parameter
+ * Notice, that the string may start with null '\0' value ("\u0000" in json).
+ * And, the function makes sure that the socket name starts with '\0', always.
+ * If parameter socket_name cannot be found socket_name should not be touched.
+ * @param[in]  jo_i2c_struct - json structure containing socket_name
+ * @param[out] sockname - Socket name
+ */
+void mctp_json_get_socket_name(char **sockname, json_object *jo_i2c_struct)
+{
+	json_object *jo_obj_i = json_object_object_get(
+		jo_i2c_struct, "socket_name");
+	if (jo_obj_i != NULL) {
+		int namelen = 0;
+		const char *string_val =
+			json_object_get_string(jo_obj_i);
+		if (string_val[0] == 0) {
+			namelen = 1 + strlen(&(string_val[1]));
+			*sockname = calloc(namelen + 1,	sizeof(char));
+			memcpy(*sockname, string_val, namelen);
+		} else {
+			namelen = strlen(string_val);
+			*sockname = calloc(namelen + 2,	sizeof(char));
+			memcpy(&((*sockname)[1]), string_val, namelen);
+		}
+
+		mctp_prinfo("Read socket name: \\0%s", &((*sockname)[1]));
+	}
+}
+
+/**
  * @brief Get common paramiters from json_object for mctp-demux-daemon
  *        using I2C.
  *
@@ -245,12 +275,7 @@ int mctp_json_i2c_get_common_params_mctp_demux(json_object *jo, uint8_t *bus_num
 			}
 
 			/* Get and set socketname */
-			jo_i2c_obj_i = json_object_object_get(jo_i2c_struct, "socket_name");
-			if (jo_i2c_obj_i != NULL) {
-				string_val = json_object_get_string(jo_i2c_obj_i);
-				*sockname = calloc(strlen(string_val) + 2, sizeof(char));
-				strcpy(*sockname + 1, string_val);
-			}
+			mctp_json_get_socket_name(sockname, jo_i2c_struct);
 		}
 	}
 
@@ -543,15 +568,7 @@ void mctp_json_i2c_get_common_params_ctrl(json_object *jo, uint8_t *bus_num,
 			logical_busses[k] = val;
 
 			/* Get and set socketname */
-			jo_i2c_obj_i = json_object_object_get(
-				jo_i2c_struct, "socket_name");
-			if (jo_i2c_obj_i != NULL) {
-				string_val =
-					json_object_get_string(jo_i2c_obj_i);
-				*sockname = calloc(strlen(string_val) + 2,
-						sizeof(char));
-				strcpy(*sockname + 1, string_val);
-			}
+			mctp_json_get_socket_name(sockname, jo_i2c_struct);
 
 			/* Get parameters for endpoints*/
 			jo_i2c_obj_i = json_object_object_get(jo_i2c_struct, "endpoints");
@@ -691,7 +708,7 @@ int mctp_json_i2c_get_params_static_ctrl(json_object *jo, uint8_t *bus_num,
 					/* Get static EID */
 					jo_i2c_obj_j = json_object_object_get(jo_i2c_struct, "eid");
 					string_val = json_object_get_string(jo_i2c_obj_j);
-					mctp_prinfo("k = %d, val_endpoints = %zi", k, val_endpoints);
+					mctp_prdebug("k = %d, val_endpoints = %zi", k, val_endpoints);
 					dest_eid_tab[k++] =
 						(uint8_t)parse_num(string_val);
 

@@ -638,7 +638,9 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 		mctp_sock_path = MCTP_SOCK_PATH_PCIE;
 	} else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
 		MCTP_CTRL_DEBUG("%s: Setting up SMBus socket\n", __func__);
-		mctp_sock_path = MCTP_SOCK_PATH_I2C;
+		if (mctp_sock_path == NULL) {
+			mctp_sock_path = MCTP_SOCK_PATH_I2C;
+		}
 	} else if (cmdline->binding_type == MCTP_BINDING_USB) {
 		MCTP_CTRL_DEBUG("%s: Setting up USB socket\n", __func__);
 		mctp_sock_path = MCTP_SOCK_PATH_USB;
