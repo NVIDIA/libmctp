@@ -1086,9 +1086,11 @@ static void parse_command_line(int argc, char *const *argv,
 				} else
 					printf("Wrong binding\n");
 			}
+			free(config_json_file_path);
 			exit(EXIT_SUCCESS);
 		default:
 			MCTP_CTRL_ERR("Invalid argument\n");
+			free(config_json_file_path);
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -1107,7 +1109,6 @@ static void parse_command_line(int argc, char *const *argv,
 		case MCTP_BINDING_SMBUS:
 			if (config_json_file_path != NULL) {
 				parse_json_config(config_json_file_path, cmdline);
-				free(config_json_file_path);
 			}
 			else {
 				// Run as Bridge
@@ -1129,6 +1130,7 @@ static void parse_command_line(int argc, char *const *argv,
 		default:
 			break;
 	}
+	free(config_json_file_path);
 }
 
 int main(int argc, char *const *argv)
