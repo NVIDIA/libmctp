@@ -32,6 +32,7 @@ int boot_complete_v2(int fd, uint8_t tid, uint8_t valid, uint8_t slot,
 int set_heartbeat_enable(int fd, uint8_t tid, int enable, uint8_t verbose);
 int heartbeat(int fd, uint8_t tid, uint8_t verbose);
 int query_boot_status(int fd, uint8_t tid, uint8_t verbose, uint8_t more);
+int query_boot_status_json(int fd, uint8_t tid);
 int background_copy(int fd, uint8_t tid, uint8_t code, uint8_t verbose);
 int download_log(int fd, uint8_t eid, char *dl_path, uint8_t verbose);
 int restart_notification(int fd, uint8_t tid, uint8_t verbose);

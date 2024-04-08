@@ -67,6 +67,7 @@ static const struct option options[] = {
 	{ "file", required_argument, 0, 'f' },
 	{ "help", no_argument, 0, 'h' },
 	{ "more", no_argument, 0, 'm' },
+	{ "json", no_argument, 0, 'j' },
 	{ 0 },
 };
 
@@ -76,6 +77,9 @@ static char *dbus_services[] = {
 	"xyz.openbmc_project.MCTP.Control.SMBus",
 	"xyz.openbmc_project.MCTP.Control.USB"
 };
+
+// List of commands that support JSON output
+const char *commands_supported_json_flag[] = { "query_boot_status" };
 
 #define VMD_CMD_ASSERT_GOTO(cond, label, fmt, ...)                             \
 	do {                                                                   \
@@ -317,6 +321,22 @@ static int check_hex_number(char *s)
 }
 
 /*
+ * Function to check if a command supports JSON output
+ */
+static bool is_json_supported(const char *command)
+{
+	int num_supported_commands = sizeof(commands_supported_json_flag) /
+				     sizeof(commands_supported_json_flag[0]);
+
+	for (int i = 0; i < num_supported_commands; ++i) {
+		if (strcmp(command, commands_supported_json_flag[i]) == 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/*
  * Main function
  */
 int main(int argc, char *const *argv)
@@ -330,16 +350,22 @@ int main(int argc, char *const *argv)
 	unsigned int max_len = 0;
 	uint8_t teid = 0;
 	bool more = false;
+	bool json_output = false;
+	bool print_test_command = false;
+	bool print_teid = false;
 	uint8_t payload_required = 0;
 	uint8_t payload[MCTP_CERTIFICATE_CHAIN_SIZE] = { '\0' };
 	sd_bus *bus = NULL;
 
 	for (;;) {
-		rc = getopt_long(argc, argv, "mvt:c:f:h", options, NULL);
+		rc = getopt_long(argc, argv, "jmvt:c:f:h", options, NULL);
 		if (rc == -1)
 			break;
 
 		switch (rc) {
+		case 'j':
+			json_output = true;
+			break;
 		case 'm':
 			more = true;
 			break;
@@ -348,11 +374,11 @@ int main(int argc, char *const *argv)
 			break;
 		case 't':
 			teid = (uint8_t)strtol(optarg, NULL, 10);
-			printf("teid = %d\n", teid);
+			print_teid = true;
 			break;
 		case 'c':
 			snprintf(item, sizeof(item), "%s", optarg);
-			printf("Test command = %s\n", item);
+			print_test_command = true;
 			payload_required = (strcmp(item, "selftest") == 0);
 			payload_required |=
 				(strcmp(item, "debug_token_install") == 0);
@@ -393,6 +419,23 @@ int main(int argc, char *const *argv)
 			return EXIT_FAILURE;
 		}
 	}
+
+	if(json_output && !is_json_supported(item))
+	{
+		printf("The following command %s does not expect argument -j\n", item);
+		return EXIT_FAILURE;
+	}
+
+	if(print_teid && !json_output)
+	{
+		printf("teid = %d\n", teid);
+	}
+
+	if(print_test_command && !json_output)
+	{
+		printf("Test command = %s\n", item);
+	}
+
 	mctp_set_log_stdio(ctx.verbose ? MCTP_LOG_DEBUG : MCTP_LOG_WARNING);
 
 	/* need more data as the payload passing to selftest commands */
@@ -480,7 +523,11 @@ int main(int argc, char *const *argv)
 				    "fail to send restart notification: %d\n",
 				    rc);
 	} else if (!strcmp(item, "query_boot_status")) {
-		rc = query_boot_status(fd, teid, VERBOSE_EN, more);
+		if (json_output) {
+			rc = query_boot_status_json(fd, teid);
+		} else {
+			rc = query_boot_status(fd, teid, VERBOSE_EN, more);
+		}
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to query boot status: %d\n", rc);
 	} else if (!strcmp(item, "download_log")) {

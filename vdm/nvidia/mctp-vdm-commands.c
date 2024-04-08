@@ -28,6 +28,9 @@
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <json-c/json.h>
 
 #include "libmctp-vdm-cmds.h"
 #include "libmctp.h"
@@ -40,6 +43,9 @@
 #include "ctrld/mctp-ctrl.h"
 
 #include "mctp-socket.h"
+
+#define MCTP_CTRL_CC_UNKNOWN 0xFF
+#define MCTP_CC_POSITION     9
 
 /* MCTP-VDM response binary file */
 #define MCTP_VDM_RESP_OUTPUT_FILE "/var/mctp-vdm-output.bin"
@@ -122,6 +128,16 @@ const uint8_t mctp_vdm_op_success = MCTP_VDM_CMD_OP_SUCCESS;
 #define SPI_READ_ERROR			7
 #define AUTHENTICATE_IN_PROGRESS	15
 
+enum MCTP_VDM_COMPLETION_CODE {
+	SUCCESS = MCTP_CTRL_CC_SUCCESS,
+	ERROR = MCTP_CTRL_CC_ERROR,
+	ERROR_INVALID_DATA = MCTP_CTRL_CC_ERROR_INVALID_DATA,
+	ERROR_INVALID_LENGTH = MCTP_CTRL_CC_ERROR_INVALID_LENGTH,
+	ERROR_NOT_READY = MCTP_CTRL_CC_ERROR_NOT_READY,
+	ERROR_UNSUPPORTED_CMD = MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD,
+	UNKNOWN = MCTP_CTRL_CC_UNKNOWN
+};
+
 #define print_boot_flag(flag, val, offset)                                     \
 	do {                                                                   \
 		printf("%-40s:\t %s \n", #flag,                                \
@@ -149,9 +165,78 @@ const uint8_t mctp_vdm_op_success = MCTP_VDM_CMD_OP_SUCCESS;
 		printf("%-40s:\t %u \n", #flag, (val));                          \
 	} while (0)
 
+#define create_json_element_flag(json_obj, flag, val, offset)                  \
+	do {                                                                   \
+		json_object_object_add(                                        \
+			(json_obj), #flag,                                       \
+			json_object_new_boolean(                               \
+				(val) & (uint8_t)(0x01)                        \
+						<< ((flag) - (offset))));      \
+	} while (0)
+
+#define create_json_element_boolean_value(json_obj, flag, val)                 \
+	do {                                                                   \
+		json_object_object_add((json_obj), #flag,                        \
+				       json_object_new_boolean((val) ==        \
+							       (flag)));       \
+	} while (0)
+
+#define create_json_element_number_value(json_obj, flag, val)                  \
+	do {                                                                   \
+		json_object_object_add((json_obj), #flag,                        \
+				       json_object_new_int(val));              \
+	} while (0)
+
+#define create_json_element_equals_flag_name(json_obj, element_name, flag)     \
+	do {                                                                   \
+		json_object_object_add((json_obj), (element_name),                 \
+				       json_object_new_string(#flag));         \
+	} while (0)
+
 /* short messages for command 'query_boot_status' whether boot succeeded or failed */
 #define MSG_BOOT_OK	"AP boot success"
 #define MSG_BOOT_FAILED "AP boot failed"
+
+/*
+ * This function extracts the completion code from the response of an MCTP command
+ * and generates corresponding JSON data to represent it.
+ */
+void create_json_with_completion_code(const uint8_t *resp_msg,
+				      struct json_object *json_obj)
+{
+	uint8_t resp_byte_completion_code = resp_msg[MCTP_CC_POSITION];
+
+	switch (resp_byte_completion_code) {
+	case SUCCESS:
+		create_json_element_equals_flag_name(
+			json_obj, "COMPLETION_CODE", SUCCESS);
+		break;
+	case ERROR:
+		create_json_element_equals_flag_name(json_obj,
+						     "COMPLETION_CODE", ERROR);
+		break;
+	case ERROR_INVALID_DATA:
+		create_json_element_equals_flag_name(
+			json_obj, "COMPLETION_CODE", ERROR_INVALID_DATA);
+		break;
+	case ERROR_INVALID_LENGTH:
+		create_json_element_equals_flag_name(
+			json_obj, "COMPLETION_CODE", ERROR_INVALID_LENGTH);
+		break;
+	case ERROR_NOT_READY:
+		create_json_element_equals_flag_name(
+			json_obj, "COMPLETION_CODE", ERROR_NOT_READY);
+		break;
+	case ERROR_UNSUPPORTED_CMD:
+		create_json_element_equals_flag_name(
+			json_obj, "COMPLETION_CODE", ERROR_UNSUPPORTED_CMD);
+		break;
+	default:
+		create_json_element_equals_flag_name(
+			json_obj, "COMPLETION_CODE", UNKNOWN);
+		break;
+	}
+}
 
 /*
  * Print the output to console and also redirect the output
@@ -658,6 +743,315 @@ static void query_boot_status_print_bits48_to_bit57(const uint8_t *resp_msg,
 	printf("\n");
 }
 
+
+
+/*
+ * This function parses bits from 0 to 7 from the response of the 'query_boot_status' command
+ * and creates corresponding JSON flags for each boot status.
+ * The flags are then added to the provided JSON object.
+ */
+static void create_json_query_boot_status_bits0_to_bit7(const uint8_t *resp_msg,
+						const int resp_len,
+						struct json_object *json_obj)
+{
+	uint8_t resp_byte_8 = resp_msg[resp_len - 1];
+	int offset = 0;
+
+	create_json_element_flag(json_obj, EC_TAG0_AUTH_ERROR, resp_byte_8,
+				 offset);
+	create_json_element_flag(json_obj, EC_TAG1_COPY_ERROR, resp_byte_8,
+				 offset);
+	create_json_element_flag(json_obj, EC_OTP_MISMATCH_ERROR, resp_byte_8,
+				 offset);
+	create_json_element_flag(json_obj, EC_SET_KEY_REVOKE, resp_byte_8,
+				 offset);
+	create_json_element_flag(json_obj, EC_SET_ROLLBACK_PROTECTION,
+				 resp_byte_8, offset);
+	create_json_element_flag(json_obj, EC_RECEIVE_AP0_BOOT_COMPLETE,
+				 resp_byte_8, offset);
+	create_json_element_flag(json_obj, EC_STRAP_MISMATCH, resp_byte_8,
+				 offset);
+}
+
+/*
+ * This function reads a byte storing the Authentication status code
+ * and creates corresponding JSON boolean values for each status.
+ * These values are then added to the provided JSON object.
+ */
+static void create_json_query_boot_status_authentication_status(
+	const uint8_t resp_byte, struct json_object *fw_auth_status)
+{
+	create_json_element_boolean_value(fw_auth_status, AUTHENTICATE_SUCCESS,
+					  (resp_byte & 0xF));
+	create_json_element_boolean_value(
+		fw_auth_status, VALIDATE_PUBLIC_KEY_ERROR, (resp_byte & 0xF));
+	create_json_element_boolean_value(
+		fw_auth_status, KEY_REVOKE_CHECK_ERROR, (resp_byte & 0xF));
+	create_json_element_boolean_value(fw_auth_status,
+					  ROLLBACK_PROTECTION_CHECK_ERROR,
+					  (resp_byte & 0xF));
+	create_json_element_boolean_value(fw_auth_status, AUTHENTICATE_ERROR,
+					  (resp_byte & 0xF));
+	create_json_element_boolean_value(fw_auth_status, SPI_READ_ERROR,
+					  (resp_byte & 0xF));
+	create_json_element_boolean_value(
+		fw_auth_status, AUTHENTICATE_IN_PROGRESS, (resp_byte & 0xF));
+}
+
+/*
+ * This function parses bits from 8 to 15 from the response of the 'query_boot_status' command
+ * and creates corresponding JSON flags for each boot status.
+ * The flags are then added to the provided JSON object.
+ */
+static void create_json_query_boot_status_bits8_to_bit15(const uint8_t *resp_msg,
+						const int resp_len,
+						struct json_object *json_obj)
+{
+	uint8_t resp_byte_7 = resp_msg[resp_len - 2];
+
+	struct json_object *primary_fw_auth_status = json_object_new_object();
+	create_json_query_boot_status_authentication_status(
+		resp_byte_7, primary_fw_auth_status);
+	json_object_object_add(json_obj, "AP0_PRIMARY_FW_AUTHENTICATION_STATUS",
+			       primary_fw_auth_status);
+
+	struct json_object *secondary_fw_auth_status = json_object_new_object();
+	create_json_query_boot_status_authentication_status(
+		resp_byte_7 >> 4, secondary_fw_auth_status);
+	json_object_object_add(json_obj,
+			       "AP0_SECONDARY_FW_AUTHENTICATION_STATUS",
+			       secondary_fw_auth_status);
+}
+
+/*
+ * This function parses bits from 16 to 23 from the response of the 'query_boot_status' command
+ * and creates corresponding JSON flags for each boot status.
+ * The flags are then added to the provided JSON object.
+ */
+static void create_json_query_boot_status_bits16_to_bit23(const uint8_t *resp_msg,
+						const int resp_len,
+						struct json_object *json_obj)
+{
+	uint8_t resp_byte_6 = resp_msg[resp_len - 3];
+	int offset = AP0_ACTIVE_SLOT;
+
+	struct json_object *recovery_fw_auth_status = json_object_new_object();
+	create_json_query_boot_status_authentication_status(
+		resp_byte_6, recovery_fw_auth_status);
+	json_object_object_add(json_obj,
+			       "AP0_RECOVERY_FW_AUTHENTICATION_STATUS",
+			       recovery_fw_auth_status);
+
+	create_json_element_number_value(json_obj, AP0_ACTIVE_SLOT,
+					 (resp_byte_6 >> 4) & 0x01);
+	create_json_element_flag(json_obj, AP0_SPI_READ_FAILURE,
+				 (resp_byte_6 >> 4), offset);
+	create_json_element_flag(json_obj, AP0_POWER_GOOD, (resp_byte_6 >> 4),
+				 offset);
+	create_json_element_flag(json_obj, AP0_RESET_ON_HOLD, (resp_byte_6 >> 4),
+				 offset);
+}
+
+/*
+ * This function parses bits from 24 to 31 from the response of the 'query_boot_status' command
+ * and creates corresponding JSON flags for each boot status.
+ * The flags are then added to the provided JSON object.
+ */
+static void create_json_query_boot_status_bits24_to_bit31(const uint8_t *resp_msg,
+						const int resp_len,
+						struct json_object *json_obj)
+{
+	uint8_t resp_byte_5 = resp_msg[resp_len - 4];
+	int offset = AP0_SPI_ACCESS_VIOLATION_OPCODE;
+
+	create_json_element_flag(json_obj, AP0_SPI_ACCESS_VIOLATION_OPCODE,
+				 resp_byte_5, offset);
+	create_json_element_flag(json_obj, AP0_SPI_ACCESS_VIOLATION_RANGE,
+				 resp_byte_5, offset);
+	create_json_element_flag(json_obj, AP0_HEARTBEAT_TIMEOUT, resp_byte_5,
+				 offset);
+	create_json_element_flag(json_obj, AP0_BOOTCOMPLETE_TIMEOUT, resp_byte_5,
+				 offset);
+
+	if (NO_FATAL_ERROR != (resp_byte_5 >> 4)) {
+		struct json_object *fatal_error_codes =
+			json_object_new_object();
+
+		create_json_element_boolean_value(fatal_error_codes,
+						  FATAL_ERR_AUTH_AP_FW,
+						  (resp_byte_5 >> 4));
+		create_json_element_boolean_value(
+			fatal_error_codes, FATAL_ERR_INIT_RESET_EVENT_FAIL,
+			(resp_byte_5 >> 4));
+		create_json_element_boolean_value(fatal_error_codes,
+						  FATAL_ERR_SETUP_SPIMON_FAIL,
+						  (resp_byte_5 >> 4));
+		create_json_element_boolean_value(
+			fatal_error_codes, FATAL_ERR_GRANT_AP_SPI_ACCESS_FAIL,
+			(resp_byte_5 >> 4));
+		create_json_element_boolean_value(
+			fatal_error_codes, FATAL_ERR_TIMEOUT_WAIT_AP_PGOOD,
+			(resp_byte_5 >> 4));
+		create_json_element_boolean_value(
+			fatal_error_codes,
+			FATAL_ERR_TRY_RELEASE_ON_INVALID_SLOT,
+			(resp_byte_5 >> 4));
+		create_json_element_boolean_value(fatal_error_codes,
+						  FATAL_ERR_BC_ON_INVALID_SLOT,
+						  (resp_byte_5 >> 4));
+		create_json_element_boolean_value(
+			fatal_error_codes, FATAL_ERR_BC_TIMEOUT_MAX_ATTEMPT,
+			(resp_byte_5 >> 4));
+		create_json_element_boolean_value(fatal_error_codes,
+						  FATAL_ERR_SET_TIMER,
+						  (resp_byte_5 >> 4));
+
+		json_object_object_add(json_obj, "FATAL_ERROR_CODE",
+				       fatal_error_codes);
+	}
+}
+
+/*
+ * This function parses bits from 32 to 39 from the response of the 'query_boot_status' command
+ * and creates corresponding JSON flags for each boot status.
+ * The flags are then added to the provided JSON object.
+ */
+static void create_json_query_boot_status_bits32_to_bit39(const uint8_t *resp_msg,
+						const int resp_len,
+						struct json_object *json_obj)
+{
+	uint8_t resp_byte_4 = resp_msg[resp_len - 5];
+	int offset = PRIMARY_PUF_AC_VALID;
+
+	create_json_element_flag(json_obj, PRIMARY_PUF_AC_VALID, resp_byte_4,
+				 offset);
+	create_json_element_flag(json_obj, FALLBACK_PUF_AC_VALID, resp_byte_4,
+				 offset);
+	create_json_element_flag(json_obj, PUF0_ENGINE_STARTED, resp_byte_4,
+				 offset);
+	create_json_element_flag(json_obj, PUF0_AK_GEN, resp_byte_4, offset);
+	create_json_element_flag(json_obj, AK_SRC_IS_PUF, resp_byte_4, offset);
+	create_json_element_flag(json_obj, PUF1_ENGINE_STARTED, resp_byte_4,
+				 offset);
+	create_json_element_flag(json_obj, PUF1_UDS_GEN, resp_byte_4, offset);
+	create_json_element_flag(json_obj, PUF1_IK_GEN, resp_byte_4, offset);
+}
+
+/*
+ * This function parses bits from 40 to 47 from the response of the 'query_boot_status' command
+ * and creates corresponding JSON flags for each boot status.
+ * The flags are then added to the provided JSON object.
+ */
+static void create_json_query_boot_status_bits40_to_bit47(const uint8_t *resp_msg,
+						const int resp_len,
+						struct json_object *json_obj)
+{
+	uint8_t resp_byte_3 = resp_msg[resp_len - 6];
+	int offset = IK_SRC_IS_PUF;
+
+	create_json_element_flag(json_obj, IK_SRC_IS_PUF, resp_byte_3, offset);
+}
+
+/*
+ * This function parses bits from 48 to 57 from the response of the 'query_boot_status' command
+ * and creates corresponding JSON flags for each boot status.
+ * The flags are then added to the provided JSON object.
+ */
+static void
+create_json_query_boot_status_bits48_to_bit57(const uint8_t *resp_msg,
+					      const int resp_len,
+					      struct json_object *json_obj)
+{
+	uint8_t resp_byte_2 = resp_msg[resp_len - 7];
+	uint8_t resp_byte_1 = resp_msg[resp_len - 8];
+	int offset = AP0_RELEASE_SLOT;
+	uint16_t resp_byte_2_and_1 = resp_byte_2 | (resp_byte_1 << 8);
+
+	uint8_t ap0_release_slot_value =
+		(resp_byte_2_and_1 >> (AP0_RELEASE_SLOT - offset)) & 0x03;
+
+	char *ap0_release_slot_value_txt;
+	switch (ap0_release_slot_value) {
+	case 0:
+		ap0_release_slot_value_txt = "0 (fatal error happened)";
+		break;
+	case 1:
+		ap0_release_slot_value_txt = "1 (slot0)";
+		break;
+	case 2:
+		ap0_release_slot_value_txt = "2 (slot1)";
+		break;
+	default:
+		ap0_release_slot_value_txt = "Undefined value";
+		break;
+	}
+
+	json_object_object_add(
+		json_obj, "AP0_RELEASE_SLOT",
+		json_object_new_string(ap0_release_slot_value_txt));
+
+	uint8_t region_copy_failed_value =
+		(resp_byte_2_and_1 >> (REGION_COPY_FAILED - offset)) & 0x0F;
+
+	char *region_copy_failed_value_txt;
+
+	switch (region_copy_failed_value) {
+	case 0:
+		region_copy_failed_value_txt = "REGION_CP_SUCCESS";
+		break;
+	case 1:
+		region_copy_failed_value_txt = "REGION_CP_FAIL_STRAP_SETTING";
+		break;
+	case 2:
+		region_copy_failed_value_txt =
+			"REGION_CP_FAIL_NO_BOOT_COMPLETE_SLOT";
+		break;
+	case 3:
+		region_copy_failed_value_txt = "REGION_CP_FAIL_TIMEOUT";
+		break;
+	case 4:
+		region_copy_failed_value_txt = "REGION_CP_FAIL";
+		break;
+	default:
+		region_copy_failed_value_txt = "Undefined value";
+		break;
+	}
+
+	json_object_object_add(
+		json_obj, "REGION_COPY_FAILED",
+		json_object_new_string(region_copy_failed_value_txt));
+
+	uint8_t stage_dl_failed_value =
+		(resp_byte_2_and_1 >> (STAGE_DL_FAILED - offset)) & 0x0F;
+	char *stage_dl_failed_value_txt;
+
+	switch (stage_dl_failed_value) {
+	case 0:
+		stage_dl_failed_value_txt = "Not started";
+		break;
+	case 1:
+		stage_dl_failed_value_txt = "BG copy in progress";
+		break;
+	case 2:
+		stage_dl_failed_value_txt = "Background copy to gold failed";
+		break;
+	case 3:
+		stage_dl_failed_value_txt =
+			"Background copy to inactive failed";
+		break;
+	case 4:
+		stage_dl_failed_value_txt = "Success";
+		break;
+	default:
+		stage_dl_failed_value_txt = "Undefined value";
+		break;
+	}
+
+	json_object_object_add(
+		json_obj, "STAGE_DL_FAILED",
+		json_object_new_string(stage_dl_failed_value_txt));
+}
+
 /*
  * Check Boot Status Codes to verify whether AP booted successfully or not.
  * The list of bits used in the function is presented below:
@@ -749,6 +1143,73 @@ int query_boot_status(int fd, uint8_t tid, uint8_t verbose, uint8_t more)
 		query_boot_status_print_bits40_to_bit47(resp, resp_len);
 		query_boot_status_print_bits48_to_bit57(resp, resp_len);
 	}
+
+	/* free memory */
+	free(resp);
+
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+			"%s: fail to recv [rc: %d] response\n", __func__, rc);
+
+	return 0;
+}
+
+/*
+ * Query boot status:
+ * Query Boot Status command can be called by AP firmware to know Glacier
+ * and AP status. The returned boot status codes are formatted in JSON.
+ */
+int query_boot_status_json(int fd, uint8_t tid)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_bootstatus cmd = { 0 };
+
+	/* Encode the VDM headers for Query boot status */
+	mctp_encode_vendor_cmd_bootstatus(&cmd);
+
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
+				       (uint8_t **)&resp, &resp_len, false);
+
+	struct json_object *json_obj = json_object_new_object();
+	struct json_object *query_boot_status_response =
+		json_object_new_object();
+	struct json_object *boot_status_flags = json_object_new_object();
+
+	create_json_with_completion_code(resp, query_boot_status_response);
+
+	char *msg_boot;
+
+	if (is_booted_OK(resp, resp_len) == true) {
+		msg_boot = MSG_BOOT_OK;
+	} else {
+		msg_boot = MSG_BOOT_FAILED;
+	}
+
+	json_object_object_add(query_boot_status_response, "MSG_BOOT",
+			       json_object_new_string(msg_boot));
+
+	create_json_query_boot_status_bits0_to_bit7(resp, resp_len, boot_status_flags);
+	create_json_query_boot_status_bits8_to_bit15(resp, resp_len, boot_status_flags);
+	create_json_query_boot_status_bits16_to_bit23(resp, resp_len, boot_status_flags);
+	create_json_query_boot_status_bits24_to_bit31(resp, resp_len, boot_status_flags);
+	create_json_query_boot_status_bits32_to_bit39(resp, resp_len, boot_status_flags);
+	create_json_query_boot_status_bits40_to_bit47(resp, resp_len, boot_status_flags);
+	create_json_query_boot_status_bits48_to_bit57(resp, resp_len,
+						      boot_status_flags);
+
+	json_object_object_add(query_boot_status_response, "BOOT_STATUS_FLAGS",
+			       boot_status_flags);
+
+	json_object_object_add(json_obj, "RESPONSE",
+			       query_boot_status_response);
+
+	// Printing JSON object
+	printf("%s\n", json_object_to_json_string_ext(json_obj,
+						      JSON_C_TO_STRING_PRETTY));
+
+	json_object_put(json_obj);
 
 	/* free memory */
 	free(resp);
