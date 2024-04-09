@@ -241,7 +241,8 @@ void *mctp_spi_keepalive_event(void *arg)
 
 	pthread_mutex_lock(&ctrl->worker_mtx);
 
-	MCTP_CTRL_INFO("[%s] Send 'Boot complete v2' message\n", __func__);
+	MCTP_CTRL_INFO("[%s] Send 'Boot complete v2' message, fd = %d\n", 
+		__func__, socket_fd);
 
 	rc = boot_complete_v2(socket_fd, MCTP_NULL_ENDPOINT, 0, 0,
 			      VERBOSE_DISABLE);
@@ -264,7 +265,9 @@ void *mctp_spi_keepalive_event(void *arg)
 	pthread_cond_signal(&ctrl->worker_cv);
 
 	/* Give some delay before sending next command */
+#if !USE_FUZZ_CTRL
 	usleep(MCTP_SPI_CMD_DELAY_USECS);
+#endif
 
 	MCTP_CTRL_INFO("[%s] Send 'Enable Heartbeat' message\n", __func__);
 	rc = set_heartbeat_enable(socket_fd, MCTP_NULL_ENDPOINT,
@@ -279,7 +282,9 @@ void *mctp_spi_keepalive_event(void *arg)
 	}
 
 	/* Give some delay before sending next command */
+#if !USE_FUZZ_CTRL
 	usleep(MCTP_SPI_CMD_DELAY_USECS);
+#endif
 
 	while (mctp_ctrl_running) {
 		MCTP_CTRL_DEBUG("[%s] Send 'Heartbeat' message\n", __func__);

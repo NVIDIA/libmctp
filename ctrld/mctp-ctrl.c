@@ -736,8 +736,13 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	int rc = -1, fd;
 	mctp_ret_codes_t mctp_err_ret;
 
+#if !USE_FUZZ_CTRL
 	/* Create D-Bus for loging event and handling D-Bus request*/
 	rc = sd_bus_default_system(&mctp_ctrl->bus);
+#else
+	/* For Fuzz tests create user D-Bus */
+	rc = sd_bus_open_user(&mctp_ctrl->bus);
+#endif
 	if (rc < 0) {
 		MCTP_CTRL_ERR("D-Bus failed to create\n");
 		return EXIT_FAILURE;
@@ -765,9 +770,9 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 
 		MCTP_ASSERT_RET(MCTP_REQUESTER_SUCCESS == rc, EXIT_FAILURE,
 				"[%s] Failed to open mctp socket\n", __func__);
-
+		
 		mctp_set_log_stdio(cmdline->verbose ? MCTP_LOG_DEBUG :
-						     MCTP_LOG_WARNING);
+	    	MCTP_LOG_WARNING);
 	}
 	else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
 		MCTP_CTRL_INFO("%s: Binding type: SMBus\n", __func__);
@@ -939,6 +944,20 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	return EXIT_SUCCESS;
 }
 
+void set_uuid_str(char* uuid_str, char* from, int length)
+{
+	int from_len = strlen(from);
+	if (from_len < length) {
+		MCTP_CTRL_ERR("MCTP-Ctrl input param uuid is too short");
+		return;
+	}
+
+	// NOTE: afl+ gcc compiler has a compilation issue with strncpy
+	for (int i = 0; i <= length; i++) {
+		uuid_str[i] = from[i];
+	}
+}
+
 static void parse_json_config(
 	char *config_json_file_path,
 	mctp_cmdline_args_t *cmdline)
@@ -1076,8 +1095,7 @@ static void parse_command_line(int argc, char *const *argv,
 				optarg, cmdline->tx_data, strlen(optarg));
 			break;
 		case 'u':
-			strncpy(&cmdline->uuid_str[0], optarg,
-				sizeof(cmdline->uuid_str));
+			set_uuid_str(cmdline->uuid_str, optarg, UUID_STR_LEN);
 			break;
 		case 'f':
 			if (config_json_file_path == NULL) {
@@ -1151,7 +1169,7 @@ static void parse_command_line(int argc, char *const *argv,
 			free(config_json_file_path);
 			exit(EXIT_SUCCESS);
 		default:
-			MCTP_CTRL_ERR("Invalid argument\n");
+			MCTP_CTRL_ERR("Invalid argument: 0x%02x\n", rc);
 			free(config_json_file_path);
 			exit(EXIT_FAILURE);
 		}
@@ -1203,7 +1221,7 @@ static int mctp_ctrl_sdbus_custom_event(void *ctx)
 }
 #endif
 
-int main(int argc, char *const *argv)
+int main_ctrl(int argc, char *const *argv)
 {
 	int rc;
 	sigset_t mask;
@@ -1226,6 +1244,10 @@ int main(int argc, char *const *argv)
 	strncpy(cmdline.name, mctp_ctrl_name, sizeof(mctp_ctrl_name) - 1);
 
 	parse_command_line(argc, argv, &cmdline, mctp_ctrl);
+
+#if USE_FUZZ_CTRL
+	MCTP_CTRL_INFO("Running in Fuzz mode\n");
+#endif
 
 	sigemptyset(&mask);
 	sigaddset(&mask, SIGTERM);
@@ -1286,7 +1308,7 @@ int main(int argc, char *const *argv)
 #endif
 
 			MCTP_CTRL_INFO("%s: Initiate dbus: result = %d\n", __func__, rc);
-
+			
 			if (rc < 0) {
 				MCTP_CTRL_INFO("MCTP-Ctrl is going to terminate.\n");
 				ret_val = EXIT_FAILURE;
@@ -1307,3 +1329,9 @@ int main(int argc, char *const *argv)
 #endif
 	return ret_val;
 }
+
+#if !USE_FUZZ_CTRL
+int main (int argc, char *const *argv) {
+	return main_ctrl(argc, argv);
+}
+#endif

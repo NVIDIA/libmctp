@@ -43,3 +43,5 @@ utils/mctp-in
 utils/mctp-pipe
 vdm/nvidia/mctp-vdm-util
 ctrld/mctp-ctrl
+ctrld/AFLplusplus/
+*afl*

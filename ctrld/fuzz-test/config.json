@@ -1,0 +1,906 @@
+{
+    "i2c":
+    {
+      "i2c_src_address": 24,
+      "src_eid": 11,
+      "buses": 
+      [
+        {
+          "bus_number": "i2c1",
+          "socket_name": "\u0000mctp-i2c1-mux",
+          "endpoints": 
+          [
+            {
+              "eid_type": "static",
+              "eid": 1,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 2,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 3,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 4,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 5,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 6,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 7,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 8,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 9,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 10,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 11,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 12,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 13,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 14,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 15,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 16,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 17,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 18,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 19,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 20,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 21,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 22,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 23,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 24,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 25,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 26,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 27,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 28,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 29,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 30,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 31,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 32,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 33,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 34,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 35,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 36,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 37,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 38,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 39,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 40,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 41,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 42,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 43,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 44,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 45,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 46,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 47,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 48,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 49,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 50,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 51,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 52,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 53,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 54,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 55,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 56,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 57,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 58,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 59,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 60,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 61,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 62,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 63,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 64,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 65,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 66,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 67,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 68,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 69,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 70,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 71,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 72,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 73,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 74,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 75,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 76,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 77,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 78,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 79,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 80,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 81,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 82,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 83,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 84,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 85,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 86,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 87,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 88,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 89,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 90,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 91,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 92,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 93,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 94,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 95,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 96,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 97,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 98,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 99,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 100,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 101,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 102,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 103,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 104,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 105,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 106,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 107,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 108,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 109,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 110,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 111,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 112,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 113,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 114,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 115,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 116,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 117,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 118,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 119,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 120,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 121,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 122,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 123,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 124,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 125,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 126,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            },
+            {
+              "eid_type": "static",
+              "eid": 127,
+              "i2c_slave_address": 55,
+              "uuid": null,
+              "description": "Sample configuration of static EID assignment."
+            }
+          ]
+        }
+      ]
+    }
+}

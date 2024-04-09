@@ -14,10 +14,10 @@ option(
     value: 'disabled',
     description: '''Enable MCTPoUSB functionality. Also required libmctp dependency during runtime.'''
 )
-
 option(
     'enable-mockup-endpoint',
     type: 'feature',
     value: 'disabled',
     description: '''Enable Mockup Endpoint..'''
 )
+option('enable-fuzzctrl', type: 'feature', description: 'Fuzz tests for MCTP control demon', value: 'disabled')

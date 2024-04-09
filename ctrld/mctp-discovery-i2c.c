@@ -702,6 +702,14 @@ int mctp_i2c_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 				resp_msg_len -
 					sizeof(struct mctp_ctrl_cmd_msg_hdr));
 
+	/* the minimum message size is 5 bytes:
+		eid 1 byte + 3 header bytes + 1 data length field */
+	if (resp_msg_len < 5) {
+		MCTP_CTRL_ERR("%s: Minimum message size is 5 bytes, but received %zi\n",
+			      __func__, resp_msg_len);
+		return MCTP_RET_REQUEST_FAILED;
+	}
+
 	msg_type_resp =
 		(struct mctp_ctrl_resp_get_msg_type_support *)mctp_resp_msg;
 
@@ -725,6 +733,12 @@ int mctp_i2c_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 		MCTP_CTRL_INFO("%s: EID: %d, Data length: %u, but in the response there is only: %zi\n",
 			__func__, eid, msg_type_table.data_len, resp_msg_len);
 		msg_type_table.data_len = MCTP_BTU - 1;
+	}
+
+	if (msg_type_table.data_len > (resp_msg_len - 5)) {
+		MCTP_CTRL_INFO("%s: EID: %d, Data length: %u, but in the response there is only: %zi data bytes\n",
+			__func__, eid, msg_type_table.data_len, resp_msg_len - 5);
+		msg_type_table.data_len = resp_msg_len - 5;
 	}
 
 	memcpy(msg_type_table.data,
@@ -880,7 +894,9 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd, mct
 						discovery_mode = MCTP_SET_EP_REQUEST;
 
 						/* Sleep for a while */
+#if !USE_FUZZ_CTRL
 						sleep(MCTP_DEVICE_READY_DELAY);
+#endif
 						break;
 					}
 
@@ -963,8 +979,9 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd, mct
 					* Sleep for a while (this is needed for Bridge to prepare the
 					* Routing table entries)
 					*/
+#if !USE_FUZZ_CTRL
 				sleep(MCTP_DEVICE_GET_ROUTING_DELAY);
-
+#endif
 				break;
 
 			case MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST:
@@ -1006,7 +1023,9 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd, mct
 						MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST;
 
 					/* Sleep for a while */
+#if !USE_FUZZ_CTRL
 					sleep(MCTP_DEVICE_READY_DELAY);
+#endif
 					break;
 				}
 
@@ -1301,7 +1320,9 @@ mctp_ret_codes_t mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_
 							MCTP_SET_EP_REQUEST;
 
 						/* Sleep for a while */
+#if !USE_FUZZ_CTRL
 						sleep(MCTP_DEVICE_READY_DELAY);
+#endif
 						break;
 					}
 

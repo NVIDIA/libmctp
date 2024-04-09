@@ -21,6 +21,24 @@ if get_option('enable-mockup-endpoint').enabled()
   sources += ['fsdyn-endpoint.c']
 endif
 
+if get_option('enable-fuzzctrl').enabled()
+  sources += ['fuzz-test/mctp-ctrl-mockup.c']
+
+  configure_file(
+    copy: true,
+    input: 'fuzz-test/config.json',
+    install: false,
+    output: 'mctp_test_cfg.json'
+  )
+
+  configure_file(
+    copy: true,
+    input: 'fuzz-test/nic_cfg.json',
+    install: false,
+    output: 'nic_cfg.json'
+  )
+endif
+
 comp = meson.get_compiler('c')
 
 systemd = declare_dependency(dependencies: [comp.find_library('systemd')])

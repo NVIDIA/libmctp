@@ -58,6 +58,8 @@ endif
 conf_data = configuration_data()
 conf_data.set('HAVE_PCAP', get_option('capture').enabled() ? 1 : 0)
 
+conf_data.set('USE_FUZZ_CTRL', get_option('enable-fuzzctrl').enabled() ? 1 : 0)
+
 configure_file(
   input: 'config.h.in',
   output: 'config.h',

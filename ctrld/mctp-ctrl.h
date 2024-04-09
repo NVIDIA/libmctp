@@ -16,13 +16,13 @@ extern "C" {
 #include <systemd/sd-bus.h>
 
 #include "mctp-ctrl-cmdline.h"
+#include "../config.h"
 
 /* Default socket path */
 #define MCTP_SOCK_PATH_PCIE "\0mctp-pcie-mux"
 #define MCTP_SOCK_PATH_SPI "\0mctp-spi-mux"
 #define MCTP_SOCK_PATH_I2C "\0mctp-i2c-mux"
 #define MCTP_SOCK_PATH_USB "\0mctp-usb-mux"
-
 
 /* Define Max buffer size */
 #define MCTP_RX_BUFFER_MAX_SIZE 64
@@ -112,6 +112,8 @@ uint16_t mctp_ctrl_get_target_bdf(const mctp_cmdline_args_t *cmd);
 mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 				     uint8_t **mctp_resp_msg,
 				     size_t *resp_msg_len);
+
+int main_ctrl(int argc, char *const *argv);
 
 #ifdef __cplusplus
 }
