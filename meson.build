@@ -13,6 +13,9 @@ add_project_arguments('-DMCTP_LOG_STDERR', language: ['c', 'cpp'])
 add_project_arguments('-DMCTP_HAVE_FILEIO', language: ['c', 'cpp'])
 add_project_arguments('-DMCTP_HAVE_STDIO', language: ['c', 'cpp'])
 add_project_arguments('-DMCTP_DEFAULT_ALLOC', language: ['c', 'cpp'])
+# In meson we have config.h, but other compilation systems do not have it,
+#   so, it should be used conditionally
+add_project_arguments('-DMCTP_HAVE_CONFIG_H', language: ['c', 'cpp'])
 
 sources = [
   'alloc.c',
@@ -57,6 +60,7 @@ endif
 
 conf_data = configuration_data()
 conf_data.set('HAVE_PCAP', get_option('capture').enabled() ? 1 : 0)
+conf_data.set('USE_MOCKED_DRIVERS', get_option('mocked-drivers').enabled() ? 1 : 0)
 
 conf_data.set('USE_FUZZ_CTRL', get_option('enable-fuzzctrl').enabled() ? 1 : 0)
 

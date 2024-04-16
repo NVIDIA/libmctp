@@ -234,16 +234,22 @@ int mctp_load_spi_driver(void)
 		mctp_prinfo("%s: Raw SPI driver already loaded: %d\n", __func__,
 			    ret);
 	} else {
+#if !USE_MOCKED_DRIVERS
 		sleep(MCTP_SPI_LOAD_UNLOAD_DELAY_SECS);
+#endif
 		memset(cmd, '\0', MCTP_SPI_LOAD_CMD_SIZE);
 		sprintf(cmd, "%s", MCTP_SPI_DRIVER_PATH);
 		mctp_prinfo("%s: Loading Raw SPI driver: %s\n", __func__, cmd);
+#if !USE_MOCKED_DRIVERS
 		ret = system(cmd);
+#endif
 		mctp_prinfo("%s: Loaded Raw SPI driver successfully: %d\n",
 			    __func__, ret);
 
 		/* Need some wait time to complete the FMC Raw SPI driver initialization */
+#if !USE_MOCKED_DRIVERS
 		sleep(MCTP_SPI_LOAD_UNLOAD_DELAY_SECS);
+#endif
 	}
 
 	return MCTP_SPI_SUCCESS;

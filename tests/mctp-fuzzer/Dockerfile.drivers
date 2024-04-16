@@ -1,0 +1,42 @@
+# This docker file is to build a dedicated docker image to build
+# mocked MCTP kernel drivers
+# Version of the kernel MUST be at least the same or higher
+#  in comparison to Host OS kernel version returned by $(uname -r)
+# If not then there will be an issue with standard apt install
+#  for linux-headers- manadatory package to compile kernel modules.
+FROM ubuntu:23.10
+
+RUN apt-get update -y --fix-missing
+RUN apt-get full-upgrade -y
+RUN apt-get install -y \
+    apt-utils \
+    dialog \
+    sudo
+
+ENV LANG C.UTF-8
+
+RUN apt-get install -y strace libcap2-bin
+
+RUN sudo apt-get install -y --no-install-recommends \
+    gcc-12 g++-12 lld-14 llvm-14 llvm-14-dev clang-14 clang llvm \
+    gcc-12-plugin-dev libstdc++-12-dev
+RUN sudo apt-get install -y --no-install-recommends \
+    git automake bison build-essential cargo cmake flex make ninja-build
+RUN sudo apt-get install -y --no-install-recommends \
+    python3-dbus python3-dev python3-pip python3-setuptools \
+    nlohmann-json3-dev libjson-c-dev \
+    libsystemd0 libsystemd-dev libdbus-1-dev systemd
+
+RUN sudo apt-get install -y --no-install-recommends kmod
+
+RUN /bin/bash -c \
+'echo "INFO: Install additional libraries, required for kernel modules compilation"; \
+echo "INFO: kernel-release: $(uname -r)"; \
+if [[ $(uname -r) != *"WSL2"* ]]; then \
+    sudo apt-get dist-upgrade -yy && sudo apt-get install -yy \
+    linux-headers-$(uname -r); \
+else \
+    echo "INFO: On WSL, we cannot install additional libraries to kompile Linux kernel modules"; \
+fi'
+
+RUN pip3 install --break-system-packages inflection mako meson

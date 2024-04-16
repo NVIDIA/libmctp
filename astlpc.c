@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later */
 
-#if HAVE_CONFIG_H
+#if MCTP_HAVE_CONFIG_H
 #include "config.h"
 #endif
 

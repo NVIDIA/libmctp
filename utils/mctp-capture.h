@@ -4,7 +4,9 @@
 #define _UTILS_MCTP_CAPTURE_H
 
 #include "compiler.h"
+#ifdef MCTP_HAVE_CONFIG_H
 #include "config.h"
+#endif
 #include "libmctp.h"
 
 #include <sys/types.h>

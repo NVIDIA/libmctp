@@ -5,7 +5,7 @@
 #include "libmctp.h"
 #include "libmctp-alloc.h"
 
-#ifdef HAVE_CONFIG_H
+#ifdef MCTP_HAVE_CONFIG_H
 #include "config.h"
 #endif
 

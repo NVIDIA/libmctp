@@ -14,6 +14,10 @@
 
 #define pr_fmt(x) "smbus: " x
 
+#ifdef MCTP_HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <i2c/smbus.h>
 #include <linux/i2c-dev.h>
 #include <linux/i2c.h>
@@ -378,16 +382,29 @@ int mctp_smbus_open_in_bus(struct mctp_binding_smbus *smbus, int in_bus,
 
 int mctp_smbus_open_out_bus(struct mctp_binding_smbus *smbus, int out_bus)
 {
+	(void)smbus;
+
+#if USE_MOCKED_DRIVERS
+	// Fuzz tests and UT require mocked smbus driver, 
+	// this is instead of an mqueue or any other standard i2c
+	#define SMBUS_MOCKED_DRIVER "/dev/smbus"
+
+	mctp_prdebug("%s: Open: %s, out bus = %d\n", __func__, SMBUS_MOCKED_DRIVER, out_bus);
+	int outfd = open(SMBUS_MOCKED_DRIVER, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+	mctp_prdebug("%s: ret = : %d\n", __func__, outfd);
+	MCTP_ASSERT_RET(outfd >= 0, -1,
+			"Failed to open I2C Tx node: %d", outfd);
+	return outfd;
+#else
 	char filename[60];
 	size_t size = sizeof(filename);
-
-	(void)smbus;
 
 	snprintf(filename, size, "/dev/i2c-%d", out_bus);
 	filename[size - 1] = '\0';
 
 	mctp_prdebug("%s: open file: %s\n", __func__, filename);
 	return open(filename, O_RDWR | O_NONBLOCK);
+#endif
 }
 
 int mctp_smbus_close_mux(struct mctp_binding_smbus *smbus, uint8_t eid)
@@ -771,7 +788,14 @@ static int mctp_smbus_start(struct mctp_binding *b)
 	mctp_prdebug("%s: Set param: %lu, %hhu, %hhu", __func__, smbus->bus_id,
 		     smbus->bus_num_smq, smbus->dest_slave_addr[0]);
 
-	/* Open all applicable I2C nodes for static endpoints */
+#if USE_MOCKED_DRIVERS
+	// With mocked drivers we have only one driver,
+	//  used for both directions for sending and receiving
+	//  i2c data.
+	smbus->static_endpoints_len = 1;
+#endif
+
+	/* Open all applicable I2C nodes */
 	for (uint8_t i = 0; i < smbus->static_endpoints_len; ++i) {
 		if (smbus->static_endpoints[i].bus_num == 0xFF) {
 			continue;
@@ -798,6 +822,10 @@ static int mctp_smbus_start(struct mctp_binding *b)
 		     smbus->bus_num_smq, smbus->dest_slave_addr[0]);
 	smbus->in_fd = mctp_smbus_open_in_bus(smbus, smbus->bus_num_smq,
 					      smbus->src_slave_addr);
+
+#if USE_MOCKED_DRIVERS
+	smbus->in_fd = smbus->out_fd[0];
+#endif
 
 	MCTP_ASSERT_RET(smbus->in_fd >= 0, -1, "Failed to open I2C Rx node: %d",
 			smbus->in_fd);

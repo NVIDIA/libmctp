@@ -21,3 +21,4 @@ option(
     description: '''Enable Mockup Endpoint..'''
 )
 option('enable-fuzzctrl', type: 'feature', description: 'Fuzz tests for MCTP control demon', value: 'disabled')
+option('mocked-drivers', type: 'feature', description: 'Use mocked drivers - for UT or Fuzz tests purposes only', value: 'disabled')

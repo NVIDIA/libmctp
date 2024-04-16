@@ -3,5 +3,6 @@
 
 #mesondefine HAVE_PCAP
 #mesondefine USE_FUZZ_CTRL
+#mesondefine USE_MOCKED_DRIVERS
 
 #endif

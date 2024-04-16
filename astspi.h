@@ -12,8 +12,16 @@
 #define _ASTSPI_H
 
 #include <stdbool.h>
+#ifdef MCTP_HAVE_CONFIG_H
+#include "config.h"
+#endif
 
+#if USE_MOCKED_DRIVERS
+#define SYSFS_GPIO_DIR "/sys/class/gpio_mock"
+#else
 #define SYSFS_GPIO_DIR "/sys/class/gpio"
+#endif
+
 #define POLL_TIMEOUT   (3 * 1000) /* 3 seconds */
 #define MAX_BUF	       64
 
