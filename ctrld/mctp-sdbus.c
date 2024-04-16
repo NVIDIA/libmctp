@@ -519,6 +519,50 @@ static int mctp_ctrl_sdbus_get_enabled(sd_bus *bus, const char *path,
 	return sd_bus_message_append(reply, "b", get_enabled);
 }
 
+static int mctp_ctrl_sdbus_set_enabled(sd_bus *bus, const char *path,
+				       const char *interface,
+				       const char *property,
+				       sd_bus_message *msg, void *userdata,
+				       sd_bus_error *error)
+{
+	uint8_t eid_req = 0;
+	int set_enabled = false;
+	mctp_msg_type_table_t *entry = g_msg_type_entries;
+	int r = 0;
+
+	(void)bus;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
+
+	r = sd_bus_message_read(msg, "b", &set_enabled);
+	if (r < 0) {
+		MCTP_CTRL_ERR("[%s] Error from sd_bus_message_read: %d\n",
+			      __func__, r);
+		return -EINVAL;
+	}
+
+	eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
+	while (entry != NULL) {
+		if (entry->eid == eid_req) {
+			printf("EID found!\n");
+			break;
+		}
+
+		/* Increment for next entry */
+		entry = entry->next;
+	}
+
+	if (entry && ((int)entry->enabled != set_enabled)) {
+		entry->enabled = set_enabled;
+		sd_bus_emit_properties_changed(bus, path, interface, property,
+					       NULL);
+	}
+
+	return 1;
+}
+
 static int mctp_ctrl_monitor_signal_events(mctp_sdbus_context_t *context)
 {
 	int ret;
@@ -606,8 +650,10 @@ static const sd_bus_vtable mctp_ctrl_decorator_vtable[] = {
 
 static const sd_bus_vtable mctp_ctrl_object_enable_vtable[] = {
 	SD_BUS_VTABLE_START(0),
-	SD_BUS_PROPERTY("Enabled", "b", mctp_ctrl_sdbus_get_enabled, 0,
-			SD_BUS_VTABLE_PROPERTY_CONST),
+	SD_BUS_WRITABLE_PROPERTY("Enabled", "b", mctp_ctrl_sdbus_get_enabled,
+				 mctp_ctrl_sdbus_set_enabled, 0,
+				 SD_BUS_VTABLE_UNPRIVILEGED |
+					 SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
 	SD_BUS_VTABLE_END
 };
 
