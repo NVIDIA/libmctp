@@ -487,6 +487,38 @@ static int mctp_ctrl_sdbus_get_binding_type(sd_bus *bus, const char *path,
 	return sd_bus_message_append(reply, "s", str);
 }
 
+static int mctp_ctrl_sdbus_get_enabled(sd_bus *bus, const char *path,
+				       const char *interface,
+				       const char *property,
+				       sd_bus_message *reply, void *userdata,
+				       sd_bus_error *error)
+{
+	uint8_t eid_req = 0;
+	mctp_msg_type_table_t *entry = g_msg_type_entries;
+	bool get_enabled = 0;
+
+	(void)bus;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
+
+	eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
+
+	while (entry != NULL) {
+		if (entry->eid == eid_req) {
+			get_enabled = entry->enabled;
+			break;
+		}
+
+		/* Increment for next entry */
+		entry = entry->next;
+	}
+
+	/* append the message */
+	return sd_bus_message_append(reply, "b", get_enabled);
+}
+
 static int mctp_ctrl_monitor_signal_events(mctp_sdbus_context_t *context)
 {
 	int ret;
@@ -568,6 +600,13 @@ static const sd_bus_vtable mctp_ctrl_decorator_vtable[] = {
 	SD_BUS_PROPERTY("Bus", "u", mctp_ctrl_sdbus_get_bus, 0,
 			SD_BUS_VTABLE_PROPERTY_CONST),
 	SD_BUS_PROPERTY("Address", "u", mctp_ctrl_sdbus_get_address, 0,
+			SD_BUS_VTABLE_PROPERTY_CONST),
+	SD_BUS_VTABLE_END
+};
+
+static const sd_bus_vtable mctp_ctrl_object_enable_vtable[] = {
+	SD_BUS_VTABLE_START(0),
+	SD_BUS_PROPERTY("Enabled", "b", mctp_ctrl_sdbus_get_enabled, 0,
 			SD_BUS_VTABLE_PROPERTY_CONST),
 	SD_BUS_VTABLE_END
 };
@@ -718,6 +757,19 @@ mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
 					      strerror(-r));
 				goto finish;
 			}
+		}
+
+		MCTP_CTRL_TRACE("Registering object '%s' for Enable: %d\n",
+				mctp_ctrl_objpath, entry->eid);
+		r = sd_bus_add_object_vtable(context->bus, NULL,
+					     mctp_ctrl_objpath,
+					     MCTP_CTRL_DBUS_ENABLE_INTERFACE,
+					     mctp_ctrl_object_enable_vtable,
+					     context);
+		if (r < 0) {
+			MCTP_CTRL_ERR("Failed to add Binding object: %s\n",
+				      strerror(-r));
+			goto finish;
 		}
 
 		r = sd_bus_emit_object_added(context->bus, mctp_ctrl_objpath);
