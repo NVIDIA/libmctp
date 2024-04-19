@@ -592,7 +592,35 @@ static int mctp_ctrl_dispatch_sd_bus(mctp_sdbus_context_t *context)
 	if (context->fds[MCTP_CTRL_SD_BUS_FD].revents) {
 		r = sd_bus_process(context->bus, NULL);
 	}
+	return r;
+}
 
+static int mctp_ctrl_handle_socket(mctp_ctrl_t *mctp_ctrl,
+				   mctp_sdbus_context_t *context)
+{
+	int r = 0;
+	if ((context->fds[MCTP_CTRL_SOCKET_FD].revents & POLLHUP) ||
+	    (context->fds[MCTP_CTRL_SOCKET_FD].revents & POLLERR)) {
+		/* Connection hang up or closed on other side */
+		MCTP_CTRL_ERR(
+			"%s: Rx socket hang up or closed, closing the loop\n",
+			__func__);
+	} else if (context->fds[MCTP_CTRL_SOCKET_FD].revents & POLLIN) {
+		MCTP_CTRL_DEBUG("%s: Rx socket event [0x%x]...\n", __func__,
+				context->fds[MCTP_CTRL_FD_SOCKET].revents);
+
+		/* Read the Socket */
+		r = mctp_event_monitor(mctp_ctrl);
+		if (r != MCTP_REQUESTER_SUCCESS) {
+			MCTP_CTRL_ERR("%s: Invalid data..\n", __func__);
+		}
+	} else if (context->fds[MCTP_CTRL_SOCKET_FD].revents == 0) {
+		MCTP_CTRL_INFO("%s: Rx Timeout\n", __func__);
+	} else {
+		MCTP_CTRL_WARN("%s: Unsupported rx socket event: 0x%x\n",
+			       __func__,
+			       context->fds[MCTP_CTRL_SOCKET_FD].revents);
+	}
 	return r;
 }
 
@@ -657,7 +685,8 @@ static const sd_bus_vtable mctp_ctrl_object_enable_vtable[] = {
 	SD_BUS_VTABLE_END
 };
 
-int mctp_ctrl_sdbus_dispatch(mctp_sdbus_context_t *context)
+int mctp_ctrl_sdbus_dispatch(mctp_ctrl_t *mctp_ctrl,
+			     mctp_sdbus_context_t *context)
 {
 	int polled, r;
 
@@ -681,6 +710,12 @@ int mctp_ctrl_sdbus_dispatch(mctp_sdbus_context_t *context)
 	r = mctp_ctrl_dispatch_sd_bus(context);
 	if (r < 0) {
 		MCTP_CTRL_ERR("Error handling D-Bus event: %s\n", strerror(-r));
+		return -1;
+	}
+
+	r = mctp_ctrl_handle_socket(mctp_ctrl, context);
+	if (r < 0) {
+		MCTP_CTRL_ERR("Error handling socket event: %d\n", r);
 		return -1;
 	}
 
@@ -854,19 +889,19 @@ void mctp_ctrl_sdbus_stop(void)
 }
 #ifdef MOCKUP_ENDPOINT
 /* MCTP ctrl D-Bus initialization */
-int mctp_ctrl_sdbus_init(sd_bus *bus, int signal_fd,
+int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 			 const mctp_cmdline_args_t *cmdline,
 			 const mctp_sdbus_fd_watch_t *monfd)
 #else
 /* MCTP ctrl D-Bus initialization */
-int mctp_ctrl_sdbus_init(sd_bus *bus, int signal_fd,
+int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 			 const mctp_cmdline_args_t *cmdline)
 #endif
 {
 	int r = 0;
 	mctp_sdbus_context_t *context = NULL;
 
-	context = mctp_ctrl_sdbus_create_context(bus, cmdline);
+	context = mctp_ctrl_sdbus_create_context(mctp_ctrl->bus, cmdline);
 	if (!context) {
 		MCTP_CTRL_ERR("%s: mctp_ctrl_sdbus_create_context did return an error\n", __func__);
 		return -1;
@@ -874,6 +909,10 @@ int mctp_ctrl_sdbus_init(sd_bus *bus, int signal_fd,
 	context->fds[MCTP_CTRL_SIGNAL_FD].fd = signal_fd;
 	context->fds[MCTP_CTRL_SIGNAL_FD].events = POLLIN;
 	context->fds[MCTP_CTRL_SIGNAL_FD].revents = 0;
+
+	context->fds[MCTP_CTRL_SOCKET_FD].fd = mctp_ctrl->sock;
+	context->fds[MCTP_CTRL_SOCKET_FD].events = POLLIN;
+	context->fds[MCTP_CTRL_SOCKET_FD].revents = 0;
 
 #ifdef MOCKUP_ENDPOINT
 	if (monfd) {
@@ -886,7 +925,7 @@ int mctp_ctrl_sdbus_init(sd_bus *bus, int signal_fd,
 	MCTP_CTRL_DEBUG("%s: Entering polling loop\n", __func__);
 
 	while (mctp_ctrl_running) {
-		if ((r = mctp_ctrl_sdbus_dispatch(context)) < 0) {
+		if ((r = mctp_ctrl_sdbus_dispatch(mctp_ctrl, context)) < 0) {
 			break;
 		}
 	}

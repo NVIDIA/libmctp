@@ -53,9 +53,10 @@ extern "C" {
 
 #define MCTP_CTRL_SD_BUS_FD 0
 #define MCTP_CTRL_SIGNAL_FD 1
-#define MCTP_CTRL_TOTAL_FDS 2
+#define MCTP_CTRL_SOCKET_FD 2
+#define MCTP_CTRL_TOTAL_FDS 3
 #ifdef MOCKUP_ENDPOINT
-#define MCTP_CTRL_SD_MON_FD 3
+#define MCTP_CTRL_SD_MON_FD 4
 #endif
 
 #define MCTP_CTRL_POLL_TIMEOUT 1000
@@ -90,18 +91,18 @@ enum { SDBUS_POLLING_TIMEOUT = 1, SDBUS_PROCESS_EVENT };
 /**
  * @brief initialize D-Bus objects for mctp ctrl servies and hanlde D-Bus requests
  *
- * @param[in] bus - destination MCTP eid
+ * @param[in] mctp_ctrl - the MCTP control main structure.
  * @param[in] signalfd - the signal fd to terminate threads,
  * @param[in] cmdline - the command line structure
  *
  * @return int (errno may be set). failure is returned.
  */
 #ifdef MOCKUP_ENDPOINT
-int mctp_ctrl_sdbus_init(sd_bus *bus, int signalfd,
+int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signalfd,
 			 const mctp_cmdline_args_t *cmdline,
 			 const mctp_sdbus_fd_watch_t *monfd);
 #else
-int mctp_ctrl_sdbus_init(sd_bus *bus, int signalfd,
+int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signalfd,
 			 const mctp_cmdline_args_t *cmdline);
 #endif
 
@@ -115,11 +116,13 @@ void mctp_ctrl_sdbus_stop(void);
 /**
  * @brief D-Bus requests handling routine
  *
+ * @param[in] mctp_ctrl - The mctp ctrl object.
  * @param[in] context - mctp D-Bus context
  *
  * @return int (errno may be set). failure is returned.
  */
-int mctp_ctrl_sdbus_dispatch(mctp_sdbus_context_t *context);
+int mctp_ctrl_sdbus_dispatch(mctp_ctrl_t *mctp_ctrl,
+			     mctp_sdbus_context_t *context);
 
 #ifdef __cplusplus
 }

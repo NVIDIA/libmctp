@@ -564,53 +564,6 @@ int mctp_event_monitor(mctp_ctrl_t *mctp_evt)
 	return MCTP_REQUESTER_SUCCESS;
 }
 
-static int mctp_start_daemon(mctp_ctrl_t *ctrl)
-{
-	int rc;
-
-	MCTP_CTRL_DEBUG("%s: Daemon starting....\n", __func__);
-	ctrl->pollfds = malloc(MCTP_CTRL_FD_NR * sizeof(struct pollfd));
-
-	ctrl->pollfds[MCTP_CTRL_FD_SOCKET].fd = ctrl->sock;
-	ctrl->pollfds[MCTP_CTRL_FD_SOCKET].events = POLLIN;
-
-	for (;;) {
-		rc = poll(ctrl->pollfds, MCTP_CTRL_FD_NR, -1);
-		if (rc < 0) {
-			warn("poll failed");
-			break;
-		}
-
-		if (!rc)
-			continue;
-
-		if ((ctrl->pollfds[MCTP_CTRL_FD_SOCKET].revents & POLLHUP) ||
-		    (ctrl->pollfds[MCTP_CTRL_FD_SOCKET].revents & POLLERR)) {
-			/* Connection hang up or closed on other side */
-			MCTP_CTRL_ERR("%s: Rx socket hang up or closed, closing the loop\n", 
-				__func__);
-			break;
-		} else if (ctrl->pollfds[MCTP_CTRL_FD_SOCKET].revents & POLLIN) {
-			MCTP_CTRL_DEBUG("%s: Rx socket event [0x%x]...\n", 
-				__func__, ctrl->pollfds[MCTP_CTRL_FD_SOCKET].revents);
-
-			/* Read the Socket */
-			rc = mctp_event_monitor(ctrl);
-			if (rc != MCTP_REQUESTER_SUCCESS) {
-				MCTP_CTRL_ERR("%s: Invalid data..\n", __func__);
-			}
-		} else if (ctrl->pollfds[MCTP_CTRL_FD_SOCKET].revents == 0) {
-			MCTP_CTRL_INFO("%s: Rx Timeout\n", __func__);
-		} else {
-			MCTP_CTRL_WARN("%s: Unsupported rx socket event: 0x%x\n", 
-				__func__, ctrl->pollfds[MCTP_CTRL_FD_SOCKET].revents);
-		}
-	}
-
-	free(ctrl->pollfds);
-	return rc;
-}
-
 /* Sanity check for PCIe Endpoint IDs */
 static int mctp_eids_sanity_check(uint8_t pci_own_eid,
 				       uint8_t pci_bridge_eid,
@@ -1319,21 +1272,15 @@ int main_ctrl(int argc, char *const *argv)
 					  &extra_mon);
 #else
 			/* Start D-Bus initialization and monitoring */
-			rc = mctp_ctrl_sdbus_init(mctp_ctrl->bus, g_signal_fd,
-						&cmdline);
+			rc = mctp_ctrl_sdbus_init(mctp_ctrl, g_signal_fd,
+						  &cmdline);
 #endif
 
-			MCTP_CTRL_INFO("%s: Initiate dbus: result = %d\n", __func__, rc);
-			
-			if (rc < 0) {
-				MCTP_CTRL_INFO("MCTP-Ctrl is going to terminate.\n");
-				ret_val = EXIT_FAILURE;
-			} else {
-				/* Start MCTP control daemon */
-				MCTP_CTRL_INFO("%s: Start MCTP-CTRL daemon....\n",
-						__func__);
-				mctp_start_daemon(mctp_ctrl);
-			}
+			MCTP_CTRL_INFO("%s: Event Loop Exit: result = %d\n",
+				       __func__, rc);
+
+			MCTP_CTRL_INFO("MCTP-Ctrl is going to terminate.\n");
+			ret_val = (rc < 0) ? EXIT_FAILURE : EXIT_SUCCESS;
 		}
 	}
 
