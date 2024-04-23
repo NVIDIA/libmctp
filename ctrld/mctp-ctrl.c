@@ -16,6 +16,7 @@
  */
 /* SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later */
 
+#include <bits/time.h>
 #define _GNU_SOURCE
 
 #include <assert.h>
@@ -37,6 +38,7 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/timerfd.h>
 #include <sys/un.h>
 
 #include "libmctp.h"
@@ -94,6 +96,7 @@ int g_signal_fd = -1;
 #ifdef MOCKUP_ENDPOINT
 int g_mon_fd = -1;
 #endif
+int g_disc_timer_fd = -1;
 static sd_bus *g_sdbus = NULL;
 
 static uint8_t chosen_eid_type = EID_TYPE_BRIDGE;
@@ -541,13 +544,71 @@ int mctp_cmdline_copy_tx_buff(char src[], uint8_t *dest, int len)
 	return buff_len;
 }
 
+static void mctp_handle_discovery_notify()
+{
+	/* Broad logic: This function bumps up discovery notify handler timer for
+    another 5s. This is done to ensure that a flood of discovery notifies do
+    not cause us to repeatedly perform rediscovery. Upon a timer expiry, the
+    event loop will initiate a re-query of the routing table from the bridge
+    and update the D-Bus objects. */
+
+	struct itimerspec timer;
+
+	timer.it_value.tv_sec = 5;
+	timer.it_value.tv_nsec = 0;
+	timer.it_interval.tv_sec = 0;
+	timer.it_interval.tv_nsec = 0;
+
+	if (timerfd_settime(g_disc_timer_fd, 0, &timer, NULL) == -1) {
+		MCTP_CTRL_ERR(
+			"%s: Failed to set discovery notify timer! errno: %d\n",
+			__func__, errno);
+		return;
+	}
+	MCTP_CTRL_INFO("%s: Bump discovery timer\n", __func__);
+}
+
+static void mctp_handle_event(mctp_ctrl_t *mctp_ctrl, uint8_t *message,
+			      size_t length)
+{
+	/* Only certain bindings support events */
+	if ((mctp_ctrl->cmdline->binding_type != MCTP_BINDING_USB) &&
+	    (mctp_ctrl->cmdline->binding_type != MCTP_BINDING_PCIE)) {
+		MCTP_CTRL_ERR("%s: Events unsupported for binding type: %d\n",
+			      __func__, mctp_ctrl->cmdline->binding_type);
+	}
+	/* Need at least 3 bytes -- message type, req/datagram/seq. number byte and
+	command code */
+	if (length < 3) {
+		MCTP_CTRL_ERR("%s: Got MCTP event with invalid length: %d\n",
+			      __func__, length);
+		return;
+	}
+	/* Only support datagram requests/events */
+	if (((message[1] & 0x80) != 0x80) || ((message[1] & 0x40) != 0x40)) {
+		MCTP_CTRL_ERR(
+			"%s: MCTP message has the wrong req bit or datagram bit. Req bit: %d, Datagram bit: %d\n",
+			__func__, (message[1] & 0x80) >> 7,
+			(message[1] & 0x40) >> 6);
+		return;
+	}
+	switch (message[2]) {
+	case 0x0D:
+		mctp_handle_discovery_notify();
+		break;
+	default:
+		MCTP_CTRL_ERR(
+			"%s: Unrecognized MCTP control message type: %d\n",
+			__func__, message[2]);
+		break;
+	}
+}
+
 int mctp_event_monitor(mctp_ctrl_t *mctp_evt)
 {
 	mctp_requester_rc_t mctp_ret;
 	uint8_t *mctp_resp_msg;
 	size_t resp_msg_len;
-
-	MCTP_CTRL_DEBUG("%s: Target eid: %d\n", __func__, mctp_evt->eid);
 
 	/* Receive the MCTP packet */
 	mctp_ret = mctp_client_recv(mctp_evt->eid, mctp_evt->sock,
@@ -557,6 +618,9 @@ int mctp_event_monitor(mctp_ctrl_t *mctp_evt)
 			" Failed to received message %d\n", mctp_ret);
 
 	MCTP_CTRL_DEBUG("%s: Successfully received message..\n", __func__);
+
+	/* Handle Event */
+	mctp_handle_event(mctp_evt, mctp_resp_msg, resp_msg_len);
 
 	/* Free the Rx buffer */
 	free(mctp_resp_msg);
@@ -1207,6 +1271,7 @@ int main_ctrl(int argc, char *const *argv)
 
 	/* Initialize the cmdline structure */
 	memset(&cmdline, 0, sizeof(cmdline));
+	mctp_ctrl->cmdline = &cmdline;
 
 	/* Update the cmdline sturcture with default values */
 	const char *const mctp_ctrl_name = argv[0];

@@ -53,11 +53,6 @@ extern "C" {
 
 typedef uint8_t mctp_eid_t;
 
-typedef enum {
-	MCTP_CTRL_FD_SOCKET = 0,
-	MCTP_CTRL_FD_NR,
-} mctp_ctrl_poll_t;
-
 typedef struct {
 	uint8_t eid;
 	size_t resp_msg_len;
@@ -68,6 +63,7 @@ typedef struct {
 	void *pvt_binding_data;
 	unsigned int pvt_binding_len;
 	struct pollfd *pollfds;
+	mctp_cmdline_args_t *cmdline;
 
 	/* used for log and D-Bus requests */
 	sd_bus *bus;

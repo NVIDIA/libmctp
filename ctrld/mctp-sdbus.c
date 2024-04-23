@@ -59,6 +59,8 @@ extern int g_msg_type_table_len;
 extern char *mctp_sock_path;
 extern const char *mctp_medium_type;
 
+extern int g_disc_timer_fd;
+
 int mctp_ctrl_running = 1;
 
 /* String map for supported bus type */
@@ -595,6 +597,20 @@ static int mctp_ctrl_dispatch_sd_bus(mctp_sdbus_context_t *context)
 	return r;
 }
 
+static int mctp_ctrl_handle_timer(mctp_sdbus_context_t *context)
+{
+	if (context->fds[MCTP_CTRL_TIMER_FD].revents) {
+		MCTP_CTRL_INFO("%s: Timer expired for discovery notify\n",
+			       __func__);
+		uint64_t ign = 0;
+		if (sizeof(ign) != read(context->fds[MCTP_CTRL_TIMER_FD].fd,
+					&ign, sizeof(ign))) {
+			MCTP_CTRL_ERR("%s: Bad read from timer FD\n", __func__);
+		}
+	}
+	return 0;
+}
+
 static int mctp_ctrl_handle_socket(mctp_ctrl_t *mctp_ctrl,
 				   mctp_sdbus_context_t *context)
 {
@@ -607,7 +623,7 @@ static int mctp_ctrl_handle_socket(mctp_ctrl_t *mctp_ctrl,
 			__func__);
 	} else if (context->fds[MCTP_CTRL_SOCKET_FD].revents & POLLIN) {
 		MCTP_CTRL_DEBUG("%s: Rx socket event [0x%x]...\n", __func__,
-				context->fds[MCTP_CTRL_FD_SOCKET].revents);
+				context->fds[MCTP_CTRL_SOCKET_FD].revents);
 
 		/* Read the Socket */
 		r = mctp_event_monitor(mctp_ctrl);
@@ -716,6 +732,12 @@ int mctp_ctrl_sdbus_dispatch(mctp_ctrl_t *mctp_ctrl,
 	r = mctp_ctrl_handle_socket(mctp_ctrl, context);
 	if (r < 0) {
 		MCTP_CTRL_ERR("Error handling socket event: %d\n", r);
+		return -1;
+	}
+
+	r = mctp_ctrl_handle_timer(context);
+	if (r < 0) {
+		MCTP_CTRL_ERR("Error handling timer event: %d\n", r);
 		return -1;
 	}
 
@@ -900,6 +922,12 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 {
 	int r = 0;
 	mctp_sdbus_context_t *context = NULL;
+	if (-1 == g_disc_timer_fd) {
+		MCTP_CTRL_INFO(
+			"%s: Creating discovery timer for the first time\n",
+			__func__);
+		g_disc_timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+	}
 
 	context = mctp_ctrl_sdbus_create_context(mctp_ctrl->bus, cmdline);
 	if (!context) {
@@ -913,6 +941,10 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 	context->fds[MCTP_CTRL_SOCKET_FD].fd = mctp_ctrl->sock;
 	context->fds[MCTP_CTRL_SOCKET_FD].events = POLLIN;
 	context->fds[MCTP_CTRL_SOCKET_FD].revents = 0;
+
+	context->fds[MCTP_CTRL_TIMER_FD].fd = g_disc_timer_fd;
+	context->fds[MCTP_CTRL_TIMER_FD].events = POLLIN;
+	context->fds[MCTP_CTRL_TIMER_FD].revents = 0;
 
 #ifdef MOCKUP_ENDPOINT
 	if (monfd) {
