@@ -93,6 +93,18 @@ bool mctp_encode_vendor_cmd_dbg_token_query(
 	ENCODE_VMD_CMD_FUNC(DBG_TOKEN_QUERY);
 }
 
+bool mctp_encode_vendor_cmd_dbg_token_query_v2(
+	struct mctp_vendor_cmd_dbg_token_query *cmd)
+{
+	MCTP_ASSERT_RET(cmd != NULL, false, "cmd is NULL\n");
+
+	encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(),
+				 MCTP_VENDOR_CMD_DBG_TOKEN_QUERY);
+	cmd->vdr_msg_hdr.msg_version = MCTP_VDM_HDR_MSG_VER_2;
+
+	return true;
+}
+
 bool mctp_encode_vendor_cmd_cak_install(struct mctp_vendor_cmd_cak_install *cmd)
 {
 	ENCODE_VMD_CMD_FUNC(CAK_INSTALL);

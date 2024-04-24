@@ -39,6 +39,7 @@ int download_log(int fd, uint8_t eid, char *dl_path, uint8_t verbose);
 int restart_notification(int fd, uint8_t tid, uint8_t verbose);
 int debug_token_erase(int fd, uint8_t tid, uint8_t verbose);
 int debug_token_query(int fd, uint8_t tid, uint8_t verbose);
+int debug_token_query_v2(int fd, uint8_t tid, uint8_t verbose);
 int debug_token_install(int fd, uint8_t tid, uint8_t *payload, size_t length,
 			uint8_t verbose);
 int certificate_install(int fd, uint8_t tid, uint8_t *payload, size_t length,

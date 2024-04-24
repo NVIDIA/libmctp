@@ -71,7 +71,7 @@ extern "C" {
 #define MCTP_CAK_COMMAND_PAYLOAD_LEN (MCTP_ECDSA_P_384_DOT_ENABLE_KEY + 99)
 
 /* Maximum debug token size */
-#define MCTP_DEBUG_TOKEN_SIZE 256
+#define MCTP_DEBUG_TOKEN_SIZE 4096
 
 /* Maximum DOT token size */
 #define MCTP_DOT_TOKEN_SIZE 256
@@ -229,6 +229,8 @@ bool mctp_encode_vendor_cmd_dbg_token_inst(
 bool mctp_encode_vendor_cmd_dbg_token_erase(
 	struct mctp_vendor_cmd_dbg_token_erase *cmd);
 bool mctp_encode_vendor_cmd_dbg_token_query(
+	struct mctp_vendor_cmd_dbg_token_query *cmd);
+bool mctp_encode_vendor_cmd_dbg_token_query_v2(
 	struct mctp_vendor_cmd_dbg_token_query *cmd);
 bool mctp_encode_vendor_cmd_certificate_install(
 	struct mctp_vendor_cmd_certificate_install *cmd);

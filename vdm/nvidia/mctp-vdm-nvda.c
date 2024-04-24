@@ -113,7 +113,7 @@ static void usage(void)
 		query_boot_status -m (more descriptive boot status - not required)\n \
 		download_log -f filename(not required)\n \
 		restart_notification\n \
-		debug_token_install - need 256 bytes debug token\n \
+		debug_token_install - need n bytes debug token\n \
 		debug_token_erase\n \
 		debug_token_query\n \
 		program_certificate_chain - need 2048 bytes certificate\n \
@@ -650,6 +650,10 @@ int main(int argc, char *const *argv)
 		rc = debug_token_query(fd, teid, VERBOSE_EN);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "failed to query debug token: %d\n", rc);
+	} else if (!strcmp(item, "debug_token_query_v2")) {
+		rc = debug_token_query_v2(fd, teid, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "failed to query debug token: %d\n", rc);
 	} else if (!strcmp(item, "program_certificate_chain")) {
 		rc = certificate_install(fd, teid, payload, len, VERBOSE_EN);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
@@ -735,7 +739,7 @@ int main(int argc, char *const *argv)
 	} else if (!strcmp(item, "reset_erot")) {
 		rc = reset_erot(fd, teid, VERBOSE_EN);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to reset EROT %d\n",
-				    rc);	
+				    rc);
 	} else if (!strcmp(item, "revoke_ap_otp")) {
 		rc = revoke_ap_otp(fd, teid, MCTP_VDM_REVOKE_AP_OTP,
 				   VERBOSE_EN);
