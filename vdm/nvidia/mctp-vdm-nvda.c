@@ -78,8 +78,16 @@ static char *dbus_services[] = {
 	"xyz.openbmc_project.MCTP.Control.USB"
 };
 
-// List of commands that support JSON output
-const char *commands_supported_json_flag[] = { "query_boot_status" };
+/* List of commands that support JSON output */
+const char *commands_supported_json_flag[] = { "query_boot_status",
+					       "background_copy_init",
+					       "background_copy_disable",
+					       "background_copy_enable",
+					       "background_copy_disable_one",
+					       "background_copy_enable_one",
+					       "background_copy_query_status",
+					       "background_copy_query_progress",
+					       "background_copy_query_pending" };
 
 #define VMD_CMD_ASSERT_GOTO(cond, label, fmt, ...)                             \
 	do {                                                                   \
@@ -539,46 +547,95 @@ int main(int argc, char *const *argv)
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to download log: %d\n",
 				    rc);
 	} else if (!strcmp(item, "background_copy_disable")) {
-		rc = background_copy(fd, teid, MCTP_VDM_BACKGROUND_COPY_DISABLE,
-				     VERBOSE_EN);
+		if (json_output) {
+			rc = background_copy_json(
+				fd, teid, MCTP_VDM_BACKGROUND_COPY_DISABLE);
+		} else {
+			rc = background_copy(fd, teid,
+					     MCTP_VDM_BACKGROUND_COPY_DISABLE,
+					     VERBOSE_EN);
+		}
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to disable bg copy: %d\n", rc);
 	} else if (!strcmp(item, "background_copy_enable")) {
-		rc = background_copy(fd, teid, MCTP_VDM_BACKGROUND_COPY_ENABLE,
-				     VERBOSE_EN);
+		if (json_output) {
+			rc = background_copy_json(
+				fd, teid, MCTP_VDM_BACKGROUND_COPY_ENABLE);
+		} else {
+			rc = background_copy(fd, teid,
+					     MCTP_VDM_BACKGROUND_COPY_ENABLE,
+					     VERBOSE_EN);
+		}
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to enable one bg copy: %d\n", rc);
 	} else if (!strcmp(item, "background_copy_disable_one")) {
-		rc = background_copy(fd, teid,
-				     MCTP_VDM_BACKGROUND_COPY_DISABLE_ONE_BOOT,
-				     VERBOSE_EN);
+		if (json_output) {
+			rc = background_copy_json(
+				fd, teid,
+				MCTP_VDM_BACKGROUND_COPY_DISABLE_ONE_BOOT);
+		} else {
+			rc = background_copy(
+				fd, teid,
+				MCTP_VDM_BACKGROUND_COPY_DISABLE_ONE_BOOT,
+				VERBOSE_EN);
+		}
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to disable one bg copy: %d\n", rc);
 	} else if (!strcmp(item, "background_copy_enable_one")) {
-		rc = background_copy(fd, teid,
-				     MCTP_VDM_BACKGROUND_COPY_ENABLE_ONE_BOOT,
-				     VERBOSE_EN);
+		if (json_output) {
+			rc = background_copy_json(
+				fd, teid,
+				MCTP_VDM_BACKGROUND_COPY_ENABLE_ONE_BOOT);
+		} else {
+			rc = background_copy(
+				fd, teid,
+				MCTP_VDM_BACKGROUND_COPY_ENABLE_ONE_BOOT,
+				VERBOSE_EN);
+		}
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to enable one bg copy: %d\n", rc);
 	} else if (!strcmp(item, "background_copy_init")) {
-		rc = background_copy(fd, teid, MCTP_VDM_BACKGROUND_COPY_INIT,
-				     VERBOSE_EN);
+		if (json_output) {
+			rc = background_copy_json(
+				fd, teid, MCTP_VDM_BACKGROUND_COPY_INIT);
+		} else {
+			rc = background_copy(fd, teid,
+					     MCTP_VDM_BACKGROUND_COPY_INIT,
+					     VERBOSE_EN);
+		}
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to init bg: %d\n", rc);
 	} else if (!strcmp(item, "background_copy_query_status")) {
-		rc = background_copy(fd, teid,
-				     MCTP_VDM_BACKGROUND_COPY_QUERY_STATUS,
-				     VERBOSE_EN);
+		if (json_output) {
+			rc = background_copy_json(
+				fd, teid,
+				MCTP_VDM_BACKGROUND_COPY_QUERY_STATUS);
+		} else {
+			rc = background_copy(
+				fd, teid, MCTP_VDM_BACKGROUND_COPY_QUERY_STATUS,
+				VERBOSE_EN);
+		}
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to query bg: %d\n",
 				    rc);
 	} else if (!strcmp(item, "background_copy_query_progress")) {
-		rc = background_copy(fd, teid,
-				     MCTP_VDM_BACKGROUND_COPY_PROGRESS,
-				     VERBOSE_EN);
+		if (json_output) {
+			rc = background_copy_json(
+				fd, teid, MCTP_VDM_BACKGROUND_COPY_PROGRESS);
+		} else {
+			rc = background_copy(fd, teid,
+					     MCTP_VDM_BACKGROUND_COPY_PROGRESS,
+					     VERBOSE_EN);
+		}
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to query prog bg: %d\n", rc);
 	} else if (!strcmp(item, "background_copy_query_pending")) {
-		rc = background_copy(fd, teid, MCTP_VDM_BACKGROUND_COPY_PENDING,
-				     VERBOSE_EN);
+		if (json_output) {
+			rc = background_copy_json(
+				fd, teid, MCTP_VDM_BACKGROUND_COPY_PENDING);
+		} else {
+			rc = background_copy(fd, teid,
+					     MCTP_VDM_BACKGROUND_COPY_PENDING,
+					     VERBOSE_EN);
+		}
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to query pending bg: %d\n", rc);
 	} else if (!strcmp(item, "debug_token_install")) {

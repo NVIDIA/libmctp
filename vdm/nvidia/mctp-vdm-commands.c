@@ -128,6 +128,10 @@ const uint8_t mctp_vdm_op_success = MCTP_VDM_CMD_OP_SUCCESS;
 #define SPI_READ_ERROR			7
 #define AUTHENTICATE_IN_PROGRESS	15
 
+/* Background Copy */
+#define MCTP_VDM_BACKGROUND_COPY_BYTE_1_POSITION 10
+#define MCTP_VDM_BACKGROUND_COPY_BYTE_2_POSITION 11
+
 enum MCTP_VDM_COMPLETION_CODE {
 	SUCCESS = MCTP_CTRL_CC_SUCCESS,
 	ERROR = MCTP_CTRL_CC_ERROR,
@@ -1221,6 +1225,150 @@ int query_boot_status_json(int fd, uint8_t tid)
 }
 
 /*
+ * This function parses the first byte from the response of 
+ * the 'background_copy_query' command and generates corresponding JSON 
+ * data representing the status of the background copy operation.
+ * The status indicates whether background copy is enabled or disabled, 
+ * and the behavior across power cycles.
+ *
+ * Possible statuses:
+ * 0x0: Background Copy Disabled.
+ *      This state persists across power cycles.
+ * 0x1: Background Copy Enabled.
+ *      This is the default behavior in ERoT unless 0x0, 0x2, 
+ *      or 0x3 have been explicitly set.
+ *      This state persists across power cycles.
+ * 0x2: Background Copy Disabled for this boot cycle.
+ *      No change is made to the non-volatile state.
+ *      On the next boot, the non-volatile state is used 
+ *      to determine if background copy is disabled or enabled.
+ * 0x3: Background Copy Enabled for this boot cycle.
+ *      No change is made to the non-volatile state.
+ *      On the next boot, the non-volatile state is used 
+ *      to determine if background copy is disabled or enabled.
+ *
+ */
+void create_json_background_copy_query_status_byte_1(
+	const uint8_t *resp_msg, struct json_object *json_obj)
+{
+	uint8_t resp_byte_1 =
+		resp_msg[MCTP_VDM_BACKGROUND_COPY_BYTE_1_POSITION];
+
+	char *query_status_value_txt;
+
+	switch (resp_byte_1) {
+	case 0x0:
+		query_status_value_txt = "Disabled";
+		break;
+	case 0x1:
+		query_status_value_txt = "Enabled";
+		break;
+	case 0x2:
+		query_status_value_txt = "Disabled for this boot cycle";
+		break;
+	case 0x3:
+		query_status_value_txt = "Enabled for this boot cycle";
+		break;
+	default:
+		query_status_value_txt = "Undefined value";
+		break;
+	}
+
+	json_object_object_add(json_obj, "STATUS",
+			       json_object_new_string(query_status_value_txt));
+}
+
+/*
+ * This function parses the first byte from the response of 
+ * the 'background_copy_progress' command and generates corresponding JSON 
+ * data representing the status of the background copy progress.
+ * The status indicates whether background copy is in progress or not.
+ * 
+ * Possible statuses:
+ * 0x1: No background copy in progress or background copy complete.
+ * 0x2: Background copy in progress.
+ * 
+ */
+void create_json_background_copy_progress_byte_1(const uint8_t *resp_msg,
+						 struct json_object *json_obj)
+{
+	uint8_t resp_byte_1 =
+		resp_msg[MCTP_VDM_BACKGROUND_COPY_BYTE_1_POSITION];
+
+	char *progress_value_txt;
+
+	switch (resp_byte_1) {
+	case 0x1:
+		progress_value_txt =
+			"No background copy in progress or background copy complete";
+		break;
+	case 0x2:
+		progress_value_txt = "Background copy in progress";
+		break;
+	default:
+		progress_value_txt = "Undefined value";
+		break;
+	}
+
+	json_object_object_add(json_obj, "STATUS",
+			       json_object_new_string(progress_value_txt));
+}
+
+/*
+ * This function parses the second byte from the response of 
+ * the 'background_copy_progress' command and generates corresponding JSON 
+ * data representing the progress of background copy operation.
+ * 
+ */
+void create_json_background_copy_progress_byte_2(const uint8_t *resp_msg,
+						 struct json_object *json_obj)
+{
+	uint8_t resp_byte_2 =
+		resp_msg[MCTP_VDM_BACKGROUND_COPY_BYTE_2_POSITION];
+
+	char progress_str[10];
+	sprintf(progress_str, "%u%%", resp_byte_2);
+
+	json_object_object_add(json_obj, "PROGRESS",
+			       json_object_new_string(progress_str));
+}
+
+/*
+ * This function parses the first byte from the response of 
+ * the 'background_copy_pending' command and generates corresponding JSON 
+ * data representing the status of the background copy pending.
+ * The status indicates whether background copy is pending or not.
+ * 
+ * Possible statuses:
+ * 0x1: No background copy pending.
+ * 0x2: Background copy pending.
+ * 
+ */
+void create_json_background_copy_pending_byte_1(const uint8_t *resp_msg,
+						struct json_object *json_obj)
+{
+	uint8_t resp_byte_1 =
+		resp_msg[MCTP_VDM_BACKGROUND_COPY_BYTE_1_POSITION];
+
+	char *pending_value_txt;
+
+	switch (resp_byte_1) {
+	case 0x1:
+		pending_value_txt = "No background copy pending";
+		break;
+	case 0x2:
+		pending_value_txt = "Background copy pending";
+		break;
+	default:
+		pending_value_txt = "Undefined value";
+		break;
+	}
+
+	json_object_object_add(json_obj, "STATUS",
+			       json_object_new_string(pending_value_txt));
+}
+
+/*
  * Background Copy v1:
  * The command is mainly used to manage interaction between Global #WP
  * and background copy.
@@ -1251,6 +1399,68 @@ int background_copy(int fd, uint8_t tid, uint8_t code, uint8_t verbose)
 			"%s: fail to recv [rc: %d] response\n", __func__, rc);
 	return 0;
 }
+
+/*
+ * Background Copy v1:
+ * The command is mainly used to manage interaction between Global #WP
+ * and background copy.
+ * This command should only be supported on the OOB path and not on
+ * the In Band path. The returned boot status codes are formatted in JSON.
+ */
+int background_copy_json(int fd, uint8_t tid, uint8_t code)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_background_copy cmd = { 0 };
+
+	/* Encode the VDM headers for Background copy */
+	mctp_encode_vendor_cmd_background_copy(&cmd);
+
+	/* Update the code field */
+	cmd.code = code;
+
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
+				       (uint8_t **)&resp, &resp_len, false);
+
+	struct json_object *json_obj = json_object_new_object();
+	struct json_object *background_copy_response = json_object_new_object();
+
+	create_json_with_completion_code(resp, background_copy_response);
+
+	switch (code) {
+	case MCTP_VDM_BACKGROUND_COPY_QUERY_STATUS:
+		create_json_background_copy_query_status_byte_1(
+			resp, background_copy_response);
+		break;
+	case MCTP_VDM_BACKGROUND_COPY_PROGRESS:
+		create_json_background_copy_progress_byte_1(
+			resp, background_copy_response);
+		create_json_background_copy_progress_byte_2(
+			resp, background_copy_response);
+		break;
+	case MCTP_VDM_BACKGROUND_COPY_PENDING:
+		create_json_background_copy_pending_byte_1(
+			resp, background_copy_response);
+		break;
+	}
+
+	json_object_object_add(json_obj, "RESPONSE", background_copy_response);
+
+	/* Printing JSON object */
+	printf("%s\n", json_object_to_json_string_ext(json_obj,
+						      JSON_C_TO_STRING_PRETTY));
+
+	json_object_put(json_obj);
+
+	/* free memory */
+	free(resp);
+
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+			"%s: fail to recv [rc: %d] response\n", __func__, rc);
+	return 0;
+}	
 
 /*
  * Download log:

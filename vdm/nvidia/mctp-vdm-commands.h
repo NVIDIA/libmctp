@@ -34,6 +34,7 @@ int heartbeat(int fd, uint8_t tid, uint8_t verbose);
 int query_boot_status(int fd, uint8_t tid, uint8_t verbose, uint8_t more);
 int query_boot_status_json(int fd, uint8_t tid);
 int background_copy(int fd, uint8_t tid, uint8_t code, uint8_t verbose);
+int background_copy_json(int fd, uint8_t tid, uint8_t code);
 int download_log(int fd, uint8_t eid, char *dl_path, uint8_t verbose);
 int restart_notification(int fd, uint8_t tid, uint8_t verbose);
 int debug_token_erase(int fd, uint8_t tid, uint8_t verbose);
