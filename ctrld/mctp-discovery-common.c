@@ -264,6 +264,8 @@ int mctp_routing_entry_add(struct get_routing_table_entry *routing_table_entry)
 	memcpy(&new_entry->routing_table, routing_table_entry,
 	       sizeof(struct get_routing_table_entry));
 
+	new_entry->valid = true;
+
 	/* Check if any entry exist */
 	if (g_routing_table_entries == NULL) {
 		g_routing_table_entries = new_entry;
@@ -280,8 +282,31 @@ int mctp_routing_entry_add(struct get_routing_table_entry *routing_table_entry)
 
 	/* Traverse the routing table */
 	temp_entry = g_routing_table_entries;
-	while (temp_entry->next != NULL)
+	while (temp_entry->next != NULL) {
+		if (temp_entry->routing_table.starting_eid ==
+		    new_entry->routing_table.starting_eid) {
+			MCTP_CTRL_DEBUG(
+				"%s: Routing table entry with EID: %d already exists, ignoring\n",
+				__func__,
+				temp_entry->routing_table.starting_eid);
+			temp_entry->valid = true;
+			free(new_entry);
+			new_entry = NULL;
+			return 0;
+		}
 		temp_entry = temp_entry->next;
+	}
+
+	if (temp_entry->routing_table.starting_eid ==
+	    new_entry->routing_table.starting_eid) {
+		MCTP_CTRL_DEBUG(
+			"%s: Routing table entry with EID: %d already exists, ignoring\n",
+			__func__, temp_entry->routing_table.starting_eid);
+		temp_entry->valid = true;
+		free(new_entry);
+		new_entry = NULL;
+		return 0;
+	}
 
 	/* Add at the last */
 	temp_entry->next = new_entry;
@@ -435,8 +460,24 @@ int mctp_msg_type_entry_add(mctp_msg_type_table_t *msg_type_tbl)
 
 	/* Traverse the message type table */
 	temp_entry = g_msg_type_entries;
-	while (temp_entry->next != NULL)
+	while (temp_entry->next != NULL) {
+		if (temp_entry->eid == new_entry->eid) {
+			MCTP_CTRL_DEBUG(
+				"%s: EID %d already exists in message type list, ignoring.\n",
+				__func__, temp_entry->eid);
+			temp_entry->enabled = true;
+			return 0;
+		}
 		temp_entry = temp_entry->next;
+	}
+
+	if (temp_entry->eid == new_entry->eid) {
+		MCTP_CTRL_DEBUG(
+			"%s: EID %d already exists in message type list, ignoring.\n",
+			__func__, temp_entry->eid);
+		temp_entry->enabled = true;
+		return 0;
+	}
 
 	/* Add at the last */
 	temp_entry->next = new_entry;

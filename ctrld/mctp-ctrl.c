@@ -105,7 +105,8 @@ extern void mctp_routing_entry_delete_all(void);
 extern void mctp_uuid_delete_all(void);
 extern void mctp_msg_types_delete_all(void);
 extern mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
-						mctp_ctrl_t *ctrl);
+						mctp_ctrl_t *ctrl,
+						mctp_discovery_mode start_mode);
 extern mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd,
 						mctp_ctrl_t *ctrl);
 extern void *mctp_spi_keepalive_event(void *arg);
@@ -127,7 +128,10 @@ static void mctp_emu_dyn_ep_create(const fsdyn_ep_config_t *cfg)
 		}
 	}
 	mctp_msg_type_table_t type = { .eid = cfg->eid,
-				       .data_len = cfg->data_size };
+				       .data_len = cfg->data_size,
+				       .new = true,
+				       .old_enabled = false,
+				       .enabled = true };
 	memcpy(type.data, cfg->data, cfg->data_size);
 	ret = mctp_msg_type_entry_add(&type);
 	if (ret < 0) {
@@ -580,7 +584,7 @@ static void mctp_handle_event(mctp_ctrl_t *mctp_ctrl, uint8_t *message,
 	/* Need at least 3 bytes -- message type, req/datagram/seq. number byte and
 	command code */
 	if (length < 3) {
-		MCTP_CTRL_ERR("%s: Got MCTP event with invalid length: %d\n",
+		MCTP_CTRL_ERR("%s: Got MCTP event with invalid length: %zu\n",
 			      __func__, length);
 		return;
 	}
@@ -732,6 +736,9 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 	} else if (cmdline->binding_type == MCTP_BINDING_USB) {
 		MCTP_CTRL_DEBUG("%s: Setting up USB socket\n", __func__);
 		mctp_sock_path = MCTP_SOCK_PATH_USB;
+	} else if (cmdline->binding_type == MCTP_BINDING_SPI) {
+		MCTP_CTRL_DEBUG("%s: Setting up SPI socket\n", __func__);
+		mctp_sock_path = MCTP_SOCK_PATH_SPI;
 	}
 
 	/* Open the user socket file-descriptor */
@@ -888,7 +895,9 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		/* Discover endpoints via PCIe*/
 		MCTP_CTRL_INFO("%s: Start MCTP-over-PCIe Discovery\n",
 			       __func__);
-		mctp_err_ret = mctp_discover_endpoints(cmdline, mctp_ctrl);
+		mctp_err_ret = mctp_discover_endpoints(
+			cmdline, mctp_ctrl,
+			MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST);
 		if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
 			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
 #ifdef MOCKUP_ENDPOINT
@@ -966,7 +975,9 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		/* Discover endpoints via USB*/
 		MCTP_CTRL_INFO("%s: Start MCTP-over-USB Discovery\n",
 			       __func__);
-		mctp_err_ret = mctp_discover_endpoints(cmdline, mctp_ctrl);
+		mctp_err_ret = mctp_discover_endpoints(
+			cmdline, mctp_ctrl,
+			MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST);
 		if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
 			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
 			mctp_ctrl_clean_up();
@@ -1333,8 +1344,8 @@ int main_ctrl(int argc, char *const *argv)
 			MCTP_CTRL_INFO("%s: Initiate dbus\n", __func__);
 #ifdef MOCKUP_ENDPOINT
 			/* Start D-Bus initialization and monitoring */
-			rc = mctp_ctrl_sdbus_init(mctp_ctrl->bus, g_signal_fd, &cmdline,
-					  &extra_mon);
+			rc = mctp_ctrl_sdbus_init(mctp_ctrl, g_signal_fd,
+						  &cmdline, &extra_mon);
 #else
 			/* Start D-Bus initialization and monitoring */
 			rc = mctp_ctrl_sdbus_init(mctp_ctrl, g_signal_fd,

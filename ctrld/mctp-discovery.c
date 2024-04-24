@@ -46,6 +46,7 @@ extern const char *phy_transport_binding_to_string(uint8_t id);
 extern uint8_t g_eid_pool_size;
 extern uint8_t g_eid_pool_start;
 extern mctp_routing_table_t *g_routing_table_entries;
+extern mctp_msg_type_table_t *g_msg_type_entries;
 extern const uint8_t MCTP_ROUTING_ENTRY_START;
 
 /* PCIe or target bdf */
@@ -519,7 +520,6 @@ mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd,
 	struct mctp_astspi_pkt_private pvt_binding_spi;
 	struct mctp_usb_pkt_private pvt_binding_usb;
 	size_t binding_size = 0;
-	static int entry_count = 0;
 
 	(void)eid;
 
@@ -543,15 +543,12 @@ mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd,
 	}
 
 	/* Get routing table request message */
-	req_ret = mctp_encode_ctrl_cmd_get_routing_table(
-		&get_routing_req, entry_handle + entry_count);
+	req_ret = mctp_encode_ctrl_cmd_get_routing_table(&get_routing_req,
+							 entry_handle);
 	if (req_ret == false) {
 		MCTP_CTRL_ERR("%s: Packet preparation failed\n", __func__);
 		return MCTP_RET_ENCODE_FAILED;
 	}
-
-	/* Increment the entry count */
-	entry_count++;
 
 	/* Get the message length */
 	msg_len = sizeof(struct mctp_ctrl_cmd_get_routing_table) -
@@ -943,7 +940,9 @@ int mctp_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 
 	/* Update Message type private params to export to upper layer */
 	msg_type_table.next = NULL;
+	msg_type_table.old_enabled = false;
 	msg_type_table.enabled = true;
+	msg_type_table.new = true;
 	msg_type_table.eid = eid;
 	msg_type_table.data_len = ((struct mctp_ctrl_resp *)mctp_resp_msg)
 					  ->data[MCTP_MSG_TYPE_DATA_LEN_OFFSET];
@@ -1052,9 +1051,10 @@ static mctp_ret_codes_t mctp_discover_response(mctp_ctrl_t *ctrl,
 
 /* Routine to Discover the endpoint devices */
 mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
-					 mctp_ctrl_t *ctrl)
+					 mctp_ctrl_t *ctrl,
+					 mctp_discovery_mode start_mode)
 {
-	static int discovery_mode = MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST;
+	int discovery_mode = start_mode;
 	mctp_ret_codes_t mctp_ret;
 	mctp_ctrl_cmd_set_eid_op set_eid_op;
 	mctp_ctrl_cmd_alloc_eid_op alloc_eid_op;
@@ -1066,6 +1066,8 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 	mctp_routing_table_t *routing_entry = NULL;
 	mctp_binding_ids_t bind_id = MCTP_BINDING_PCIE;
 
+	MCTP_CTRL_INFO("%s: Starting discovery with mode: %d\n", __func__,
+		       start_mode);
 
 	/* Update the EID lists */
 	switch (cmd->binding_type) {
@@ -1349,7 +1351,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 
 			/* Send the MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST */
 			mctp_ret = mctp_get_routing_table_send_request(
-				ctrl->sock, bind_id, eid, entry_hdl);
+				ctrl->sock, bind_id, eid, entry_hdl++);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST\n",
@@ -1437,6 +1439,16 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 
 		case MCTP_GET_EP_UUID_REQUEST:
 
+			while (routing_entry &&
+			       ((false == routing_entry->valid) ||
+				(routing_entry->old_valid ==
+				 routing_entry->valid))) {
+				MCTP_CTRL_INFO("Skipping EID for UUID: %d\n",
+					       routing_entry->routing_table
+						       .starting_eid);
+				routing_entry = routing_entry->next;
+			}
+
 			/* Send the MCTP_GET_EP_UUID_REQUEST */
 			if (routing_entry) {
 				/* Set the Start of EID */
@@ -1460,11 +1472,13 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 					      "Reset the baseboard");
 					return MCTP_RET_DISCOVERY_FAILED;
 				}
+				/* Wait for the endpoint response */
+				discovery_mode = MCTP_GET_EP_UUID_RESPONSE;
+			} else {
+				/* Get the start of Routing entry */
+				routing_entry = g_routing_table_entries;
+				discovery_mode = MCTP_GET_MSG_TYPE_REQUEST;
 			}
-
-			/* Wait for the endpoint response */
-			discovery_mode = MCTP_GET_EP_UUID_RESPONSE;
-
 			break;
 
 		case MCTP_GET_EP_UUID_RESPONSE:
@@ -1509,6 +1523,30 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 
 		case MCTP_GET_MSG_TYPE_REQUEST:
 
+			while (routing_entry &&
+			       ((false == routing_entry->valid) ||
+				(routing_entry->old_valid ==
+				 routing_entry->valid))) {
+				MCTP_CTRL_INFO(
+					"Skipping EID for msg type: %d, Valid: %d, Old Valid: %d\n",
+					routing_entry->routing_table
+						.starting_eid,
+					routing_entry->valid,
+					routing_entry->old_valid);
+				mctp_msg_type_table_t *msg_type_entry =
+					g_msg_type_entries;
+				while (msg_type_entry) {
+					if ((msg_type_entry->eid ==
+					     routing_entry->routing_table
+						     .starting_eid) &&
+					    routing_entry->valid) {
+						msg_type_entry->enabled = true;
+					}
+					msg_type_entry = msg_type_entry->next;
+				}
+				routing_entry = routing_entry->next;
+			}
+
 			/* Send the MCTP_GET_EP_UUID_REQUEST */
 			if (routing_entry) {
 				/* Set the Start of EID */
@@ -1532,10 +1570,12 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 					      "Reset the baseboard");
 					return MCTP_RET_DISCOVERY_FAILED;
 				}
+				/* Wait for the endpoint response */
+				discovery_mode = MCTP_GET_MSG_TYPE_RESPONSE;
+			} else {
+				/* No more entries remain */
+				discovery_mode = MCTP_FINISH_DISCOVERY;
 			}
-
-			/* Wait for the endpoint response */
-			discovery_mode = MCTP_GET_MSG_TYPE_RESPONSE;
 
 			break;
 

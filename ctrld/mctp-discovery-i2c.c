@@ -744,6 +744,9 @@ int mctp_i2c_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 	msg_type_table.next = NULL;
 	msg_type_table.enabled = true;
 	msg_type_table.eid = eid;
+	msg_type_table.old_enabled = false;
+	msg_type_table.enabled = true;
+	msg_type_table.new = true;
 	msg_type_table.data_len = ((struct mctp_ctrl_resp *)mctp_resp_msg)
 						->data[MCTP_MSG_TYPE_DATA_LEN_OFFSET];
 	if (msg_type_table.data_len > (MCTP_BTU - 1)) {

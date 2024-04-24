@@ -78,7 +78,8 @@ int mctp_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 			       size_t resp_msg_len);
 
 mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
-					 mctp_ctrl_t *ctrl);
+					 mctp_ctrl_t *ctrl,
+					 mctp_discovery_mode start_mode);
 
 mctp_ret_codes_t mctp_spi_static_endpoint();
 

@@ -47,6 +47,7 @@
 #include "mctp-sdbus.h"
 #include "mctp-discovery-common.h"
 #include "mctp-discovery-i2c.h"
+#include "mctp-discovery.h"
 
 extern mctp_routing_table_t *g_routing_table_entries;
 
@@ -597,20 +598,6 @@ static int mctp_ctrl_dispatch_sd_bus(mctp_sdbus_context_t *context)
 	return r;
 }
 
-static int mctp_ctrl_handle_timer(mctp_sdbus_context_t *context)
-{
-	if (context->fds[MCTP_CTRL_TIMER_FD].revents) {
-		MCTP_CTRL_INFO("%s: Timer expired for discovery notify\n",
-			       __func__);
-		uint64_t ign = 0;
-		if (sizeof(ign) != read(context->fds[MCTP_CTRL_TIMER_FD].fd,
-					&ign, sizeof(ign))) {
-			MCTP_CTRL_ERR("%s: Bad read from timer FD\n", __func__);
-		}
-	}
-	return 0;
-}
-
 static int mctp_ctrl_handle_socket(mctp_ctrl_t *mctp_ctrl,
 				   mctp_sdbus_context_t *context)
 {
@@ -631,7 +618,7 @@ static int mctp_ctrl_handle_socket(mctp_ctrl_t *mctp_ctrl,
 			MCTP_CTRL_ERR("%s: Invalid data..\n", __func__);
 		}
 	} else if (context->fds[MCTP_CTRL_SOCKET_FD].revents == 0) {
-		MCTP_CTRL_INFO("%s: Rx Timeout\n", __func__);
+		/*MCTP_CTRL_INFO("%s: Rx Timeout\n", __func__);*/
 	} else {
 		MCTP_CTRL_WARN("%s: Unsupported rx socket event: 0x%x\n",
 			       __func__,
@@ -701,6 +688,245 @@ static const sd_bus_vtable mctp_ctrl_object_enable_vtable[] = {
 	SD_BUS_VTABLE_END
 };
 
+static int mctp_sdbus_refresh_endpoints(const mctp_cmdline_args_t *cmdline,
+					mctp_sdbus_context_t *context)
+{
+	int r = 0;
+	char mctp_ctrl_objpath[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE];
+	mctp_msg_type_table_t *entry = g_msg_type_entries;
+
+	while (entry != NULL) {
+		/* Reset the message buffer */
+		memset(mctp_ctrl_objpath, '\0', MCTP_CTRL_SDBUS_OBJ_PATH_SIZE);
+
+		/* Frame the message */
+		snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_OBJ_PATH_SIZE,
+			 "%s%d", MCTP_CTRL_NW_OBJ_PATH, entry->eid);
+
+		/* Create object only if this is a new endpoint not previously seen and
+		set the new property to false after creation */
+
+		if (entry->new) {
+			MCTP_CTRL_TRACE(
+				"Registering object '%s' for Endpoint: %d\n",
+				mctp_ctrl_objpath, entry->eid);
+			r = sd_bus_add_object_vtable(
+				context->bus, NULL, mctp_ctrl_objpath,
+				MCTP_CTRL_DBUS_EP_INTERFACE,
+				mctp_ctrl_endpoint_vtable, context);
+			if (r < 0) {
+				MCTP_CTRL_ERR(
+					"Failed to add Endpoint object: %s\n",
+					strerror(-r));
+				return r;
+			}
+
+			MCTP_CTRL_TRACE(
+				"Registering object '%s' for UUID: %d\n",
+				mctp_ctrl_objpath, entry->eid);
+			r = sd_bus_add_object_vtable(
+				context->bus, NULL, mctp_ctrl_objpath,
+				MCTP_CTRL_DBUS_UUID_INTERFACE,
+				mctp_ctrl_common_uuid_vtable, context);
+			if (r < 0) {
+				MCTP_CTRL_ERR("Failed to add UUID object: %s\n",
+					      strerror(-r));
+				return r;
+			}
+
+			MCTP_CTRL_TRACE(
+				"Registering object '%s' for UnixSocket: %d\n",
+				mctp_ctrl_objpath, entry->eid);
+			r = sd_bus_add_object_vtable(
+				context->bus, NULL, mctp_ctrl_objpath,
+				MCTP_CTRL_DBUS_SOCK_INTERFACE,
+				mctp_ctrl_common_sock_vtable, context);
+			if (r < 0) {
+				MCTP_CTRL_ERR(
+					"Failed to add UnixSocket object: %s\n",
+					strerror(-r));
+				return r;
+			}
+
+			MCTP_CTRL_TRACE(
+				"Registering object '%s' for Binding: %d\n",
+				mctp_ctrl_objpath, entry->eid);
+			r = sd_bus_add_object_vtable(
+				context->bus, NULL, mctp_ctrl_objpath,
+				MCTP_CTRL_DBUS_BINDING_INTERFACE,
+				mctp_ctrl_binding_vtable, context);
+			if (r < 0) {
+				MCTP_CTRL_ERR(
+					"Failed to add Binding object: %s\n",
+					strerror(-r));
+				return r;
+			}
+
+			if (MCTP_BINDING_SMBUS == cmdline->binding_type) {
+				MCTP_CTRL_TRACE(
+					"Registering object '%s' for Inventory: %d\n",
+					mctp_ctrl_objpath, entry->eid);
+				r = sd_bus_add_object_vtable(
+					context->bus, NULL, mctp_ctrl_objpath,
+					MCTP_CTRL_DBUS_DECORATOR_INTERFACE,
+					mctp_ctrl_decorator_vtable, context);
+				if (r < 0) {
+					MCTP_CTRL_ERR(
+						"Failed to add Binding object: %s\n",
+						strerror(-r));
+					return r;
+				}
+			}
+
+			MCTP_CTRL_TRACE(
+				"Registering object '%s' for Enable: %d\n",
+				mctp_ctrl_objpath, entry->eid);
+			r = sd_bus_add_object_vtable(
+				context->bus, NULL, mctp_ctrl_objpath,
+				MCTP_CTRL_DBUS_ENABLE_INTERFACE,
+				mctp_ctrl_object_enable_vtable, context);
+			if (r < 0) {
+				MCTP_CTRL_ERR(
+					"Failed to add Binding object: %s\n",
+					strerror(-r));
+				return r;
+			}
+
+			r = sd_bus_emit_object_added(context->bus,
+						     mctp_ctrl_objpath);
+			if (r < 0) {
+				MCTP_CTRL_ERR(
+					"Failed to emit object added: %s\n",
+					strerror(-r));
+				return r;
+			}
+			entry->new = false;
+		} else {
+			/* Not a new entry, check if enabled was toggled*/
+			if (entry->old_enabled != entry->enabled) {
+				/* Emit a properties changed signal for entry */
+				sd_bus_emit_properties_changed(
+					context->bus, mctp_ctrl_objpath,
+					MCTP_CTRL_DBUS_ENABLE_INTERFACE,
+					"Enabled", NULL);
+			}
+		}
+
+		/* Increment for next entry */
+		entry = entry->next;
+	}
+	return r;
+}
+
+static mctp_sdbus_context_t *
+mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
+{
+	mctp_sdbus_context_t *context = NULL;
+	int r;
+	char mctp_ctrl_busname[MCTP_CTRL_SDBUS_NMAE_SIZE];
+
+	context = calloc(1, sizeof(*context));
+	if (context == NULL) {
+		MCTP_CTRL_ERR("Failed to allocate D-Bus context\n");
+		return NULL;
+	}
+	context->bus = bus;
+	context->cmdline = cmdline;
+
+	/* Add sd-bus object manager */
+	r = sd_bus_add_object_manager(context->bus, NULL, MCTP_CTRL_OBJ_NAME);
+	if (r < 0) {
+		MCTP_CTRL_ERR("Failed to add object manager: %s\n",
+			      strerror(-r));
+		goto finish;
+	}
+
+	if (MCTP_BINDING_SMBUS == cmdline->binding_type) {
+		snprintf(mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE,
+			 "%s.%s%d", MCTP_CTRL_DBUS_NAME, mctp_medium_type,
+			 cmdline->i2c.bus_num);
+	} else {
+		snprintf(mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE, "%s.%s",
+			 MCTP_CTRL_DBUS_NAME, mctp_medium_type);
+	}
+	MCTP_CTRL_TRACE("Requesting D-Bus name: %s\n", mctp_ctrl_busname);
+
+	r = sd_bus_request_name(context->bus, mctp_ctrl_busname,
+				SD_BUS_NAME_ALLOW_REPLACEMENT |
+					SD_BUS_NAME_REPLACE_EXISTING);
+	if (r < 0) {
+		MCTP_CTRL_ERR("Failed to acquire service name: %s\n",
+			      strerror(-r));
+		goto finish;
+	}
+
+	r = mctp_sdbus_refresh_endpoints(cmdline, context);
+	if (r < 0) {
+		MCTP_CTRL_ERR("Failed to add/refresh D-Bus objects: %s\n",
+			      strerror(-r));
+		goto finish;
+	}
+
+	MCTP_CTRL_TRACE("Getting D-Bus file descriptors\n");
+	context->fds[MCTP_CTRL_SD_BUS_FD].fd = sd_bus_get_fd(context->bus);
+	if (context->fds[MCTP_CTRL_SD_BUS_FD].fd < 0) {
+		r = -errno;
+		MCTP_CTRL_TRACE("Couldn't get the bus file descriptor: %s\n",
+				strerror(errno));
+		goto finish;
+	}
+
+	context->fds[MCTP_CTRL_SD_BUS_FD].events = POLLIN;
+	context->fds[MCTP_CTRL_SD_BUS_FD].revents = 0;
+	return context;
+
+finish:
+	free(context);
+
+	return NULL;
+}
+
+static int mctp_ctrl_handle_timer(mctp_ctrl_t *mctp_ctrl,
+				  mctp_sdbus_context_t *context)
+{
+	if (context->fds[MCTP_CTRL_TIMER_FD].revents) {
+		MCTP_CTRL_INFO("%s: Timer expired for discovery notify\n",
+			       __func__);
+		uint64_t ign = 0;
+		if (sizeof(ign) != read(context->fds[MCTP_CTRL_TIMER_FD].fd,
+					&ign, sizeof(ign))) {
+			MCTP_CTRL_ERR("%s: Bad read from timer FD\n", __func__);
+		}
+
+		/* Prime the endpoints by setting all their enabled to false */
+		if (g_routing_table_entries) {
+			mctp_routing_table_t *entry = g_routing_table_entries;
+			while (entry) {
+				entry->old_valid = entry->valid;
+				entry->valid = false;
+				entry = entry->next;
+			}
+		}
+		if (g_msg_type_entries) {
+			mctp_msg_type_table_t *entry = g_msg_type_entries;
+			while (entry) {
+				entry->old_enabled = entry->enabled;
+				entry->enabled = false;
+				entry = entry->next;
+			}
+		}
+
+		/* Perform a re-discovery, but start with getting routing table entries
+		directly since we don't really need to repeat the whole process */
+		mctp_discover_endpoints(mctp_ctrl->cmdline, mctp_ctrl,
+					MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST);
+
+		/* Refresh D-Bus states */
+		mctp_sdbus_refresh_endpoints(mctp_ctrl->cmdline, context);
+	}
+	return 0;
+}
+
 int mctp_ctrl_sdbus_dispatch(mctp_ctrl_t *mctp_ctrl,
 			     mctp_sdbus_context_t *context)
 {
@@ -735,174 +961,13 @@ int mctp_ctrl_sdbus_dispatch(mctp_ctrl_t *mctp_ctrl,
 		return -1;
 	}
 
-	r = mctp_ctrl_handle_timer(context);
+	r = mctp_ctrl_handle_timer(mctp_ctrl, context);
 	if (r < 0) {
 		MCTP_CTRL_ERR("Error handling timer event: %d\n", r);
 		return -1;
 	}
 
 	return SDBUS_PROCESS_EVENT;
-}
-
-static mctp_sdbus_context_t *
-mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
-{
-	mctp_sdbus_context_t *context = NULL;
-	int r;
-	char mctp_ctrl_objpath[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE];
-	char mctp_ctrl_busname[MCTP_CTRL_SDBUS_NMAE_SIZE];
-	mctp_msg_type_table_t *entry = g_msg_type_entries;
-
-	context = calloc(1, sizeof(*context));
-	if (context == NULL) {
-		MCTP_CTRL_ERR("Failed to allocate D-Bus context\n");
-		return NULL;
-	}
-	context->bus = bus;
-	context->cmdline = cmdline;
-
-	/* Add sd-bus object manager */
-	r = sd_bus_add_object_manager(context->bus, NULL, MCTP_CTRL_OBJ_NAME);
-	if (r < 0) {
-		MCTP_CTRL_ERR("Failed to add object manager: %s\n",
-			      strerror(-r));
-		goto finish;
-	}
-
-	if (MCTP_BINDING_SMBUS == cmdline->binding_type) {
-		snprintf(mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE,
-			 "%s.%s%d", MCTP_CTRL_DBUS_NAME, mctp_medium_type,
-			 cmdline->i2c.bus_num);
-	} else {
-		snprintf(mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE, "%s.%s",
-			 MCTP_CTRL_DBUS_NAME, mctp_medium_type);
-	}
-	MCTP_CTRL_TRACE("Requesting D-Bus name: %s\n", mctp_ctrl_busname);
-	
-	r = sd_bus_request_name(context->bus, mctp_ctrl_busname,
-				SD_BUS_NAME_ALLOW_REPLACEMENT |
-					SD_BUS_NAME_REPLACE_EXISTING);
-	if (r < 0) {
-		MCTP_CTRL_ERR("Failed to acquire service name: %s\n",
-			      strerror(-r));
-		goto finish;
-	}
-
-	while (entry != NULL) {
-		/* Reset the message buffer */
-		memset(mctp_ctrl_objpath, '\0', MCTP_CTRL_SDBUS_OBJ_PATH_SIZE);
-
-		/* Frame the message */
-		snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_OBJ_PATH_SIZE,
-			 "%s%d", MCTP_CTRL_NW_OBJ_PATH, entry->eid);
-
-		MCTP_CTRL_TRACE("Registering object '%s' for Endpoint: %d\n",
-				mctp_ctrl_objpath, entry->eid);
-		r = sd_bus_add_object_vtable(context->bus, NULL,
-					     mctp_ctrl_objpath,
-					     MCTP_CTRL_DBUS_EP_INTERFACE,
-					     mctp_ctrl_endpoint_vtable,
-					     context);
-		if (r < 0) {
-			MCTP_CTRL_ERR("Failed to add Endpoint object: %s\n",
-				      strerror(-r));
-			goto finish;
-		}
-
-		MCTP_CTRL_TRACE("Registering object '%s' for UUID: %d\n",
-				mctp_ctrl_objpath, entry->eid);
-		r = sd_bus_add_object_vtable(context->bus, NULL,
-					     mctp_ctrl_objpath,
-					     MCTP_CTRL_DBUS_UUID_INTERFACE,
-					     mctp_ctrl_common_uuid_vtable,
-					     context);
-		if (r < 0) {
-			MCTP_CTRL_ERR("Failed to add UUID object: %s\n",
-				      strerror(-r));
-			goto finish;
-		}
-
-		MCTP_CTRL_TRACE("Registering object '%s' for UnixSocket: %d\n",
-				mctp_ctrl_objpath, entry->eid);
-		r = sd_bus_add_object_vtable(context->bus, NULL,
-					     mctp_ctrl_objpath,
-					     MCTP_CTRL_DBUS_SOCK_INTERFACE,
-					     mctp_ctrl_common_sock_vtable,
-					     context);
-		if (r < 0) {
-			MCTP_CTRL_ERR("Failed to add UnixSocket object: %s\n",
-				      strerror(-r));
-			goto finish;
-		}
-
-		MCTP_CTRL_TRACE("Registering object '%s' for Binding: %d\n",
-				mctp_ctrl_objpath, entry->eid);
-		r = sd_bus_add_object_vtable(context->bus, NULL,
-					     mctp_ctrl_objpath,
-					     MCTP_CTRL_DBUS_BINDING_INTERFACE,
-					     mctp_ctrl_binding_vtable, context);
-		if (r < 0) {
-			MCTP_CTRL_ERR("Failed to add Binding object: %s\n",
-				      strerror(-r));
-			goto finish;
-		}
-
-		if (MCTP_BINDING_SMBUS == cmdline->binding_type) {
-			MCTP_CTRL_TRACE("Registering object '%s' for Inventory: %d\n",
-					mctp_ctrl_objpath, entry->eid);
-			r = sd_bus_add_object_vtable(context->bus, NULL,
-						     mctp_ctrl_objpath,
-						     MCTP_CTRL_DBUS_DECORATOR_INTERFACE,
-						     mctp_ctrl_decorator_vtable,
-						     context);
-			if (r < 0) {
-				MCTP_CTRL_ERR("Failed to add Binding object: %s\n",
-					      strerror(-r));
-				goto finish;
-			}
-		}
-
-		MCTP_CTRL_TRACE("Registering object '%s' for Enable: %d\n",
-				mctp_ctrl_objpath, entry->eid);
-		r = sd_bus_add_object_vtable(context->bus, NULL,
-					     mctp_ctrl_objpath,
-					     MCTP_CTRL_DBUS_ENABLE_INTERFACE,
-					     mctp_ctrl_object_enable_vtable,
-					     context);
-		if (r < 0) {
-			MCTP_CTRL_ERR("Failed to add Binding object: %s\n",
-				      strerror(-r));
-			goto finish;
-		}
-
-		r = sd_bus_emit_object_added(context->bus, mctp_ctrl_objpath);
-		if (r < 0) {
-			MCTP_CTRL_ERR("Failed to emit object added: %s\n",
-				      strerror(-r));
-			goto finish;
-		}
-
-		/* Increment for next entry */
-		entry = entry->next;
-	}
-
-	MCTP_CTRL_TRACE("Getting D-Bus file descriptors\n");
-	context->fds[MCTP_CTRL_SD_BUS_FD].fd = sd_bus_get_fd(context->bus);
-	if (context->fds[MCTP_CTRL_SD_BUS_FD].fd < 0) {
-		r = -errno;
-		MCTP_CTRL_TRACE("Couldn't get the bus file descriptor: %s\n",
-				strerror(errno));
-		goto finish;
-	}
-
-	context->fds[MCTP_CTRL_SD_BUS_FD].events = POLLIN;
-	context->fds[MCTP_CTRL_SD_BUS_FD].revents = 0;
-	return context;
-
-finish:
-	free(context);
-
-	return NULL;
 }
 
 void mctp_ctrl_sdbus_stop(void)

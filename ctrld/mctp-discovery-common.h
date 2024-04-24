@@ -62,6 +62,8 @@ typedef enum {
 /* List for Routing table entries */
 typedef struct mctp_routing_table {
 	int id;
+	bool valid;
+	bool old_valid;
 	struct get_routing_table_entry routing_table;
 	struct mctp_routing_table *next;
 } mctp_routing_table_t;
@@ -69,7 +71,9 @@ typedef struct mctp_routing_table {
 /* List for MCTP Message types */
 typedef struct mctp_msg_type_table {
 	uint8_t eid;
-	bool enabled;
+	bool old_enabled; /* Was the endpoint previously enabled? */
+	bool enabled; /* Is the endpoint enabled? */
+	bool new; /* Use to indicate a newly discovered endpoint - To be published to D-Bus */
 	uint16_t data_len;
 	uint8_t data[MCTP_MSG_TYPE_MAX_SIZE];
 	struct mctp_msg_type_table *next;
