@@ -723,7 +723,8 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 	int rc, fd;
 
 	MCTP_CTRL_INFO("%s: Run mode: Commandline mode\n", __func__);
-
+	mctp_set_log_stdio(cmdline->verbose ? MCTP_LOG_DEBUG :
+					      MCTP_LOG_WARNING);
 	// Chosse binding type (PCIe or SMBus or USB)
 	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		MCTP_CTRL_DEBUG("%s: Setting up PCIe socket\n", __func__);
@@ -1107,9 +1108,10 @@ static void parse_command_line(int argc, char *const *argv,
 		switch (rc) {
 		case 'v':
 			cmdline->verbose = true;
-			MCTP_CTRL_DEBUG("%s: Verbose level:%d\n", __func__,
-					cmdline->verbose);
 			g_verbose_level = cmdline->verbose;
+			mctp_set_tracing_enabled(cmdline->verbose);
+			MCTP_CTRL_INFO("%s: Verbose level:%d\n", __func__,
+				       cmdline->verbose);
 			break;
 		case 'c':
 			remove_duplicates = true;
