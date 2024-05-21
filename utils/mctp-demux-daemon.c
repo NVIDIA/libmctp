@@ -38,6 +38,7 @@
 #include "utils/mctp-capture.h"
 #include "mctp-json.h"
 #include "astpcie.h"
+#include "libmctp-alloc.h"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #define __unused      __attribute__((unused))
@@ -1483,6 +1484,8 @@ static int run_daemon(struct ctx *ctx)
 							(ctx->n_bindings + FD_NR) *
 								sizeof(struct pollfd));
 			memcpy(&ctx->pollfds[FD_NR], bindingfds, ctx->n_bindings * sizeof(struct pollfd));
+			__mctp_free(bindingfds);
+			bindingfds = NULL;
 		}
 	}
 
@@ -1512,6 +1515,9 @@ static int run_daemon(struct ctx *ctx)
 					for(int i = 0; i < fds_size; i++) {
 						ctx->pollfds[FD_NR + i] = bindingfds[i];
 					}
+
+					__mctp_free(bindingfds);
+					bindingfds = NULL;
 				}
 				else {
 					/*At present, we assume that the size of the binding fds is not changed, just the content changed*/
