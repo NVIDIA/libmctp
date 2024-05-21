@@ -211,6 +211,10 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 		if (LIBUSB_SUCCESS != rc) {
 			printf("Could not open USB device\n");
 		}
+		/* Free memory used to store previous FDs */
+		if (usb->usb_poll_fds){
+			libusb_free_pollfds(usb->usb_poll_fds);		
+		}
 		usb->usb_poll_fds = libusb_get_pollfds(usb->ctx);
 		usb->bindingfds_cnt = 0;
 		while (usb->usb_poll_fds[usb->bindingfds_cnt]) {
