@@ -432,12 +432,13 @@ static int mctp_ctrl_sdbus_get_uuid(sd_bus *bus, const char *path,
 
 	while (entry != NULL) {
 		if (entry->eid == eid_req) {
-			uint8_t nil_uuid[sizeof(entry->uuid.raw)] = { 0 };
-			/* For cases where the UUID is not set for EID 0, report the one
-			passed in from the command line. */
-			if (entry->eid == 0 &&
-			    !memcmp(entry->uuid.raw, nil_uuid,
-				    sizeof(nil_uuid))) {
+			uint8_t nil_uuid[sizeof(ctx->cmdline->uuid_str)] = { 0 };
+			/* For SPI service, always report the one passed in from the command
+			   line, if any */
+			if (!strncmp(mctp_medium_type, "SPI",
+				     sizeof("SPI") - 1) &&
+			    memcmp(ctx->cmdline->uuid_str, nil_uuid,
+				   sizeof(ctx->cmdline->uuid_str))) {
 				memcpy(uuid_data, ctx->cmdline->uuid_str,
 				       sizeof(ctx->cmdline->uuid_str));
 			} else {
