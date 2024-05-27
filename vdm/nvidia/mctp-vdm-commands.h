@@ -45,6 +45,7 @@ int debug_token_install(int fd, uint8_t tid, uint8_t *payload, size_t length,
 int certificate_install(int fd, uint8_t tid, uint8_t *payload, size_t length,
 			uint8_t verbose);
 int in_band(int fd, uint8_t tid, uint8_t code, uint8_t verbose);
+int in_band_json(int fd, uint8_t tid, uint8_t code);
 int boot_ap(int fd, uint8_t tid, uint8_t verbose);
 int set_query_boot_mode(int fd, uint8_t tid, uint8_t code, uint8_t verbose);
 

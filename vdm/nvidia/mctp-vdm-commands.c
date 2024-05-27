@@ -132,6 +132,9 @@ const uint8_t mctp_vdm_op_success = MCTP_VDM_CMD_OP_SUCCESS;
 #define MCTP_VDM_BACKGROUND_COPY_BYTE_1_POSITION 10
 #define MCTP_VDM_BACKGROUND_COPY_BYTE_2_POSITION 11
 
+/* In Band */
+#define MCTP_VDM_IN_BAND_BYTE_1_POSITION 10
+
 enum MCTP_VDM_COMPLETION_CODE {
 	SUCCESS = MCTP_CTRL_CC_SUCCESS,
 	ERROR = MCTP_CTRL_CC_ERROR,
@@ -1718,6 +1721,40 @@ int certificate_install(int fd, uint8_t tid, uint8_t *payload, size_t length,
 }
 
 /*
+ * This function parses the first byte from the response of 
+ * the 'in_band_query_status' command and generates corresponding JSON 
+ * data representing the status of the "in band" command.
+ * The status indicates whether "in band" is enabled or disabled
+ *
+ * Possible statuses:
+ * 0x0: In Band Disabled.
+ * 0x1: In Band Enabled.
+ *
+ */
+void create_json_in_band_query_status_byte_1(const uint8_t *resp_msg,
+					     struct json_object *json_obj)
+{
+	uint8_t resp_byte_1 = resp_msg[MCTP_VDM_IN_BAND_BYTE_1_POSITION];
+
+	char *query_status_value_txt;
+
+	switch (resp_byte_1) {
+	case 0x0:
+		query_status_value_txt = "Disabled";
+		break;
+	case 0x1:
+		query_status_value_txt = "Enabled";
+		break;
+	default:
+		query_status_value_txt = "Undefined";
+		break;
+	}
+
+	json_object_object_add(json_obj, "STATUS",
+			       json_object_new_string(query_status_value_txt));
+}
+
+/*
  * Enable IB Update v1:
  * By default firmware update is supported through both In-band and OOB paths, 
  * but for some CSP, they do not want to allow IB update for security reasons.
@@ -1750,6 +1787,57 @@ int in_band(int fd, uint8_t tid, uint8_t code, uint8_t verbose)
 	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
 			"%s: fail to recv [rc: %d] response\n", __func__, rc);
 
+	return 0;
+}
+
+/*
+ * Enable IB Update v1:
+ * By default, firmware update is supported through both the In-band and OOB paths.
+ * However, for some CSPs, they may choose to disable In-band update for security reasons.
+ * When the "code" parameter is set to 0, the command disables In-band update.
+ * When the "code" parameter is set to 1, the command enables In-band update.
+ * When the "code" parameter is set to 2, the command returns the status of In-band update.
+ * The response is formatted in JSON.
+ */
+int in_band_json(int fd, uint8_t tid, uint8_t code)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_in_band cmd = { 0 };
+
+	/* Encode the VDM headers for Enable IB Update */
+	mctp_encode_vendor_cmd_in_band(&cmd);
+
+	/* Update the code field */
+	cmd.code = code;
+
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
+				       (uint8_t **)&resp, &resp_len, false);
+
+	struct json_object *json_obj = json_object_new_object();
+	struct json_object *in_band_response = json_object_new_object();
+
+	create_json_with_completion_code(resp, in_band_response);
+
+	if (code == MCTP_VDM_IN_BAND_QUERY_STATUS) {
+		create_json_in_band_query_status_byte_1(resp, in_band_response);
+	}
+
+	json_object_object_add(json_obj, "RESPONSE", in_band_response);
+
+	/* Printing JSON object */
+	printf("%s\n", json_object_to_json_string_ext(json_obj,
+						      JSON_C_TO_STRING_PRETTY));
+
+	json_object_put(json_obj);
+
+	/* free memory */
+	free(resp);
+
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+			"%s: fail to recv [rc: %d] response\n", __func__, rc);
 	return 0;
 }
 

@@ -83,7 +83,10 @@ const char *commands_supported_json_flag[] = { "query_boot_status",
 					       "background_copy_enable_one",
 					       "background_copy_query_status",
 					       "background_copy_query_progress",
-					       "background_copy_query_pending" };
+					       "background_copy_query_pending",
+					       "in_band_disable",
+					       "in_band_enable",
+					       "in_band_query_status" };
 
 #define VMD_CMD_ASSERT_GOTO(cond, label, fmt, ...)                             \
 	do {                                                                   \
@@ -722,16 +725,31 @@ int main(int argc, char *const *argv)
 				    "failed to program certificate chain: %d\n",
 				    rc);
 	} else if (!strcmp(item, "in_band_disable")) {
-		rc = in_band(fd, teid, MCTP_VDM_IN_BAND_DISABLE, VERBOSE_EN);
+		if (json_output) {
+			rc = in_band_json(fd, teid, MCTP_VDM_IN_BAND_DISABLE);
+		} else {
+			rc = in_band(fd, teid, MCTP_VDM_IN_BAND_DISABLE,
+				     VERBOSE_EN);
+		}
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to disable in-band: %d\n", rc);
 	} else if (!strcmp(item, "in_band_enable")) {
-		rc = in_band(fd, teid, MCTP_VDM_IN_BAND_ENABLE, VERBOSE_EN);
+		if (json_output) {
+			rc = in_band_json(fd, teid, MCTP_VDM_IN_BAND_ENABLE);
+		} else {
+			rc = in_band(fd, teid, MCTP_VDM_IN_BAND_ENABLE,
+				     VERBOSE_EN);
+		}
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to enable in-band: %d\n", rc);
 	} else if (!strcmp(item, "in_band_query_status")) {
-		rc = in_band(fd, teid, MCTP_VDM_IN_BAND_QUERY_STATUS,
-			     VERBOSE_EN);
+		if (json_output) {
+			rc = in_band_json(fd, teid,
+					  MCTP_VDM_IN_BAND_QUERY_STATUS);
+		} else {
+			rc = in_band(fd, teid, MCTP_VDM_IN_BAND_QUERY_STATUS,
+				     VERBOSE_EN);
+		}
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to query in-band: %d\n", rc);
 	} else if (!strcmp(item, "boot_ap")) {
