@@ -41,11 +41,7 @@ extern uint8_t g_verbose_level;
 void mctp_ctrl_prlog(int level, const char *fmt, ...)
 	__attribute__((format(printf, 2, 3)));
 
-enum {
-	MCTP_CTRL_LOG_NONE = 0,
-	MCTP_CTRL_LOG_VERBOSE,
-	MCTP_CTRL_LOG_DEBUG
-};
+enum { MCTP_CTRL_LOG_NONE = 0, MCTP_CTRL_LOG_VERBOSE, MCTP_CTRL_LOG_DEBUG };
 
 #ifndef pr_fmt
 #define pr_fmt(x) x
@@ -53,11 +49,11 @@ enum {
 
 /* these should match the syslog-standard LOG_* definitions, for
  * easier use with syslog */
-#define MCTP_LOG_ERR 3
+#define MCTP_LOG_ERR	 3
 #define MCTP_LOG_WARNING 4
-#define MCTP_LOG_NOTICE 5
-#define MCTP_LOG_INFO 6
-#define MCTP_LOG_DEBUG 7
+#define MCTP_LOG_NOTICE	 5
+#define MCTP_LOG_INFO	 6
+#define MCTP_LOG_DEBUG	 7
 
 #define MCTP_CTRL_ERR(fmt, ...)                                                \
 	mctp_ctrl_prlog(MCTP_LOG_ERR, pr_fmt(fmt), ##__VA_ARGS__)

@@ -72,8 +72,8 @@ struct aspeed_mctp_get_mtu {
 struct aspeed_mctp_type_handler_ioctl {
 	__u8 mctp_type; /* MCTP message type as per DSP239*/
 	/* Below params must be 0 if mctp_type is not Vendor Defined PCI */
-	__u16 pci_vendor_id; /* PCI Vendor ID */
-	__u16 vendor_type; /* Vendor specific type */
+	__u16 pci_vendor_id;	/* PCI Vendor ID */
+	__u16 vendor_type;	/* Vendor specific type */
 	__u16 vendor_type_mask; /* Mask applied to vendor type */
 };
 

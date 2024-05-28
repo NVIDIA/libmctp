@@ -37,13 +37,14 @@
 #include "libmctp.h"
 #include "mctp-json.h"
 
-#define USB_POLL_FD_NUM 3 //Assume that the number of usb fd we want to poll is fixed
+#define USB_POLL_FD_NUM                                                        \
+	3 //Assume that the number of usb fd we want to poll is fixed
 
 #ifndef container_of
 #define container_of(ptr, type, member)                                        \
 	(type *)((char *)(ptr) - (char *)&((type *)0)->member)
 #endif
-#define binding_to_usb(b)   container_of(b, struct mctp_binding_usb, binding)
+#define binding_to_usb(b) container_of(b, struct mctp_binding_usb, binding)
 
 #define MCTP_USB_DMTF_ID 0xB41A
 #define MCTP_CLASS_ID	 0x14
@@ -87,7 +88,7 @@ int mctp_usb_handle_event(struct mctp_binding_usb *usb)
 
 	libusb_handle_events_timeout_completed(usb->ctx, &t, NULL);
 
-	if(usb->bindingfds_change) {
+	if (usb->bindingfds_change) {
 		ret = MCTP_USB_FD_CHANGE;
 		usb->bindingfds_change = false;
 	}
@@ -113,7 +114,8 @@ void mctp_usb_rx_transfer_callback(struct libusb_transfer *xfr)
 		}
 
 		hdr = (void *)xfr->buffer;
-		if (hdr->dmtf_id != MCTP_USB_DMTF_ID) { // The recipient of the message is 'Src_slave_addr'
+		if (hdr->dmtf_id !=
+		    MCTP_USB_DMTF_ID) { // The recipient of the message is 'Src_slave_addr'
 			mctp_prerr("Got bad DMTF ID: %d", hdr->dmtf_id);
 			goto out;
 		}
@@ -125,9 +127,10 @@ void mctp_usb_rx_transfer_callback(struct libusb_transfer *xfr)
 			goto out;
 		}
 		usb->rx_pkt = mctp_pktbuf_alloc(&usb->binding, 0);
-		MCTP_ASSERT(usb->rx_pkt != NULL, -1, "Could not allocate pktbuf.");
+		MCTP_ASSERT(usb->rx_pkt != NULL, -1,
+			    "Could not allocate pktbuf.");
 		if (mctp_pktbuf_push(usb->rx_pkt, &usb->rxbuf[sizeof(*hdr)],
-			xfr->actual_length - sizeof(*hdr)) != 0) {
+				     xfr->actual_length - sizeof(*hdr)) != 0) {
 			mctp_prerr("Can't push to pktbuf.");
 			goto out;
 		}
@@ -155,7 +158,7 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 	(void)libusb_get_device_descriptor(dev, &desc);
 	(void)ctx;
 
-	if (base_usb->bus){
+	if (base_usb->bus) {
 		bus_reg = true;
 	}
 
@@ -212,8 +215,8 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 			printf("Could not open USB device\n");
 		}
 		/* Free memory used to store previous FDs */
-		if (usb->usb_poll_fds){
-			libusb_free_pollfds(usb->usb_poll_fds);		
+		if (usb->usb_poll_fds) {
+			libusb_free_pollfds(usb->usb_poll_fds);
 		}
 		usb->usb_poll_fds = libusb_get_pollfds(usb->ctx);
 		usb->bindingfds_cnt = 0;
@@ -256,33 +259,34 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 		if (bus_reg)
 			mctp_binding_set_tx_enabled(base_usb, false);
 	}
-	usb->dev_handle=dev_handle;
+	usb->dev_handle = dev_handle;
 	return 0;
 }
 
 void mctp_usb_tx_transfer_callback(struct libusb_transfer *xfr)
 {
-	struct mctp_binding_usb *usb = (struct mctp_binding_usb *) xfr->user_data;
+	struct mctp_binding_usb *usb =
+		(struct mctp_binding_usb *)xfr->user_data;
 	switch (xfr->status) {
 	case LIBUSB_TRANSFER_COMPLETED:
 		usb->tx_cntr += 1;
 		break;
 	case LIBUSB_TRANSFER_ERROR:
-        mctp_prerr("Transfer FAILED with status %d\n", xfr->status);
+		mctp_prerr("Transfer FAILED with status %d\n", xfr->status);
 		usb->tx_failed_cntr += 1;
 		//Retry?
-        break;
-    case LIBUSB_TRANSFER_CANCELLED:
-		mctp_prerr("Transfer was CANCELLED with status %d\n", xfr->status);
+		break;
+	case LIBUSB_TRANSFER_CANCELLED:
+		mctp_prerr("Transfer was CANCELLED with status %d\n",
+			   xfr->status);
 		usb->tx_failed_cntr += 1;
-        //Retry?
-        break;
+		//Retry?
+		break;
 	default:
 		mctp_prerr("Tx transfer error: %d\n", xfr->status);
 		break;
 	}
 	libusb_free_transfer(xfr);
-
 }
 
 static int mctp_usb_tx(struct mctp_binding_usb *usb, size_t len)
@@ -293,7 +297,7 @@ static int mctp_usb_tx(struct mctp_binding_usb *usb, size_t len)
 
 	void *data_tx = (void *)usb->txbuf;
 
-	if (!usb->dev_handle){
+	if (!usb->dev_handle) {
 		return -1;
 	}
 	libusb_fill_bulk_transfer(tx_xfr, usb->dev_handle,
@@ -318,11 +322,10 @@ static size_t prepare_usb_hdr(struct mctp_pktbuf *pkt, size_t pkt_length)
 	hdr->dmtf_id = MCTP_USB_DMTF_ID;
 	mctp_pkt_length = (uint8_t)pkt_length + (uint8_t)sizeof(hdr);
 	hdr->length = mctp_pkt_length;
-	hdr->reserved=0x0;
+	hdr->reserved = 0x0;
 
 	return mctp_pkt_length;
 }
-
 
 /* 
  * Batch Tx on bus, called from core.c
@@ -337,7 +340,7 @@ void mctp_send_tx_queue_usb(struct mctp_bus *bus)
 	uint16_t usb_message_len;
 	buf_ptr = (char *)usb->txbuf;
 
-	if (bus->state != mctp_bus_state_tx_enabled){
+	if (bus->state != mctp_bus_state_tx_enabled) {
 		mctp_prerr("Bus is in enabled state, cannot Tx");
 		return;
 	}
@@ -352,7 +355,7 @@ void mctp_send_tx_queue_usb(struct mctp_bus *bus)
 			rv = mctp_usb_tx(usb, usb_buf_len);
 
 			MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
-			buf_ptr = (char  *)usb->txbuf;
+			buf_ptr = (char *)usb->txbuf;
 			usb_buf_len = 0;
 			continue;
 
@@ -373,10 +376,8 @@ void mctp_send_tx_queue_usb(struct mctp_bus *bus)
 	MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
 }
 
-
 //Tx for MCTP over USB
-static int mctp_binding_usb_tx(struct mctp_binding *b,
-				 struct mctp_pktbuf *pkt)
+static int mctp_binding_usb_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 {
 	/* Payload + base mctp hdr = 68B */
 	size_t pkt_length = mctp_pktbuf_size(pkt);
@@ -385,7 +386,7 @@ static int mctp_binding_usb_tx(struct mctp_binding *b,
 	/* BTU + binding header + mctp hdr */
 	size_t usb_message_len;
 	usb_message_len = prepare_usb_hdr(pkt, pkt_length);
-	
+
 	int rv;
 
 	unsigned char *buf_ptr;
@@ -394,7 +395,7 @@ static int mctp_binding_usb_tx(struct mctp_binding *b,
 	 * and escape sequences */
 	buf_ptr = (unsigned char *)usb->txbuf;
 	memcpy(buf_ptr, &pkt->data, usb_message_len);
-	
+
 	rv = mctp_usb_tx(usb, usb_message_len);
 	MCTP_ASSERT_RET(rv >= 0, -1, "mctp_usb_tx failed: %d", rv);
 
@@ -411,16 +412,15 @@ static int mctp_usb_start(struct mctp_binding *b)
 
 	//Potential race condition - what if hotplug callback hasn't happened yet?
 	if (!usb->dev_handle) {
-		mctp_prinfo("USB device could not be started (hotplug callback not yet happened!): \n");
+		mctp_prinfo(
+			"USB device could not be started (hotplug callback not yet happened!): \n");
 		mctp_binding_set_tx_enabled(b, false);
-	}
-	else {
+	} else {
 		mctp_prinfo("Enabling bus in start func \n");
 		mctp_binding_set_tx_enabled(b, true);
 	}
-	
-	return 0;
 
+	return 0;
 }
 
 /*
@@ -440,18 +440,17 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 	int rc;
 	usb = __mctp_alloc(sizeof(*usb));
 	libusb_init(&usb->ctx);
-	usb->dev_handle=NULL;
+	usb->dev_handle = NULL;
 	usb->bindingfds_change = false;
 
 	usb->binding.name = "usb";
 	usb->binding.version = 1;
 
-	#ifdef MCTP_BATCH_TX
+#ifdef MCTP_BATCH_TX
 	usb->binding.mctp_send_tx_queue = mctp_send_tx_queue_usb;
-	#else
+#else
 	usb->binding.mctp_send_tx_queue = NULL;
-	#endif
-
+#endif
 
 	usb->binding.pkt_size = MCTP_PACKET_SIZE(MCTP_BTU);
 	usb->binding.pkt_header = 4;
@@ -462,8 +461,9 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 		NULL,
 		LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED |
 			LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT,
-		LIBUSB_HOTPLUG_ENUMERATE, vendor_id, product_id, LIBUSB_HOTPLUG_MATCH_ANY,
-		mctp_usb_hotplug_callback, usb, &callback_handle);
+		LIBUSB_HOTPLUG_ENUMERATE, vendor_id, product_id,
+		LIBUSB_HOTPLUG_MATCH_ANY, mctp_usb_hotplug_callback, usb,
+		&callback_handle);
 	if (LIBUSB_SUCCESS != rc) {
 		mctp_prerr("Error creating a hotplug callback\n");
 		libusb_exit(NULL);
@@ -477,7 +477,7 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 	usb->binding.tx = mctp_binding_usb_tx;
 	usb->tx_cntr = 0;
 	usb->tx_failed_cntr = 0;
-	
+
 	return usb;
 }
 
@@ -485,11 +485,10 @@ int mctp_usb_init_pollfd(struct mctp_binding_usb *usb, struct pollfd **pollfds)
 {
 	*pollfds = __mctp_alloc(USB_POLL_FD_NUM * sizeof(struct pollfd));
 	for (int i = 0; i < USB_POLL_FD_NUM; i++) {
-		if(i < usb->bindingfds_cnt) {
+		if (i < usb->bindingfds_cnt) {
 			(*pollfds + i)->fd = usb->usb_poll_fds[i]->fd;
 			(*pollfds + i)->events = usb->usb_poll_fds[i]->events;
-		}
-		else {
+		} else {
 			(*pollfds + i)->fd = -1;
 			(*pollfds + i)->events = 0;
 		}

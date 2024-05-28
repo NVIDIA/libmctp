@@ -65,9 +65,9 @@ extern int g_disc_timer_fd;
 int mctp_ctrl_running = 1;
 
 /* String map for supported bus type */
-char g_mctp_ctrl_supported_buses[MCTP_CTRL_MAX_BUS_TYPES][10] = { "PCIe Bus ",
-								  "SPI Bus ",
-								  "SMBus Bus " };
+char g_mctp_ctrl_supported_buses[MCTP_CTRL_MAX_BUS_TYPES][10] = {
+	"PCIe Bus ", "SPI Bus ", "SMBus Bus "
+};
 #if DEBUG
 static int mctp_ctrl_supported_bus_types(sd_bus *bus, const char *path,
 					 const char *interface,
@@ -303,8 +303,7 @@ static int mctp_ctrl_sdbus_get_sock_name(sd_bus *bus, const char *path,
 }
 
 static int mctp_ctrl_sdbus_get_bus(sd_bus *bus, const char *path,
-				   const char *interface,
-				   const char *property,
+				   const char *interface, const char *property,
 				   sd_bus_message *reply, void *userdata,
 				   sd_bus_error *error)
 {
@@ -337,7 +336,8 @@ static int mctp_ctrl_sdbus_get_address(sd_bus *bus, const char *path,
 	(void)userdata;
 	(void)error;
 
-	return sd_bus_message_append(reply, "u", addr);;
+	return sd_bus_message_append(reply, "u", addr);
+	;
 }
 
 const char *phy_transport_binding_to_string(uint8_t id)
@@ -997,7 +997,9 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 
 	context = mctp_ctrl_sdbus_create_context(mctp_ctrl->bus, cmdline);
 	if (!context) {
-		MCTP_CTRL_ERR("%s: mctp_ctrl_sdbus_create_context did return an error\n", __func__);
+		MCTP_CTRL_ERR(
+			"%s: mctp_ctrl_sdbus_create_context did return an error\n",
+			__func__);
 		return -1;
 	}
 	context->fds[MCTP_CTRL_SIGNAL_FD].fd = signal_fd;

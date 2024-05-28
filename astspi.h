@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef _ASTSPI_H
 #define _ASTSPI_H
 
@@ -30,8 +29,8 @@
 #define SYSFS_GPIO_DIR "/sys/class/gpio"
 #endif
 
-#define POLL_TIMEOUT   (3 * 1000) /* 3 seconds */
-#define MAX_BUF	       64
+#define POLL_TIMEOUT (3 * 1000) /* 3 seconds */
+#define MAX_BUF	     64
 
 #define MCTP_SPI_CMD_DELAY_USECS 100
 #

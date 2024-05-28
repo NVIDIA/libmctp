@@ -430,7 +430,8 @@ mctp_ret_codes_t mctp_alloc_eid_send_request(
 
 	/* Allocate Endpoint ID's message */
 	req_ret = mctp_encode_ctrl_cmd_alloc_eid(&set_eid_req,
-			(mctp_ctrl_cmd_alloc_eid_op)op, eid_count, eid_start);
+						 (mctp_ctrl_cmd_alloc_eid_op)op,
+						 eid_count, eid_start);
 	if (req_ret == false) {
 		MCTP_CTRL_ERR("%s: Packet preparation failed\n", __func__);
 		return MCTP_RET_ENCODE_FAILED;
@@ -697,18 +698,22 @@ int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
 		MCTP_CTRL_DEBUG("Checking Routing Table...\n");
 		mctp_routing_table_t *routing_entry = g_routing_table_entries;
 		while (routing_entry != NULL) {
-			uint8_t current_eid = routing_entry->routing_table.starting_eid;
+			uint8_t current_eid =
+				routing_entry->routing_table.starting_eid;
 			mctp_routing_table_t *walker = routing_entry->next;
 			mctp_routing_table_t *walkedFrom = routing_entry;
-			while (walker != NULL){
-				if (walker->routing_table.starting_eid == current_eid) {
-						MCTP_CTRL_DEBUG("WARNING: EID %d was duplicated in routing table. Removing duplicate entry.\n", current_eid);
-						mctp_routing_table_t *dup_entry = walker;
-						walkedFrom->next = walker->next;
-						walker = walker->next;
-						free(dup_entry);
-				}
-				else {
+			while (walker != NULL) {
+				if (walker->routing_table.starting_eid ==
+				    current_eid) {
+					MCTP_CTRL_DEBUG(
+						"WARNING: EID %d was duplicated in routing table. Removing duplicate entry.\n",
+						current_eid);
+					mctp_routing_table_t *dup_entry =
+						walker;
+					walkedFrom->next = walker->next;
+					walker = walker->next;
+					free(dup_entry);
+				} else {
 					walkedFrom = walker;
 					walker = walker->next;
 				}
@@ -716,7 +721,6 @@ int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
 			routing_entry = routing_entry->next;
 		}
 	}
-
 
 	return MCTP_RET_REQUEST_SUCCESS;
 }
@@ -919,8 +923,9 @@ int mctp_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 	/* the minimum message size is 5 bytes:
 		eid 1 byte + 3 header bytes + 1 data length field */
 	if (resp_msg_len < 5) {
-		MCTP_CTRL_ERR("%s: Minimum message size is 5 bytes, but received %zi\n",
-			      __func__, resp_msg_len);
+		MCTP_CTRL_ERR(
+			"%s: Minimum message size is 5 bytes, but received %zi\n",
+			__func__, resp_msg_len);
 		return MCTP_RET_REQUEST_FAILED;
 	}
 
@@ -947,13 +952,15 @@ int mctp_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 	msg_type_table.data_len = ((struct mctp_ctrl_resp *)mctp_resp_msg)
 					  ->data[MCTP_MSG_TYPE_DATA_LEN_OFFSET];
 	if (msg_type_table.data_len > (MCTP_BTU - 1)) {
-		MCTP_CTRL_INFO("%s: EID: %d, Data length: %u, but in the response there is only: %zi\n",
+		MCTP_CTRL_INFO(
+			"%s: EID: %d, Data length: %u, but in the response there is only: %zi\n",
 			__func__, eid, msg_type_table.data_len, resp_msg_len);
 		msg_type_table.data_len = MCTP_BTU - 1;
 	}
 
 	if (msg_type_table.data_len > (resp_msg_len - 5)) {
-		MCTP_CTRL_INFO("%s: EID: %d, Data length: %u, but in the response there is only: %zi\n",
+		MCTP_CTRL_INFO(
+			"%s: EID: %d, Data length: %u, but in the response there is only: %zi\n",
 			__func__, eid, msg_type_table.data_len, resp_msg_len);
 		msg_type_table.data_len = resp_msg_len - 5;
 	}
@@ -1071,33 +1078,32 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 
 	/* Update the EID lists */
 	switch (cmd->binding_type) {
-		case MCTP_BINDING_PCIE:
-			/* Update Target BDF */
-			g_target_bdf = mctp_ctrl_get_target_bdf(cmd);
+	case MCTP_BINDING_PCIE:
+		/* Update Target BDF */
+		g_target_bdf = mctp_ctrl_get_target_bdf(cmd);
 
-			g_own_eid = cmd->pcie.own_eid;
-			g_bridge_eid = cmd->pcie.bridge_eid;
-			g_bridge_pool_start = cmd->pcie.bridge_pool_start;
-			break;
-		case MCTP_BINDING_USB:
-			g_own_eid = cmd->usb.own_eid;
-			g_bridge_eid = cmd->usb.bridge_eid;
-			g_bridge_pool_start = cmd->usb.bridge_pool_start;
-			bind_id = MCTP_BINDING_USB;
-		default:
-			break;
+		g_own_eid = cmd->pcie.own_eid;
+		g_bridge_eid = cmd->pcie.bridge_eid;
+		g_bridge_pool_start = cmd->pcie.bridge_pool_start;
+		break;
+	case MCTP_BINDING_USB:
+		g_own_eid = cmd->usb.own_eid;
+		g_bridge_eid = cmd->usb.bridge_eid;
+		g_bridge_pool_start = cmd->usb.bridge_pool_start;
+		bind_id = MCTP_BINDING_USB;
+	default:
+		break;
 	}
 
 	MCTP_CTRL_INFO(
 		"%s: own_eid: %d, bridge_eid: %d, bridge_pool_start: %d\n",
-		__func__, g_own_eid, g_bridge_eid,
-		g_bridge_pool_start);
+		__func__, g_own_eid, g_bridge_eid, g_bridge_pool_start);
 
 	do {
 		/* Wait for MCTP response */
-		mctp_ret =
-			mctp_discover_response(ctrl, discovery_mode, cmd->dest_eid,
-					       &mctp_resp_msg, &resp_msg_len);
+		mctp_ret = mctp_discover_response(ctrl, discovery_mode,
+						  cmd->dest_eid, &mctp_resp_msg,
+						  &resp_msg_len);
 		if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed to received message %d\n",
 				      __func__, mctp_ret);
@@ -1344,7 +1350,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 #if !USE_FUZZ_CTRL
 			sleep(MCTP_DEVICE_GET_ROUTING_DELAY);
 #endif
-			
+
 			break;
 
 		case MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST:
@@ -1452,7 +1458,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			/* Send the MCTP_GET_EP_UUID_REQUEST */
 			if (routing_entry) {
 				/* Set the Start of EID */
-					eid_start = routing_entry->routing_table
+				eid_start = routing_entry->routing_table
 						    .starting_eid;
 
 				MCTP_CTRL_DEBUG(
@@ -1652,8 +1658,9 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl)
 
 	/* Implement SPI UUID and MSG_TYPE commamnds*/
 	do {
-		mctp_ret = mctp_discover_response(ctrl ,mode, MCTP_NULL_ENDPOINT,
-						   &mctp_resp_msg, &resp_msg_len);
+		mctp_ret =
+			mctp_discover_response(ctrl, mode, MCTP_NULL_ENDPOINT,
+					       &mctp_resp_msg, &resp_msg_len);
 		if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed to received message %d\n",
 				      __func__, mctp_ret);
@@ -1730,7 +1737,8 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl)
 			} else {
 				/* Process the MCTP_GET_MSG_TYPE_RESPONSE */
 				mctp_ret = mctp_get_msg_type_response(
-					MCTP_NULL_ENDPOINT, mctp_resp_msg, resp_msg_len);
+					MCTP_NULL_ENDPOINT, mctp_resp_msg,
+					resp_msg_len);
 
 				/* Free Rx packet */
 				free(mctp_resp_msg);

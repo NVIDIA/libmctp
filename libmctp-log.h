@@ -28,9 +28,9 @@ void mctp_trace_common(const char *tag, const void *const payload,
 	mctp_prlog(MCTP_LOG_DEBUG, pr_fmt(fmt), ##__VA_ARGS__)
 
 #define MCTP_ERR(fmt, ...)                                                     \
-	do {                                                                       \
-		mctp_prerr("at %s:%d " fmt, __func__, __LINE__,                        \
-				##__VA_ARGS__);                                                \
+	do {                                                                   \
+		mctp_prerr("at %s:%d " fmt, __func__, __LINE__,                \
+			   ##__VA_ARGS__);                                     \
 	} while (0)
 
 #define MCTP_ASSERT(cond, fmt, ...)                                            \

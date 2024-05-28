@@ -13,9 +13,9 @@
 #include <sys/poll.h>
 #include <sys/socket.h>
 
-static void
-rx_message(uint8_t eid __unused, bool tag_owner __unused,
-	   uint8_t msg_tag __unused, void *data __unused, void *msg, size_t len)
+static void rx_message(uint8_t eid __unused, bool tag_owner __unused,
+		       uint8_t msg_tag __unused, void *data __unused, void *msg,
+		       size_t len)
 {
 	ssize_t rc;
 

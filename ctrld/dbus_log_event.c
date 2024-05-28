@@ -22,11 +22,11 @@
 
 #define BUFFER_LENGTH 1024
 
-#define BUSCTL_COMMAND "busctl"
-#define LOG_SERVICE "xyz.openbmc_project.Logging"
-#define LOG_PATH "/xyz/openbmc_project/logging"
+#define BUSCTL_COMMAND	     "busctl"
+#define LOG_SERVICE	     "xyz.openbmc_project.Logging"
+#define LOG_PATH	     "/xyz/openbmc_project/logging"
 #define LOG_CREATE_INTERFACE "xyz.openbmc_project.Logging.Create"
-#define LOG_CREATE_FUNCTION "Create"
+#define LOG_CREATE_FUNCTION  "Create"
 #define LOG_CREATE_SIGNATURE "ssa{ss}"
 
 static int logCallback(sd_bus_message *m, void *userdata,
@@ -58,7 +58,9 @@ static void createLog(sd_bus *bus, char *message, char *arg0, char *arg1,
 			    "REDFISH_MESSAGE_ARGS", args,
 			    "xyz.openbmc_project.Logging.Entry.Resolution",
 			    resolution, "namespace", "FWUpdate") < 0) {
-			fprintf(stderr, "Warning: Unable to create SDBUS log (%s) for msg: %s\n", severity, message);
+			fprintf(stderr,
+				"Warning: Unable to create SDBUS log (%s) for msg: %s\n",
+				severity, message);
 		}
 	}
 	return;

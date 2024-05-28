@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef _LIBMCTP_ASTSPI_H
 #define _LIBMCTP_ASTSPI_H
 

@@ -71,12 +71,10 @@ static const struct option options[] = {
 	{ 0 },
 };
 
-static char *dbus_services[] = {
-	"xyz.openbmc_project.MCTP.Control.PCIe",
-	"xyz.openbmc_project.MCTP.Control.SPI",
-	"xyz.openbmc_project.MCTP.Control.SMBus",
-	"xyz.openbmc_project.MCTP.Control.USB"
-};
+static char *dbus_services[] = { "xyz.openbmc_project.MCTP.Control.PCIe",
+				 "xyz.openbmc_project.MCTP.Control.SPI",
+				 "xyz.openbmc_project.MCTP.Control.SMBus",
+				 "xyz.openbmc_project.MCTP.Control.USB" };
 
 /* List of commands that support JSON output */
 const char *commands_supported_json_flag[] = { "query_boot_status",
@@ -428,19 +426,17 @@ int main(int argc, char *const *argv)
 		}
 	}
 
-	if(json_output && !is_json_supported(item))
-	{
-		printf("The following command %s does not expect argument -j\n", item);
+	if (json_output && !is_json_supported(item)) {
+		printf("The following command %s does not expect argument -j\n",
+		       item);
 		return EXIT_FAILURE;
 	}
 
-	if(print_teid && !json_output)
-	{
+	if (print_teid && !json_output) {
 		printf("teid = %d\n", teid);
 	}
 
-	if(print_test_command && !json_output)
-	{
+	if (print_test_command && !json_output) {
 		printf("Test command = %s\n", item);
 	}
 
@@ -460,7 +456,8 @@ int main(int argc, char *const *argv)
 	/* For selftest command, we may need more data as the payload
 	* for which items to be tested.
 	*/
-	for (i = optind, len = 0; i < argc && (unsigned int)len < max_len; i++, len++) {
+	for (i = optind, len = 0; i < argc && (unsigned int)len < max_len;
+	     i++, len++) {
 		rc = check_hex_number(&argv[i][0]);
 		if (rc == -1) {
 			fprintf(stderr, "Error! we need %u-bytes data.\n\n",
@@ -476,7 +473,9 @@ int main(int argc, char *const *argv)
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "sd_bus_default failed\n");
 
 	found = 0;
-	for (i = 0; (unsigned int)i < sizeof(dbus_services) / sizeof(dbus_services[0]); i++) {
+	for (i = 0;
+	     (unsigned int)i < sizeof(dbus_services) / sizeof(dbus_services[0]);
+	     i++) {
 		found = sock_name_helper(bus, dbus_services[i], teid);
 		if (found == 1)
 			break;

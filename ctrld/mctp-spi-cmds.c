@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #define _GNU_SOURCE
 #include <assert.h>
 #include <err.h>
@@ -58,8 +57,8 @@
 #include "vdm/nvidia/libmctp-vdm-cmds.h"
 #include "vdm/nvidia/mctp-vdm-commands.h"
 
-#define MCTP_NULL_ENDPOINT 0
-#define MCTP_SPI_CMD_DELAY_USECS 10000
+#define MCTP_NULL_ENDPOINT	      0
+#define MCTP_SPI_CMD_DELAY_USECS      10000
 #define MCTP_SPI_HEARTBEAT_DELAY_SECS 30
 
 #define MAX_HEARTBEAT_RETRY 10
@@ -134,8 +133,7 @@ static int64_t mctp_timediff_ms(struct timespec *tv1, struct timespec *tv2)
 	return diff_ms;
 }
 
-static void mctp_ctrl_wait_and_discard(int socket, int signal_fd,
-				       int timeout)
+static void mctp_ctrl_wait_and_discard(int socket, int signal_fd, int timeout)
 {
 	int rc = -1;
 	struct timespec target = { 0 };
@@ -190,8 +188,9 @@ static void mctp_ctrl_wait_and_discard(int socket, int signal_fd,
 		} else if (rc == 1 && pollfd[1].revents) {
 			len = read(pollfd[1].fd, &si, sizeof(si));
 			if (len < 0 || len != sizeof(si)) {
-				MCTP_CTRL_ERR("[%s] Error read signal event: %s\n",
-					      __func__, strerror(-len));
+				MCTP_CTRL_ERR(
+					"[%s] Error read signal event: %s\n",
+					__func__, strerror(-len));
 				return;
 			}
 
@@ -239,18 +238,19 @@ void *mctp_spi_keepalive_event(void *arg)
 	}
 
 	/* Open the user socket file-descriptor */
-	rc = mctp_usr_socket_init(&socket_fd, mctp_sock_path, MCTP_MESSAGE_TYPE_VDIANA,
-    		MCTP_CTRL_TXRX_TIMEOUT_16SECS);
+	rc = mctp_usr_socket_init(&socket_fd, mctp_sock_path,
+				  MCTP_MESSAGE_TYPE_VDIANA,
+				  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
 	if (rc != MCTP_REQUESTER_SUCCESS) {
-		MCTP_CTRL_ERR("[%s] Failed to open socket, errno = %d\n", 
-			  __func__, errno);
+		MCTP_CTRL_ERR("[%s] Failed to open socket, errno = %d\n",
+			      __func__, errno);
 		return 0;
 	}
 
 	pthread_mutex_lock(&ctrl->worker_mtx);
 
-	MCTP_CTRL_INFO("[%s] Send 'Boot complete v2' message, fd = %d\n", 
-		__func__, socket_fd);
+	MCTP_CTRL_INFO("[%s] Send 'Boot complete v2' message, fd = %d\n",
+		       __func__, socket_fd);
 
 	rc = boot_complete_v2(socket_fd, MCTP_NULL_ENDPOINT, 0, 0,
 			      VERBOSE_DISABLE);
@@ -258,13 +258,14 @@ void *mctp_spi_keepalive_event(void *arg)
 		doLog(ctrl->bus, "ERoT SPI", "Boot Complete failed",
 		      EVT_CRITICAL, "Reset the baseboard");
 
-		MCTP_CTRL_ERR("[%s] Failed sending 'Boot complete v2' message\n",
-			  __func__);
+		MCTP_CTRL_ERR(
+			"[%s] Failed sending 'Boot complete v2' message\n",
+			__func__);
 
 		goto exit_mctp_spi_keepalive_event;
 	} else {
 		MCTP_CTRL_INFO("[%s] Send 'Boot complete v2' message\n",
-			  __func__);
+			       __func__);
 	}
 
 	/* Let the main thread continue to run and stop */
@@ -284,7 +285,8 @@ void *mctp_spi_keepalive_event(void *arg)
 		doLog(ctrl->bus, "ERoT SPI", "Enable HeartBeat failed",
 		      EVT_CRITICAL, "Reset the baseboard");
 
-		MCTP_CTRL_ERR("[%s] Failed MCTP_SPI_HEARTBEAT_ENABLE\n", __func__);
+		MCTP_CTRL_ERR("[%s] Failed MCTP_SPI_HEARTBEAT_ENABLE\n",
+			      __func__);
 
 		goto exit_mctp_spi_keepalive_event;
 	}
@@ -312,10 +314,11 @@ void *mctp_spi_keepalive_event(void *arg)
 		} else {
 			retries = MAX_HEARTBEAT_RETRY;
 		}
-		
+
 		/* Consume forwarding resposnses from other mctp client */
-		mctp_ctrl_wait_and_discard(
-			socket_fd, signal_fd, MCTP_SPI_HEARTBEAT_DELAY_SECS * 1000);
+		mctp_ctrl_wait_and_discard(socket_fd, signal_fd,
+					   MCTP_SPI_HEARTBEAT_DELAY_SECS *
+						   1000);
 	}
 
 exit_mctp_spi_keepalive_event:
@@ -418,8 +421,7 @@ void mctp_spi_test_cmd(int socket, const mctp_cmdline_args_t *cmd)
 	case MCTP_SPI_BOOT_COMPLETE:
 
 		MCTP_CTRL_DEBUG("%s: MCTP_SPI_BOOT_COMPLETE\n", __func__);
-		rc = boot_complete_v1(socket, MCTP_NULL_ENDPOINT,
-				      VERBOSE_EN);
+		rc = boot_complete_v1(socket, MCTP_NULL_ENDPOINT, VERBOSE_EN);
 		if (rc != MCTP_REQUESTER_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed MCTP_SPI_BOOT_COMPLETE\n",
 				      __func__);
@@ -450,8 +452,8 @@ void mctp_spi_test_cmd(int socket, const mctp_cmdline_args_t *cmd)
 
 	case MCTP_SPI_QUERY_BOOT_STATUS:
 		MCTP_CTRL_DEBUG("%s: MCTP_SPI_QUERY_BOOT_STATUS\n", __func__);
-		rc = query_boot_status(socket, MCTP_NULL_ENDPOINT,
-				       VERBOSE_EN, false);
+		rc = query_boot_status(socket, MCTP_NULL_ENDPOINT, VERBOSE_EN,
+				       false);
 		if (rc != MCTP_REQUESTER_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed MCTP_SPI_QUERY_BOOT_STATUS\n",
 				      __func__);

@@ -15,8 +15,8 @@ extern "C" {
 typedef uint8_t mctp_eid_t;
 
 /* Special Endpoint ID values */
-#define MCTP_EID_NULL		0
-#define MCTP_EID_BROADCAST	0xff
+#define MCTP_EID_NULL	   0
+#define MCTP_EID_BROADCAST 0xff
 
 /* MCTP packet definitions */
 struct mctp_hdr {
@@ -41,9 +41,9 @@ struct mctp_hdr {
 #define MCTP_MESSAGE_TO_DST false
 
 /* Baseline Transmission Unit and packet size */
-#define MCTP_BTU 64
+#define MCTP_BTU	       64
 #define MCTP_PACKET_SIZE(unit) ((unit) + sizeof(struct mctp_hdr))
-#define MCTP_BODY_SIZE(unit) ((unit) - sizeof(struct mctp_hdr))
+#define MCTP_BODY_SIZE(unit)   ((unit) - sizeof(struct mctp_hdr))
 
 /* 64kb should be sufficient for a single message. Applications
  * requiring higher sizes can override by setting max_message_size.*/
@@ -155,7 +155,8 @@ struct mctp_bus;
 struct mctp *mctp_init(void);
 void mctp_set_max_message_size(struct mctp *mctp, size_t message_size);
 typedef void (*mctp_capture_fn)(struct mctp_pktbuf *pkt, void *user);
-void mctp_set_capture_handler(struct mctp *mctp, mctp_capture_fn fn, void *user);
+void mctp_set_capture_handler(struct mctp *mctp, mctp_capture_fn fn,
+			      void *user);
 void mctp_destroy(struct mctp *mctp);
 
 /* Register a binding to the MCTP core, and creates a bus (populating
@@ -188,7 +189,7 @@ int mctp_message_tx(struct mctp *mctp, mctp_eid_t eid, bool tag_owner,
 		    uint8_t msg_tag, void *msg, size_t msg_len);
 
 int mctp_message_pvt_bind_tx(struct mctp *mctp, mctp_eid_t eid, bool tag_owner,
-		             uint8_t msg_tag, void *msg, size_t msg_len,
+			     uint8_t msg_tag, void *msg, size_t msg_len,
 			     void *msg_binding_private);
 
 /* hardware bindings */
@@ -244,11 +245,11 @@ void mctp_set_tracing_enabled(bool enable);
 
 /* these should match the syslog-standard LOG_* definitions, for
  * easier use with syslog */
-#define MCTP_LOG_ERR 3
+#define MCTP_LOG_ERR	 3
 #define MCTP_LOG_WARNING 4
-#define MCTP_LOG_NOTICE 5
-#define MCTP_LOG_INFO 6
-#define MCTP_LOG_DEBUG 7
+#define MCTP_LOG_NOTICE	 5
+#define MCTP_LOG_INFO	 6
+#define MCTP_LOG_DEBUG	 7
 
 #ifdef __cplusplus
 }

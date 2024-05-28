@@ -18,7 +18,7 @@
 #define __MCTP_SOCKET_H__
 
 /* MCTP default Tx/Rx timeouts */
-#define MCTP_CTRL_TXRX_TIMEOUT_5SECS 5
+#define MCTP_CTRL_TXRX_TIMEOUT_5SECS  5
 #define MCTP_CTRL_TXRX_TIMEOUT_16SECS 16
 
 #ifdef __cplusplus

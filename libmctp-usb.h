@@ -27,10 +27,7 @@ extern "C" {
 #include "libmctp.h"
 #include <poll.h>
 
-enum {
-       MCTP_USB_NO_ERROR = 0,
-       MCTP_USB_FD_CHANGE
-};
+enum { MCTP_USB_NO_ERROR = 0, MCTP_USB_FD_CHANGE };
 
 struct mctp_usb_pkt_private {
 	/*
@@ -45,11 +42,11 @@ struct mctp_binding_usb;
 
 int mctp_usb_handle_event(struct mctp_binding_usb *usb);
 
-struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id, uint16_t class_id);
+struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
+				       uint16_t class_id);
 
-int mctp_usb_init_pollfd(struct mctp_binding_usb *usb,
-			   struct pollfd **pollfds);
-			   
+int mctp_usb_init_pollfd(struct mctp_binding_usb *usb, struct pollfd **pollfds);
+
 void mctp_send_tx_queue_usb(struct mctp_bus *bus);
 
 struct mctp_binding *mctp_binding_usb_core(struct mctp_binding_usb *usb);

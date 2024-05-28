@@ -24,11 +24,11 @@
 #define MCTP_DEVICE_GET_ROUTING_DELAY	4
 #define MCTP_DEVICE_SET_EID_TIMEOUT	300
 #define MCTP_DEVICE_GET_ROUTING_TIMEOUT 60
-#define MCTP_I2C_MSG_TYPE_MAX_SIZE 0xff
+#define MCTP_I2C_MSG_TYPE_MAX_SIZE	0xff
 #define MCTP_ROUTING_TABLE_MAX_SIZE	0x200
 #define MCTP_MSG_TYPE_MAX_SIZE		0xff
-#define MCTP_MSG_TYPE_DATA_LEN_OFFSET 0
-#define MCTP_MSG_TYPE_DATA_OFFSET 1
+#define MCTP_MSG_TYPE_DATA_LEN_OFFSET	0
+#define MCTP_MSG_TYPE_DATA_OFFSET	1
 
 /* Various discovery modes */
 typedef enum {
@@ -72,7 +72,7 @@ typedef struct mctp_routing_table {
 typedef struct mctp_msg_type_table {
 	uint8_t eid;
 	bool old_enabled; /* Was the endpoint previously enabled? */
-	bool enabled; /* Is the endpoint enabled? */
+	bool enabled;	  /* Is the endpoint enabled? */
 	bool new; /* Use to indicate a newly discovered endpoint - To be published to D-Bus */
 	uint16_t data_len;
 	uint8_t data[MCTP_MSG_TYPE_MAX_SIZE];
@@ -121,9 +121,9 @@ int mctp_msg_type_entry_remove(uint8_t eid);
 void mctp_msg_types_delete_all(void);
 
 void mctp_print_resp_msg(struct mctp_ctrl_resp *ep_discovery_resp,
-				const char *msg, int msg_len);
-void mctp_print_req_msg(struct mctp_ctrl_req *ep_discovery_req,
-			       const char *msg, size_t msg_len);
+			 const char *msg, int msg_len);
+void mctp_print_req_msg(struct mctp_ctrl_req *ep_discovery_req, const char *msg,
+			size_t msg_len);
 
-void mctp_print_routing_table_entry(int routing_id,
-			       struct get_routing_table_entry *routing_table);
+void mctp_print_routing_table_entry(
+	int routing_id, struct get_routing_table_entry *routing_table);

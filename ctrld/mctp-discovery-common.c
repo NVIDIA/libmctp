@@ -58,7 +58,7 @@ mctp_discovery_message_table_t msg_tbl[] = {
 
 /* Helper function to print respons messages */
 void mctp_print_resp_msg(struct mctp_ctrl_resp *ep_discovery_resp,
-				const char *msg, int msg_len)
+			 const char *msg, int msg_len)
 {
 	MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
 
@@ -103,8 +103,8 @@ void mctp_print_resp_msg(struct mctp_ctrl_resp *ep_discovery_resp,
 }
 
 /* Tracing function to print request messages */
-void mctp_print_req_msg(struct mctp_ctrl_req *ep_discovery_req,
-			       const char *msg, size_t msg_len)
+void mctp_print_req_msg(struct mctp_ctrl_req *ep_discovery_req, const char *msg,
+			size_t msg_len)
 {
 	MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
 
@@ -137,8 +137,8 @@ void mctp_print_req_msg(struct mctp_ctrl_req *ep_discovery_req,
 }
 
 /* Tracing function to print Routing table entry */
-void mctp_print_routing_table_entry(int routing_id,
-			       struct get_routing_table_entry *routing_table)
+void mctp_print_routing_table_entry(
+	int routing_id, struct get_routing_table_entry *routing_table)
 {
 	MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
 	MCTP_CTRL_TRACE("MCTP-ROUTING-TABLE-ENTRY [%d]\n", routing_id);

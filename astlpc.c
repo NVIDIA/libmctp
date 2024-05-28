@@ -286,10 +286,10 @@ static const uint32_t control_size = 0x100;
 
 #define LPC_WIN_SIZE (1 * 1024 * 1024)
 
-#define KCS_STATUS_BMC_READY 0x80
+#define KCS_STATUS_BMC_READY	  0x80
 #define KCS_STATUS_CHANNEL_ACTIVE 0x40
-#define KCS_STATUS_IBF 0x02
-#define KCS_STATUS_OBF 0x01
+#define KCS_STATUS_IBF		  0x02
+#define KCS_STATUS_OBF		  0x01
 
 static inline int mctp_astlpc_kcs_write(struct mctp_binding_astlpc *astlpc,
 					enum mctp_binding_astlpc_kcs_reg reg,
@@ -797,8 +797,7 @@ static int mctp_astlpc_kcs_send(struct mctp_binding_astlpc *astlpc,
 	uint8_t status;
 	int rc;
 
-	rc = mctp_astlpc_kcs_read(astlpc, MCTP_ASTLPC_KCS_REG_STATUS,
-			&status);
+	rc = mctp_astlpc_kcs_read(astlpc, MCTP_ASTLPC_KCS_REG_STATUS, &status);
 	if (rc) {
 		astlpc_prwarn(astlpc, "KCS status read failed");
 		return -EIO;
@@ -944,10 +943,10 @@ static void mctp_astlpc_init_channel(struct mctp_binding_astlpc *astlpc)
 	mctp_astlpc_lpc_read(astlpc, &hdr, 0, sizeof(hdr));
 
 	/* Version negotiation */
-	negotiated =
-		mctp_astlpc_negotiate_version(ASTLPC_VER_MIN, ASTLPC_VER_CUR,
-					      be16toh(hdr.host_ver_min),
-					      be16toh(hdr.host_ver_cur));
+	negotiated = mctp_astlpc_negotiate_version(ASTLPC_VER_MIN,
+						   ASTLPC_VER_CUR,
+						   be16toh(hdr.host_ver_min),
+						   be16toh(hdr.host_ver_cur));
 
 	/* MTU negotiation requires knowing which protocol we'll use */
 	assert(negotiated < ARRAY_SIZE(astlpc_protocol_version));
@@ -1007,7 +1006,8 @@ static void mctp_astlpc_rx_start(struct mctp_binding_astlpc *astlpc)
 	packet = astlpc->proto->packet_size(body) - 4;
 	pkt = mctp_pktbuf_alloc(&astlpc->binding, packet);
 	if (!pkt) {
-		astlpc_prwarn(astlpc, "unable to allocate pktbuf len 0x%x", packet);
+		astlpc_prwarn(astlpc, "unable to allocate pktbuf len 0x%x",
+			      packet);
 		return;
 	}
 
@@ -1076,11 +1076,11 @@ static int mctp_astlpc_finalise_channel(struct mctp_binding_astlpc *astlpc)
 	if (rc < 0)
 		return rc;
 
-    /*
+	/*
      * CID 3473980 (#1 of 1): Uninitialized scalar variable (UNINIT)
      */
 	if (!mctp_astlpc_layout_validate(astlpc, &layout)) {
-	/* coverity[end_of_path:SUPPRESS] */
+		/* coverity[end_of_path:SUPPRESS] */
 		mctp_prerr("BMC proposed invalid buffer parameters");
 		return -EINVAL;
 	}
@@ -1184,18 +1184,20 @@ int mctp_astlpc_poll(struct mctp_binding_astlpc *astlpc)
 		break;
 	case 0x1:
 		if (astlpc->layout.rx.state != buffer_state_released) {
-			astlpc_prerr(astlpc,
-				     "Protocol error: Invalid Rx buffer state for event %d: %d\n",
-				     data, astlpc->layout.rx.state);
+			astlpc_prerr(
+				astlpc,
+				"Protocol error: Invalid Rx buffer state for event %d: %d\n",
+				data, astlpc->layout.rx.state);
 			return 0;
 		}
 		mctp_astlpc_rx_start(astlpc);
 		break;
 	case 0x2:
 		if (astlpc->layout.tx.state != buffer_state_released) {
-			astlpc_prerr(astlpc,
-				     "Protocol error: Invalid Tx buffer state for event %d: %d\n",
-				     data, astlpc->layout.tx.state);
+			astlpc_prerr(
+				astlpc,
+				"Protocol error: Invalid Tx buffer state for event %d: %d\n",
+				data, astlpc->layout.tx.state);
 			return 0;
 		}
 		mctp_astlpc_tx_complete(astlpc);
@@ -1358,13 +1360,15 @@ static int mctp_astlpc_init_fileio_lpc(struct mctp_binding_astlpc *astlpc)
 
 	/* Map the reserved memory at the top of the 28-bit LPC firmware address space */
 	map.addr = 0x0FFFFFFF & -map.size;
-	astlpc_prinfo(astlpc,
-		      "Configuring FW2AHB to map reserved memory at 0x%08x for 0x%x in the LPC FW cycle address-space",
-		      map.addr, map.size);
+	astlpc_prinfo(
+		astlpc,
+		"Configuring FW2AHB to map reserved memory at 0x%08x for 0x%x in the LPC FW cycle address-space",
+		map.addr, map.size);
 
 	rc = ioctl(fd, ASPEED_LPC_CTRL_IOCTL_MAP, &map);
 	if (rc) {
-		astlpc_prwarn(astlpc, "Failed to map FW2AHB to reserved memory");
+		astlpc_prwarn(astlpc,
+			      "Failed to map FW2AHB to reserved memory");
 		close(fd);
 		return -1;
 	}
@@ -1376,7 +1380,8 @@ static int mctp_astlpc_init_fileio_lpc(struct mctp_binding_astlpc *astlpc)
 		astlpc_prwarn(astlpc, "LPC mmap failed");
 		rc = -1;
 	} else {
-		astlpc->lpc_map = (uint8_t *)lpc_map_base + map.size - LPC_WIN_SIZE;
+		astlpc->lpc_map =
+			(uint8_t *)lpc_map_base + map.size - LPC_WIN_SIZE;
 	}
 
 	close(fd);
@@ -1428,7 +1433,7 @@ int mctp_astlpc_init_pollfd(struct mctp_binding_astlpc *astlpc,
 	(*pollfd)->events = 0;
 
 	release = astlpc->layout.rx.state == buffer_state_prepared ||
-			astlpc->layout.tx.state == buffer_state_prepared;
+		  astlpc->layout.tx.state == buffer_state_prepared;
 
 	(*pollfd)->events = release ? POLLOUT : POLLIN;
 

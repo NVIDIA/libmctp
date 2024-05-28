@@ -58,26 +58,26 @@ struct mctp_pcie_hdr {
  *
  * See more details in Table 1 of DSP0238 DMTF Spec.
  */
-#define MSG_4DW_HDR 0x70
-#define MCTP_PCIE_VDM_ATTR 0x0000
+#define MSG_4DW_HDR	    0x70
+#define MCTP_PCIE_VDM_ATTR  0x0000
 #define MSG_CODE_VDM_TYPE_1 0x7f
-#define VENDOR_ID_DMTF_VDM 0xb41a
+#define VENDOR_ID_DMTF_VDM  0xb41a
 
-#define PCIE_VDM_HDR_SIZE 12
+#define PCIE_VDM_HDR_SIZE      12
 #define PCIE_HDR_ROUTING_SHIFT 0
-#define PCIE_HDR_ROUTING_MASK 0x7
+#define PCIE_HDR_ROUTING_MASK  0x7
 
 #define PCIE_GET_ROUTING(x)                                                    \
 	((x->fmt_type >> PCIE_HDR_ROUTING_SHIFT) & PCIE_HDR_ROUTING_MASK)
 #define PCIE_SET_ROUTING(x, val)                                               \
 	(x->fmt_type |=                                                        \
-	 (((val)&PCIE_HDR_ROUTING_MASK) << PCIE_HDR_ROUTING_SHIFT))
+	 (((val) & PCIE_HDR_ROUTING_MASK) << PCIE_HDR_ROUTING_SHIFT))
 
 #define PCIE_HDR_DATA_LEN_SHIFT 0
-#define PCIE_HDR_DATA_LEN_MASK 0xff03
+#define PCIE_HDR_DATA_LEN_MASK	0xff03
 
 #define PCIE_MAX_DATA_LEN_DW 1024
-#define PCIE_MAX_DATA_LEN (PCIE_MAX_DATA_LEN_DW * sizeof(uint32_t))
+#define PCIE_MAX_DATA_LEN    (PCIE_MAX_DATA_LEN_DW * sizeof(uint32_t))
 
 #define PCIE_GET_DATA_LEN(x)                                                   \
 	be16toh(((x->mbz_attr_length >> PCIE_HDR_DATA_LEN_SHIFT) &             \
@@ -87,27 +87,27 @@ struct mctp_pcie_hdr {
 	(x->mbz_attr_length |=                                                 \
 	 ((htobe16(val) & PCIE_HDR_DATA_LEN_MASK) << PCIE_HDR_DATA_LEN_SHIFT))
 
-#define PCIE_GET_REQ_ID(x) (be16toh(x->requester))
+#define PCIE_GET_REQ_ID(x)	(be16toh(x->requester))
 #define PCIE_SET_REQ_ID(x, val) (x->requester |= (htobe16(val)))
 
 #define PCIE_HDR_PAD_LEN_SHIFT 4
-#define PCIE_HDR_PAD_LEN_MASK 0x3
+#define PCIE_HDR_PAD_LEN_MASK  0x3
 #define PCIE_GET_PAD_LEN(x)                                                    \
 	((x->tag >> PCIE_HDR_PAD_LEN_SHIFT) & PCIE_HDR_PAD_LEN_MASK)
 #define PCIE_SET_PAD_LEN(x, val)                                               \
-	(x->tag |= (((val)&PCIE_HDR_PAD_LEN_MASK) << PCIE_HDR_PAD_LEN_SHIFT))
+	(x->tag |= (((val) & PCIE_HDR_PAD_LEN_MASK) << PCIE_HDR_PAD_LEN_SHIFT))
 
-#define PCIE_GET_TARGET_ID(x) (be16toh(x->target))
+#define PCIE_GET_TARGET_ID(x)	   (be16toh(x->target))
 #define PCIE_SET_TARGET_ID(x, val) (x->target |= (htobe16(val)))
 
 #define ALIGN_MASK(x, mask) (((x) + (mask)) & ~(mask))
-#define ALIGN(x, a) ALIGN_MASK(x, (a)-1)
+#define ALIGN(x, a)	    ALIGN_MASK(x, (a) - 1)
 /* All PCIe packets are dword aligned */
 #define PCIE_PKT_ALIGN(x) ALIGN(x, sizeof(uint32_t))
 
-#define PCIE_HDR_SIZE_DW (sizeof(struct mctp_pcie_hdr) / sizeof(uint32_t))
-#define MCTP_HDR_SIZE_DW (sizeof(struct mctp_hdr) / sizeof(uint32_t))
+#define PCIE_HDR_SIZE_DW     (sizeof(struct mctp_pcie_hdr) / sizeof(uint32_t))
+#define MCTP_HDR_SIZE_DW     (sizeof(struct mctp_hdr) / sizeof(uint32_t))
 #define PCIE_VDM_HDR_SIZE_DW (PCIE_HDR_SIZE_DW + MCTP_HDR_SIZE_DW)
-#define MCTP_HDR_START_DW (3 * sizeof(uint32_t))
+#define MCTP_HDR_START_DW    (3 * sizeof(uint32_t))
 
 #endif

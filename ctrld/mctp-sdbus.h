@@ -33,23 +33,23 @@ extern "C" {
 #endif
 
 #define MCTP_GET_UUID_MAPPINGS "GetUUIDMap"
-#define MCTP_GET_ROITUNG_INFO "GetRoutingInfo"
+#define MCTP_GET_ROITUNG_INFO  "GetRoutingInfo"
 
 #define MCTP_CTRL_DBUS_NAME "xyz.openbmc_project.MCTP.Control"
-#define MCTP_CTRL_OBJ_NAME "/xyz/openbmc_project/mctp"
+#define MCTP_CTRL_OBJ_NAME  "/xyz/openbmc_project/mctp"
 
-#define MCTP_CTRL_NW_OBJ_PATH "/xyz/openbmc_project/mctp/0/"
-#define MCTP_CTRL_DBUS_EP_INTERFACE "xyz.openbmc_project.MCTP.Endpoint"
-#define MCTP_CTRL_DBUS_UUID_INTERFACE "xyz.openbmc_project.Common.UUID"
-#define MCTP_CTRL_DBUS_SOCK_INTERFACE "xyz.openbmc_project.Common.UnixSocket"
+#define MCTP_CTRL_NW_OBJ_PATH		 "/xyz/openbmc_project/mctp/0/"
+#define MCTP_CTRL_DBUS_EP_INTERFACE	 "xyz.openbmc_project.MCTP.Endpoint"
+#define MCTP_CTRL_DBUS_UUID_INTERFACE	 "xyz.openbmc_project.Common.UUID"
+#define MCTP_CTRL_DBUS_SOCK_INTERFACE	 "xyz.openbmc_project.Common.UnixSocket"
 #define MCTP_CTRL_DBUS_BINDING_INTERFACE "xyz.openbmc_project.MCTP.Binding"
 #define MCTP_CTRL_DBUS_DECORATOR_INTERFACE                                     \
 	"xyz.openbmc_project.Inventory.Decorator.I2CDevice"
 #define MCTP_CTRL_DBUS_ENABLE_INTERFACE "xyz.openbmc_project.Object.Enable"
 
 #define MCTP_CTRL_SDBUS_OBJ_PATH_SIZE 1024
-#define MCTP_CTRL_SDBUS_NMAE_SIZE 255
-#define MCTP_CTRL_SDBUS_NETWORK_ID 0
+#define MCTP_CTRL_SDBUS_NMAE_SIZE     255
+#define MCTP_CTRL_SDBUS_NETWORK_ID    0
 
 typedef enum mctp_ctrl_fds {
 	MCTP_CTRL_SD_BUS_FD = 0,
@@ -62,10 +62,10 @@ typedef enum mctp_ctrl_fds {
 	MCTP_CTRL_TOTAL_FDS
 } mctp_ctrl_fds_t;
 
-#define MCTP_CTRL_POLL_TIMEOUT 1000
+#define MCTP_CTRL_POLL_TIMEOUT	     1000
 #define MCTP_CTRL_SDBUS_MAX_MSG_SIZE 256
 
-#define DATA_PROPERTY "data"
+#define DATA_PROPERTY  "data"
 #define DATA_SIGNATURE "(i)"
 
 #define MCTP_CTRL_MAX_BUS_TYPES 4

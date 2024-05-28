@@ -26,7 +26,7 @@
 #include "test-utils.h"
 
 #define TEST_DEST_EID 9
-#define TEST_SRC_EID 10
+#define TEST_SRC_EID  10
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
@@ -565,7 +565,7 @@ int main(void)
 	mctp_set_log_stdio(MCTP_LOG_DEBUG);
 
 	BUILD_ASSERT(ARRAY_SIZE(mctp_core_tests) < SIZE_MAX,
-			"Array size is greater than SIZE_MAX");
+		     "Array size is greater than SIZE_MAX");
 	for (i = 0; i < ARRAY_SIZE(mctp_core_tests); i++) {
 		mctp_prlog(MCTP_LOG_DEBUG, "begin: %s",
 			   mctp_core_tests[i].name);

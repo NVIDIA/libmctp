@@ -68,13 +68,13 @@
 
 /* MCTP Tx/Rx waittime in milli-seconds */
 #define MCTP_CTRL_WAIT_SECONDS (1 * 1000)
-#define MCTP_CTRL_WAIT_TIME (2 * MCTP_CTRL_WAIT_SECONDS)
+#define MCTP_CTRL_WAIT_TIME    (2 * MCTP_CTRL_WAIT_SECONDS)
 
 /* MCTP control retry threshold */
 #define MCTP_CTRL_CMD_RETRY_THRESHOLD 3
 
 /* MCTP Invalid EID's */
-#define MCTP_INVALID_EID_0 0
+#define MCTP_INVALID_EID_0  0
 #define MCTP_INVALID_EID_FF 0xFF
 
 /* Global definitions */
@@ -107,8 +107,8 @@ extern void mctp_msg_types_delete_all(void);
 extern mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 						mctp_ctrl_t *ctrl,
 						mctp_discovery_mode start_mode);
-extern mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd,
-						mctp_ctrl_t *ctrl);
+extern mctp_ret_codes_t
+mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd, mctp_ctrl_t *ctrl);
 extern void *mctp_spi_keepalive_event(void *arg);
 extern mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl);
 
@@ -227,9 +227,9 @@ mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_fd,
 	msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
 
 	mctp_trace_common("mctp_bind_id  >> ", (uint8_t *)bind_id,
-			       sizeof(uint8_t));
+			  sizeof(uint8_t));
 	mctp_trace_common("mctp_pvt_data >> ", mctp_binding_info,
-			       mctp_binding_len);
+			  mctp_binding_len);
 	mctp_trace_common("mctp_req_hdr  >> ", hdr, sizeof(hdr));
 	mctp_trace_common("mctp_req_msg  >> ", mctp_req_msg, req_msg_len);
 
@@ -275,14 +275,13 @@ static const char *const short_options =
 
 static void usage(void)
 {
-	MCTP_CTRL_INFO(
-		"Usage: mctp-ctrl -h<binding>\n"
-		"(or if use script: mctp-<binding>-ctrl -h<binding>)\n"
-		"Available bindings:\n"
-		"  pcie\n"
-		"  spi\n"
-		"  smbus\n"
-		"  usb\n");
+	MCTP_CTRL_INFO("Usage: mctp-ctrl -h<binding>\n"
+		       "(or if use script: mctp-<binding>-ctrl -h<binding>)\n"
+		       "Available bindings:\n"
+		       "  pcie\n"
+		       "  spi\n"
+		       "  smbus\n"
+		       "  usb\n");
 }
 
 static void usage_common(void)
@@ -390,12 +389,10 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 	case MCTP_CMDLINE_OP_WRITE_DATA:
 		/* Send the request message over socket */
 		mctp_ret = MCTP_REQUESTER_SEND_FAIL;
-		if(cmd->tx_len > 0)
-		{
-			mctp_ret =
-				mctp_client_send(cmd->dest_eid, sock_fd,
-						cmd->tx_data[0],
-						((uint8_t *)cmd->tx_data) + 1, cmd->tx_len - 1);
+		if (cmd->tx_len > 0) {
+			mctp_ret = mctp_client_send(
+				cmd->dest_eid, sock_fd, cmd->tx_data[0],
+				((uint8_t *)cmd->tx_data) + 1, cmd->tx_len - 1);
 		}
 		if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 			MCTP_CTRL_ERR("%s: Failed to send message..\n",
@@ -449,12 +446,14 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 				__func__, pvt_binding_smbus.dest_slave_addr);
 
 			mctp_ret = mctp_client_with_binding_send(
-				cmd->dest_eid, sock_fd, (const uint8_t *)cmd->tx_data,
-				cmd->tx_len, &cmd->binding_type, (void *)&pvt_binding_smbus,
+				cmd->dest_eid, sock_fd,
+				(const uint8_t *)cmd->tx_data, cmd->tx_len,
+				&cmd->binding_type, (void *)&pvt_binding_smbus,
 				sizeof(pvt_binding_smbus));
 
 			if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
-				MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
+				MCTP_CTRL_ERR("%s: Failed to send message..\n",
+					      __func__);
 			}
 		} else {
 			MCTP_CTRL_ERR("%s: Invalid binding type: %d\n",
@@ -534,7 +533,6 @@ uint16_t mctp_ctrl_get_target_bdf(const mctp_cmdline_args_t *cmd)
 		       pvt_binding.remote_id);
 	return (pvt_binding.remote_id);
 }
-
 
 int mctp_cmdline_copy_tx_buff(char src[], uint8_t *dest, int len)
 {
@@ -633,9 +631,8 @@ int mctp_event_monitor(mctp_ctrl_t *mctp_evt)
 }
 
 /* Sanity check for PCIe Endpoint IDs */
-static int mctp_eids_sanity_check(uint8_t pci_own_eid,
-				       uint8_t pci_bridge_eid,
-				       uint8_t pci_bridge_pool_start)
+static int mctp_eids_sanity_check(uint8_t pci_own_eid, uint8_t pci_bridge_eid,
+				  uint8_t pci_bridge_pool_start)
 {
 	int rc = -1;
 
@@ -683,32 +680,32 @@ static int mctp_i2c_eids_sanity_check(uint8_t i2c_own_eid,
 
 	/* Check for SMBus own EID */
 	if ((i2c_own_eid == MCTP_INVALID_EID_0) ||
-		(i2c_own_eid == MCTP_INVALID_EID_FF)) {
+	    (i2c_own_eid == MCTP_INVALID_EID_FF)) {
 		MCTP_CTRL_ERR("%s: Invalid i2c_own_eid: 0x%x\n", __func__,
-				i2c_own_eid);
+			      i2c_own_eid);
 		return rc;
 	}
 
 	/* Check for SMBus bridge EID */
 	if ((i2c_bridge_eid == MCTP_INVALID_EID_0) ||
-		(i2c_bridge_eid == MCTP_INVALID_EID_FF)) {
+	    (i2c_bridge_eid == MCTP_INVALID_EID_FF)) {
 		MCTP_CTRL_ERR("%s: Invalid i2c_bridge_eid: 0x%x\n", __func__,
-				i2c_bridge_eid);
+			      i2c_bridge_eid);
 		return rc;
 	}
 
 	/* Check for SMBus bridge pool start EID */
 	if ((i2c_bridge_pool_start == MCTP_INVALID_EID_0) ||
-		(i2c_bridge_pool_start == MCTP_INVALID_EID_FF)) {
+	    (i2c_bridge_pool_start == MCTP_INVALID_EID_FF)) {
 		MCTP_CTRL_ERR("%s: Invalid i2c_bridge_pool_start: 0x%x\n",
-				__func__, i2c_bridge_pool_start);
+			      __func__, i2c_bridge_pool_start);
 		return rc;
 	}
 
 	/* Also check for duplicate EID's if any */
 	if ((i2c_own_eid == i2c_bridge_eid) ||
-		(i2c_own_eid == i2c_bridge_pool_start) ||
-		(i2c_bridge_eid == i2c_bridge_pool_start)) {
+	    (i2c_own_eid == i2c_bridge_pool_start) ||
+	    (i2c_bridge_eid == i2c_bridge_pool_start)) {
 		MCTP_CTRL_ERR("%s: Duplicate EID's found\n", __func__);
 		return rc;
 	}
@@ -744,7 +741,8 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 
 	/* Open the user socket file-descriptor */
 	if (cmdline->ops == MCTP_CMDLINE_OP_WRITE_DATA) {
-		MCTP_CTRL_DEBUG("%s: socket init for Message Type:0x%x\n", __func__, cmdline->tx_data[0]);
+		MCTP_CTRL_DEBUG("%s: socket init for Message Type:0x%x\n",
+				__func__, cmdline->tx_data[0]);
 		rc = mctp_usr_socket_init(&fd, mctp_sock_path,
 					  cmdline->tx_data[0],
 					  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
@@ -762,7 +760,7 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 
 	/* Update the MCTP socket descriptor */
 	mctp_ctrl->sock = fd;
-	
+
 	/* Update global socket pointer */
 	g_socket_fd = fd;
 
@@ -796,10 +794,10 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		mctp_medium_type = "PCIe";
 
 		/* Open the user socket file-descriptor */
-		rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_CTRL_MSG_TYPE,
+		rc = mctp_usr_socket_init(&fd, mctp_sock_path,
+					  MCTP_CTRL_MSG_TYPE,
 					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
-	}
-	else if (cmdline->binding_type == MCTP_BINDING_SPI) {
+	} else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 		MCTP_CTRL_INFO("%s: Binding type: SPI\n", __func__);
 		mctp_sock_path = MCTP_SOCK_PATH_SPI;
 		mctp_medium_type = "SPI";
@@ -811,11 +809,10 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 
 		MCTP_ASSERT_RET(MCTP_REQUESTER_SUCCESS == rc, EXIT_FAILURE,
 				"[%s] Failed to open mctp socket\n", __func__);
-		
+
 		mctp_set_log_stdio(cmdline->verbose ? MCTP_LOG_DEBUG :
-	    	MCTP_LOG_WARNING);
-	}
-	else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
+						      MCTP_LOG_WARNING);
+	} else if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
 		MCTP_CTRL_INFO("%s: Binding type: SMBus\n", __func__);
 		if (mctp_sock_path == NULL) {
 			mctp_sock_path = MCTP_SOCK_PATH_I2C;
@@ -823,7 +820,8 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		mctp_medium_type = "SMBus";
 
 		/* Open the user socket file-descriptor */
-		rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_CTRL_MSG_TYPE,
+		rc = mctp_usr_socket_init(&fd, mctp_sock_path,
+					  MCTP_CTRL_MSG_TYPE,
 					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
 	} else if (cmdline->binding_type == MCTP_BINDING_USB) {
 		MCTP_CTRL_INFO("%s: Binding type: USB\n", __func__);
@@ -831,7 +829,8 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		mctp_medium_type = "USB";
 
 		/* Open the user socket file-descriptor */
-		rc = mctp_usr_socket_init(&fd, mctp_sock_path, MCTP_CTRL_MSG_TYPE,
+		rc = mctp_usr_socket_init(&fd, mctp_sock_path,
+					  MCTP_CTRL_MSG_TYPE,
 					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
 	} else {
 		MCTP_CTRL_ERR("Unknown binding type: %d\n",
@@ -852,8 +851,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 
 	if (cmdline->binding_type == MCTP_BINDING_SPI) {
 		/* Discover endpoints via PCIe*/
-		MCTP_CTRL_INFO("%s: Start MCTP-over-SPI Discovery\n",
-			       __func__);
+		MCTP_CTRL_INFO("%s: Start MCTP-over-SPI Discovery\n", __func__);
 
 		/* Create static endpoint 0 for spi ctrl daemon */
 		mctp_spi_discover_endpoint(mctp_ctrl);
@@ -880,14 +878,14 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		pthread_mutex_lock(&mctp_ctrl->worker_mtx);
 		if (!mctp_ctrl->worker_is_ready) {
 			pthread_cond_wait(&mctp_ctrl->worker_cv,
-				  &mctp_ctrl->worker_mtx);
+					  &mctp_ctrl->worker_mtx);
 		}
 		pthread_mutex_unlock(&mctp_ctrl->worker_mtx);
 	} else if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		/* Make sure all PCIe EID options are available from commandline */
 		rc = mctp_eids_sanity_check(cmdline->pcie.own_eid,
-						cmdline->pcie.bridge_eid,
-						cmdline->pcie.bridge_pool_start);
+					    cmdline->pcie.bridge_eid,
+					    cmdline->pcie.bridge_pool_start);
 		if (rc < 0) {
 			MCTP_CTRL_ERR("MCTP-Ctrl sanity check unsuccessful\n");
 			return EXIT_FAILURE;
@@ -902,7 +900,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
 			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
 #ifdef MOCKUP_ENDPOINT
-			if(cmdline->mode == MCTP_MODE_MOCKUP_EID) {
+			if (cmdline->mode == MCTP_MODE_MOCKUP_EID) {
 				// discovery failure is allowed when mocking up EID
 				return EXIT_SUCCESS;
 			}
@@ -959,12 +957,11 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		default:
 			break;
 		}
-	}
-	else if (cmdline->binding_type == MCTP_BINDING_USB) {
+	} else if (cmdline->binding_type == MCTP_BINDING_USB) {
 		/* Make sure all USB EID options are available from commandline */
 		rc = mctp_eids_sanity_check(cmdline->usb.own_eid,
-						cmdline->usb.bridge_eid,
-						cmdline->usb.bridge_pool_start);
+					    cmdline->usb.bridge_eid,
+					    cmdline->usb.bridge_pool_start);
 		if (rc < 0) {
 			close(g_socket_fd);
 			close(g_signal_fd);
@@ -974,8 +971,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		}
 
 		/* Discover endpoints via USB*/
-		MCTP_CTRL_INFO("%s: Start MCTP-over-USB Discovery\n",
-			       __func__);
+		MCTP_CTRL_INFO("%s: Start MCTP-over-USB Discovery\n", __func__);
 		mctp_err_ret = mctp_discover_endpoints(
 			cmdline, mctp_ctrl,
 			MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST);
@@ -989,7 +985,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 	return EXIT_SUCCESS;
 }
 
-void set_uuid_str(char* uuid_str, char* from, int length)
+void set_uuid_str(char *uuid_str, char *from, int length)
 {
 	int from_len = strlen(from);
 	if (from_len < length) {
@@ -1003,9 +999,8 @@ void set_uuid_str(char* uuid_str, char* from, int length)
 	}
 }
 
-static void parse_json_config(
-	char *config_json_file_path,
-	mctp_cmdline_args_t *cmdline)
+static void parse_json_config(char *config_json_file_path,
+			      mctp_cmdline_args_t *cmdline)
 {
 	json_object *parsed_json;
 	int rc;
@@ -1018,49 +1013,48 @@ static void parse_json_config(
 
 	// Get common parameters
 	mctp_json_i2c_get_common_params_ctrl(
-		parsed_json, &cmdline->i2c.bus_num,
-		&mctp_sock_path, &cmdline->i2c.own_eid,
-		cmdline->i2c.dest_slave_addr,
-		cmdline->i2c.logical_busses,
-		&cmdline->i2c.src_slave_addr);
+		parsed_json, &cmdline->i2c.bus_num, &mctp_sock_path,
+		&cmdline->i2c.own_eid, cmdline->i2c.dest_slave_addr,
+		cmdline->i2c.logical_busses, &cmdline->i2c.src_slave_addr);
 
 	// Set values for SMBus private binding used in discovery
-	set_g_val_for_pvt_binding(
-		cmdline->i2c.bus_num,
-		cmdline->i2c.dest_slave_addr[0],
-		cmdline->i2c.src_slave_addr);
+	set_g_val_for_pvt_binding(cmdline->i2c.bus_num,
+				  cmdline->i2c.dest_slave_addr[0],
+				  cmdline->i2c.src_slave_addr);
 
 	// Get info about eid_type
-	chosen_eid_type = mctp_json_get_eid_type(parsed_json, "smbus", &cmdline->i2c.bus_num);
+	chosen_eid_type = mctp_json_get_eid_type(parsed_json, "smbus",
+						 &cmdline->i2c.bus_num);
 
-	switch (chosen_eid_type)
-	{
-		case EID_TYPE_BRIDGE:
-			MCTP_CTRL_INFO("[%s] Use bridge endpoint", __func__);
-			mctp_json_i2c_get_params_bridge_ctrl(parsed_json,
-				&cmdline->i2c.bus_num, &cmdline->i2c.bridge_eid,
-				&cmdline->i2c.bridge_pool_start);
+	switch (chosen_eid_type) {
+	case EID_TYPE_BRIDGE:
+		MCTP_CTRL_INFO("[%s] Use bridge endpoint", __func__);
+		mctp_json_i2c_get_params_bridge_ctrl(
+			parsed_json, &cmdline->i2c.bus_num,
+			&cmdline->i2c.bridge_eid,
+			&cmdline->i2c.bridge_pool_start);
 
-			break;
-		case EID_TYPE_STATIC:
-			MCTP_CTRL_INFO("[%s] Use static endpoint", __func__);
-			cmdline->dest_eid_tab = g_dest_eid_tab;
-			mctp_json_i2c_get_params_static_ctrl(parsed_json,
-				&cmdline->i2c.bus_num, g_dest_eid_tab,
-				&cmdline->dest_eid_tab_len, &cmdline->uuid);
+		break;
+	case EID_TYPE_STATIC:
+		MCTP_CTRL_INFO("[%s] Use static endpoint", __func__);
+		cmdline->dest_eid_tab = g_dest_eid_tab;
+		mctp_json_i2c_get_params_static_ctrl(
+			parsed_json, &cmdline->i2c.bus_num, g_dest_eid_tab,
+			&cmdline->dest_eid_tab_len, &cmdline->uuid);
 
-			break;
-		case EID_TYPE_POOL:
-			MCTP_CTRL_INFO("[%s] Use pool endpoints", __func__);
-			cmdline->dest_eid_tab = g_dest_eid_tab;
-			mctp_json_i2c_get_params_pool_ctrl(parsed_json,
-				&cmdline->i2c.bus_num, g_dest_eid_tab,
-				&cmdline->dest_eid_tab_len);
+		break;
+	case EID_TYPE_POOL:
+		MCTP_CTRL_INFO("[%s] Use pool endpoints", __func__);
+		cmdline->dest_eid_tab = g_dest_eid_tab;
+		mctp_json_i2c_get_params_pool_ctrl(parsed_json,
+						   &cmdline->i2c.bus_num,
+						   g_dest_eid_tab,
+						   &cmdline->dest_eid_tab_len);
 
-			break;
+		break;
 
-		default:
-			break;
+	default:
+		break;
 	}
 
 	// free parsed json object
@@ -1152,8 +1146,8 @@ static void parse_command_line(int argc, char *const *argv,
 			}
 			break;
 		case 'p':
-			if (cmdline->binding_type == MCTP_BINDING_PCIE || 
-					cmdline->binding_type == MCTP_BINDING_USB) {
+			if (cmdline->binding_type == MCTP_BINDING_PCIE ||
+			    cmdline->binding_type == MCTP_BINDING_USB) {
 				bridge_eid = (uint8_t)atoi(optarg);
 			}
 			break;
@@ -1178,16 +1172,16 @@ static void parse_command_line(int argc, char *const *argv,
 			}
 			break;
 		case 'i':
-			if (cmdline->binding_type == MCTP_BINDING_PCIE || 
-					cmdline->binding_type == MCTP_BINDING_USB) {
+			if (cmdline->binding_type == MCTP_BINDING_PCIE ||
+			    cmdline->binding_type == MCTP_BINDING_USB) {
 				own_eid = (uint8_t)atoi(optarg);
 			} else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 				vdm_ops = atoi(optarg);
 			}
 			break;
 		case 'x':
-			if (cmdline->binding_type == MCTP_BINDING_PCIE || 
-					cmdline->binding_type == MCTP_BINDING_USB) {
+			if (cmdline->binding_type == MCTP_BINDING_PCIE ||
+			    cmdline->binding_type == MCTP_BINDING_USB) {
 				bridge_pool = (uint8_t)atoi(optarg);
 			} else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 				command_mode = atoi(optarg);
@@ -1222,39 +1216,38 @@ static void parse_command_line(int argc, char *const *argv,
 	}
 
 	switch (cmdline->binding_type) {
-		case MCTP_BINDING_PCIE:
-			cmdline->pcie.bridge_eid = bridge_eid;
-			cmdline->pcie.bridge_pool_start = bridge_pool;
-			cmdline->pcie.own_eid = own_eid;
-			cmdline->pcie.remove_duplicates = remove_duplicates;
-			break;
-		case MCTP_BINDING_SPI:
-			cmdline->spi.vdm_ops = vdm_ops;
-			cmdline->spi.cmd_mode = command_mode;
-			break;
-		case MCTP_BINDING_SMBUS:
-			if (config_json_file_path != NULL) {
-				parse_json_config(config_json_file_path, cmdline);
-			}
-			else {
-				// Run as Bridge
-				set_g_val_for_pvt_binding(
-					MCTP_I2C_BUS_NUM_DEFAULT,
-					MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT,
-					MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT);
-				cmdline->i2c.bridge_eid = bridge_eid;
-				cmdline->i2c.bridge_pool_start = bridge_pool;
-				cmdline->i2c.own_eid = own_eid;
-			}
-			break;
-		case MCTP_BINDING_USB:
-			cmdline->usb.bridge_eid = bridge_eid;
-			cmdline->usb.bridge_pool_start = bridge_pool;
-			cmdline->usb.own_eid = own_eid;
-			cmdline->usb.remove_duplicates = remove_duplicates;
-			break;
-		default:
-			break;
+	case MCTP_BINDING_PCIE:
+		cmdline->pcie.bridge_eid = bridge_eid;
+		cmdline->pcie.bridge_pool_start = bridge_pool;
+		cmdline->pcie.own_eid = own_eid;
+		cmdline->pcie.remove_duplicates = remove_duplicates;
+		break;
+	case MCTP_BINDING_SPI:
+		cmdline->spi.vdm_ops = vdm_ops;
+		cmdline->spi.cmd_mode = command_mode;
+		break;
+	case MCTP_BINDING_SMBUS:
+		if (config_json_file_path != NULL) {
+			parse_json_config(config_json_file_path, cmdline);
+		} else {
+			// Run as Bridge
+			set_g_val_for_pvt_binding(
+				MCTP_I2C_BUS_NUM_DEFAULT,
+				MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT,
+				MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT);
+			cmdline->i2c.bridge_eid = bridge_eid;
+			cmdline->i2c.bridge_pool_start = bridge_pool;
+			cmdline->i2c.own_eid = own_eid;
+		}
+		break;
+	case MCTP_BINDING_USB:
+		cmdline->usb.bridge_eid = bridge_eid;
+		cmdline->usb.bridge_pool_start = bridge_pool;
+		cmdline->usb.own_eid = own_eid;
+		cmdline->usb.remove_duplicates = remove_duplicates;
+		break;
+	default:
+		break;
 	}
 	free(config_json_file_path);
 }
@@ -1326,7 +1319,7 @@ int main_ctrl(int argc, char *const *argv)
 	};
 #endif
 	/* Run this application only if set as daemon mode */
-	if (cmdline.mode == MCTP_MODE_CMDLINE) { 
+	if (cmdline.mode == MCTP_MODE_CMDLINE) {
 		// Run mode: command line mode
 		exec_command_line_mode(&cmdline, mctp_ctrl);
 	} else if (cmdline.mode == MCTP_SPI_MODE_TEST) {
@@ -1335,7 +1328,7 @@ int main_ctrl(int argc, char *const *argv)
 			MCTP_CTRL_ERR("Sending SPI test command failure\n");
 			ret_val = EXIT_FAILURE;
 		}
-	} else { 
+	} else {
 		// Run mode: daemon mode
 		MCTP_CTRL_INFO("%s: Run mode: Daemon mode\n", __func__);
 
@@ -1372,7 +1365,8 @@ int main_ctrl(int argc, char *const *argv)
 }
 
 #if !USE_FUZZ_CTRL
-int main (int argc, char *const *argv) {
+int main(int argc, char *const *argv)
+{
 	return main_ctrl(argc, argv);
 }
 #endif

@@ -40,12 +40,12 @@ struct fsdyn_ep_context;
 typedef struct fsdyn_ep_context *fsdyn_ep_context_ptr;
 
 enum fsdyn_status {
-	fsdyn_status_unmodified = 0, // Content not changed
-	fsdyn_status_success = 0, // Sucess
-	fsdyn_status_modified = 1, // Content modified
-	fsdyn_status_system_error = -1, // Content error
-	fsdyn_status_error_args = -2, // Argument parse error
-	fsdyn_status_error_parse = -3, // Parse error
+	fsdyn_status_unmodified = 0,	    // Content not changed
+	fsdyn_status_success = 0,	    // Sucess
+	fsdyn_status_modified = 1,	    // Content modified
+	fsdyn_status_system_error = -1,	    // Content error
+	fsdyn_status_error_args = -2,	    // Argument parse error
+	fsdyn_status_error_parse = -3,	    // Parse error
 	fsdyn_status_error_array_size = -4, // Array size error
 };
 

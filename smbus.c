@@ -60,9 +60,10 @@ struct mctp_binding_smbus {
 #define I2C_M_HOLD 0x0100
 #endif
 
-#define MCTP_SMBUS_I2C_M_HOLD_TIMEOUT_MS 	100
-#define MCTP_SMBUS_I2C_TX_RETRIES_MAX		1000  /* 1000 retries with a 20us sleep, so a total of 20ms at worst*/
-#define MCTP_SMBUS_I2C_TX_RETRIES_US		20	  /* 20 us * 1000 = 20ms*/
+#define MCTP_SMBUS_I2C_M_HOLD_TIMEOUT_MS 100
+#define MCTP_SMBUS_I2C_TX_RETRIES_MAX                                          \
+	1000 /* 1000 retries with a 20us sleep, so a total of 20ms at worst*/
+#define MCTP_SMBUS_I2C_TX_RETRIES_US 20 /* 20 us * 1000 = 20ms*/
 
 #ifndef container_of
 #define container_of(ptr, type, member)                                        \
@@ -81,7 +82,7 @@ struct mctp_binding_smbus {
 #define MCTP_COMMAND_CODE 0x0F
 
 /* Default smbus slave address for get UDID command */
-#define MCTP_SMBUS_DEFAULT_GET_UDID_SLAVE_ADDRESS	0x61
+#define MCTP_SMBUS_DEFAULT_GET_UDID_SLAVE_ADDRESS 0x61
 
 #define MCTP_I2C_POLL_DELAY 1000
 
@@ -385,15 +386,17 @@ int mctp_smbus_open_out_bus(struct mctp_binding_smbus *smbus, int out_bus)
 	(void)smbus;
 
 #if USE_MOCKED_DRIVERS
-	// Fuzz tests and UT require mocked smbus driver, 
-	// this is instead of an mqueue or any other standard i2c
-	#define SMBUS_MOCKED_DRIVER "/dev/smbus"
+// Fuzz tests and UT require mocked smbus driver,
+// this is instead of an mqueue or any other standard i2c
+#define SMBUS_MOCKED_DRIVER "/dev/smbus"
 
-	mctp_prdebug("%s: Open: %s, out bus = %d\n", __func__, SMBUS_MOCKED_DRIVER, out_bus);
-	int outfd = open(SMBUS_MOCKED_DRIVER, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+	mctp_prdebug("%s: Open: %s, out bus = %d\n", __func__,
+		     SMBUS_MOCKED_DRIVER, out_bus);
+	int outfd =
+		open(SMBUS_MOCKED_DRIVER, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
 	mctp_prdebug("%s: ret = : %d\n", __func__, outfd);
-	MCTP_ASSERT_RET(outfd >= 0, -1,
-			"Failed to open I2C Tx node: %d", outfd);
+	MCTP_ASSERT_RET(outfd >= 0, -1, "Failed to open I2C Tx node: %d",
+			outfd);
 	return outfd;
 #else
 	char filename[60];
@@ -600,10 +603,12 @@ int check_mctp_get_ver_support(struct mctp_binding_smbus *smbus, size_t idx,
 	}
 
 	mctp_prdebug("\n%s: Static endpoint", __func__);
-	mctp_prdebug("Endpoint = %d", smbus->static_endpoints[idx].endpoint_num);
+	mctp_prdebug("Endpoint = %d",
+		     smbus->static_endpoints[idx].endpoint_num);
 	mctp_prdebug("Slave address = 0x%x",
 		     smbus->static_endpoints[idx].slave_address);
-	mctp_prdebug("Support MCTP = %d", smbus->static_endpoints[idx].support_mctp);
+	mctp_prdebug("Support MCTP = %d",
+		     smbus->static_endpoints[idx].support_mctp);
 	mctp_prdebug("UDID = ");
 	for (i = 0; i < 16; i++) {
 		mctp_prdebug("0x%x ", smbus->static_endpoints[idx].udid[i]);
@@ -727,7 +732,8 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 	}
 
 	smbus->rx_pkt = mctp_pktbuf_alloc(&smbus->binding, 0);
-	MCTP_ASSERT_RET(smbus->rx_pkt != NULL, -1, "Could not allocate pktbuf.");
+	MCTP_ASSERT_RET(smbus->rx_pkt != NULL, -1,
+			"Could not allocate pktbuf.");
 
 	if (mctp_pktbuf_push(smbus->rx_pkt, &smbus->rxbuf[sizeof(*hdr)],
 			     len - sizeof(*hdr) - SMBUS_PEC_BYTE_SIZE) != 0) {
@@ -836,10 +842,10 @@ static int mctp_smbus_start(struct mctp_binding *b)
 	return 0;
 }
 
-struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t bus_smq,
-					   uint8_t dest_addr, uint8_t src_addr,
-					   uint8_t static_endpoints_len,
-					   struct mctp_static_endpoint_mapper *static_endpoints)
+struct mctp_binding_smbus *
+mctp_smbus_init(uint8_t bus, uint8_t bus_smq, uint8_t dest_addr,
+		uint8_t src_addr, uint8_t static_endpoints_len,
+		struct mctp_static_endpoint_mapper *static_endpoints)
 {
 	struct mctp_binding_smbus *smbus;
 
@@ -870,8 +876,7 @@ struct mctp_binding_smbus *mctp_smbus_init(uint8_t bus, uint8_t bus_smq,
 	smbus->static_endpoints_len = static_endpoints_len;
 	smbus->static_endpoints = static_endpoints;
 	for (uint8_t i = 0; i < static_endpoints_len; ++i) {
-		smbus->dest_slave_addr[i] =
-			static_endpoints[i].slave_address;
+		smbus->dest_slave_addr[i] = static_endpoints[i].slave_address;
 		smbus->bus_num[i] = static_endpoints[i].bus_num;
 	}
 

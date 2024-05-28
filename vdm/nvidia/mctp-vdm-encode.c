@@ -230,8 +230,7 @@ bool mctp_encode_vendor_cmd_force_grant_revoked(
 	ENCODE_VMD_CMD_FUNC(FORCE_GRANT_REVOKED);
 }
 
-bool mctp_encode_vendor_cmd_reset_erot(
-	struct mctp_vendor_cmd_reset_erot *cmd)
+bool mctp_encode_vendor_cmd_reset_erot(struct mctp_vendor_cmd_reset_erot *cmd)
 {
 	ENCODE_VMD_CMD_FUNC(RESET_EROT);
 }

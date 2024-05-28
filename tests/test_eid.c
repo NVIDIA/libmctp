@@ -16,9 +16,9 @@ struct test_ctx {
 	mctp_eid_t src_eid;
 };
 
-static void
-test_rx(uint8_t eid, bool tag_owner __unused, uint8_t msg_tag __unused,
-	void *data, void *msg __unused, size_t len __unused)
+static void test_rx(uint8_t eid, bool tag_owner __unused,
+		    uint8_t msg_tag __unused, void *data, void *msg __unused,
+		    size_t len __unused)
 {
 	struct test_ctx *ctx = data;
 
@@ -57,7 +57,7 @@ int main(void)
 
 	create_packet(&pktbuf.hdr, remote_eid, local_eid);
 
-    /* coverity[uninit_use_in_call:SUPPRESS] */
+	/* coverity[uninit_use_in_call:SUPPRESS] */
 	mctp_binding_test_rx_raw(ctx->binding, &pktbuf, sizeof(pktbuf));
 
 	assert(ctx->rx_count == 1);

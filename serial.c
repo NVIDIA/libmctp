@@ -28,7 +28,7 @@
 			len -= wrote;                                          \
 		}                                                              \
 		return len ? -1 : 0;                                           \
-	} while(0)
+	} while (0)
 
 #include "libmctp.h"
 #include "libmctp-alloc.h"
@@ -49,14 +49,15 @@ struct mctp_binding_serial {
 	struct mctp_pktbuf *rx_pkt;
 	uint8_t rx_exp_len;
 	uint16_t rx_fcs;
-	enum { STATE_WAIT_SYNC_START,
-	       STATE_WAIT_REVISION,
-	       STATE_WAIT_LEN,
-	       STATE_DATA,
-	       STATE_DATA_ESCAPED,
-	       STATE_WAIT_FCS1,
-	       STATE_WAIT_FCS2,
-	       STATE_WAIT_SYNC_END,
+	enum {
+		STATE_WAIT_SYNC_START,
+		STATE_WAIT_REVISION,
+		STATE_WAIT_LEN,
+		STATE_DATA,
+		STATE_DATA_ESCAPED,
+		STATE_WAIT_FCS1,
+		STATE_WAIT_FCS2,
+		STATE_WAIT_SYNC_END,
 	} rx_state;
 
 	/* temporary transmit buffer */
@@ -66,9 +67,9 @@ struct mctp_binding_serial {
 #define binding_to_serial(b)                                                   \
 	container_of(b, struct mctp_binding_serial, binding)
 
-#define MCTP_SERIAL_REVISION 0x01
+#define MCTP_SERIAL_REVISION	 0x01
 #define MCTP_SERIAL_FRAMING_FLAG 0x7e
-#define MCTP_SERIAL_ESCAPE 0x7d
+#define MCTP_SERIAL_ESCAPE	 0x7d
 
 struct mctp_serial_header {
 	uint8_t flag;
@@ -146,8 +147,7 @@ static int mctp_binding_serial_tx(struct mctp_binding *b,
 	if (!serial->tx_fn)
 		mctp_write_all(write, serial->fd, serial->txbuf, len);
 
-	mctp_write_all(serial->tx_fn, serial->tx_fn_data, serial->txbuf,
-			      len);
+	mctp_write_all(serial->tx_fn, serial->tx_fn_data, serial->txbuf, len);
 }
 
 static void mctp_serial_finish_packet(struct mctp_binding_serial *serial,
@@ -258,7 +258,7 @@ static void mctp_rx_consume(struct mctp_binding_serial *serial, const void *buf,
 	size_t i;
 
 	for (i = 0; i < len; i++)
-		mctp_rx_consume_one(serial, *((uint8_t*)buf + i));
+		mctp_rx_consume_one(serial, *((uint8_t *)buf + i));
 }
 
 int mctp_serial_read(struct mctp_binding_serial *serial)

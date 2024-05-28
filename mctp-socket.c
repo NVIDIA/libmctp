@@ -89,12 +89,13 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 	if (-1 == rc) {
 		close(*fd);
 		if (path[0] == 0) {
-			MCTP_ERR("connect socket[%d] failed, error = %d, path = \\0%s\n", 
-                       *fd, errno, &(path[1]));
-		}
-		else {
-			MCTP_ERR("connect socket[%d] failed, error = %d, path = %s\n", 
-                	*fd, errno, path);
+			MCTP_ERR(
+				"connect socket[%d] failed, error = %d, path = \\0%s\n",
+				*fd, errno, &(path[1]));
+		} else {
+			MCTP_ERR(
+				"connect socket[%d] failed, error = %d, path = %s\n",
+				*fd, errno, path);
 		}
 		return MCTP_REQUESTER_OPEN_FAIL;
 	}
@@ -140,8 +141,7 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 		uint8_t buf[length];
 
 		length = recv(mctp_fd, buf, length, 0);
-		mctp_trace_common("mctp_recv_msg_invalid_len >", buf,
-				       length);
+		mctp_trace_common("mctp_recv_msg_invalid_len >", buf, length);
 		return MCTP_REQUESTER_INVALID_RECV_LEN;
 	} else {
 		mctp_len = length - mctp_prefix_len;
@@ -165,12 +165,12 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 		int bytes = recvmsg(mctp_fd, &msg, 0);
 
 		mctp_trace_common("mctp_prefix_msg >", mctp_prefix,
-				       mctp_prefix_len);
-		mctp_trace_common("mctp_resp_msg >", *mctp_resp_msg,
-				       mctp_len);
+				  mctp_prefix_len);
+		mctp_trace_common("mctp_resp_msg >", *mctp_resp_msg, mctp_len);
 
 		if (length != bytes) {
-			MCTP_ERR("free mctp_resp_msg MCTP_REQUESTER_INVALID_RECV_LEN\n");
+			MCTP_ERR(
+				"free mctp_resp_msg MCTP_REQUESTER_INVALID_RECV_LEN\n");
 			free(*mctp_resp_msg);
 			return MCTP_REQUESTER_INVALID_RECV_LEN;
 		}
@@ -179,8 +179,8 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 		/* Update the response length */
 		*resp_msg_len = mctp_len;
 
-		mctp_prdebug("%s: resp_msg_len: %zu, mctp_len: %zu\n",
-				__func__, *resp_msg_len, mctp_len);
+		mctp_prdebug("%s: resp_msg_len: %zu, mctp_len: %zu\n", __func__,
+			     *resp_msg_len, mctp_len);
 		return MCTP_REQUESTER_SUCCESS;
 	}
 
@@ -201,11 +201,9 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 /* The function will check EID and ignore the incomming response and receive
  * the response again if EID mismatches.
  * */
-static mctp_requester_rc_t mctp_client_recv_from_eid(mctp_eid_t eid,
-						     int mctp_fd,
-							 uint8_t cmd_code,
-						     uint8_t **mctp_resp_msg,
-						     size_t *resp_msg_len)
+static mctp_requester_rc_t
+mctp_client_recv_from_eid(mctp_eid_t eid, int mctp_fd, uint8_t cmd_code,
+			  uint8_t **mctp_resp_msg, size_t *resp_msg_len)
 {
 	mctp_eid_t resp_eid[1] = { 0 };
 	mctp_requester_rc_t rc;
@@ -223,7 +221,7 @@ static mctp_requester_rc_t mctp_client_recv_from_eid(mctp_eid_t eid,
 		}
 
 		/* Skip msg type */
-		resp = (struct mctp_vendor_msg_hdr *) (*mctp_resp_msg + 1);
+		resp = (struct mctp_vendor_msg_hdr *)(*mctp_resp_msg + 1);
 		/* Mctp demux will forard the response to all mctp client
 		 * registered with the same message type.
 		 * We may receive the unexpected data and need to read it again
@@ -242,20 +240,24 @@ static mctp_requester_rc_t mctp_client_recv_from_eid(mctp_eid_t eid,
 		/* set up the timer in case the response is missing and we will hit
 		 * ifinite loop
 		 */
-		clock_gettime(CLOCK_MONOTONIC , &now);
-		if ((now.tv_sec - prev.tv_sec) > MCTP_CTRL_TXRX_TIMEOUT_16SECS) {
-			fprintf(stderr, "recv timeout due to missing response.\n");
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		if ((now.tv_sec - prev.tv_sec) >
+		    MCTP_CTRL_TXRX_TIMEOUT_16SECS) {
+			fprintf(stderr,
+				"recv timeout due to missing response.\n");
 			return MCTP_REQUESTER_TIMEOUT;
 		}
 
 		if (eid != resp_eid[0]) {
-			mctp_prdebug("%s: I'm not the requester - %d, EID: %d\n",
-					__func__, eid, resp_eid[0]);
+			mctp_prdebug(
+				"%s: I'm not the requester - %d, EID: %d\n",
+				__func__, eid, resp_eid[0]);
 		}
 
 		if (cmd_code != resp_command_code) {
-			mctp_prdebug("%s: Command code 0x%02x is not requested command code 0x%02x\n",
-					__func__, resp->command_code, cmd_code);
+			mctp_prdebug(
+				"%s: Command code 0x%02x is not requested command code 0x%02x\n",
+				__func__, resp->command_code, cmd_code);
 		}
 
 	} while (1);
@@ -310,10 +312,11 @@ mctp_requester_rc_t mctp_client_send_recv(mctp_eid_t eid, int fd,
 		MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, rc,
 				"fail to send [rc: %d] request\n", rc);
 
-		req = (struct mctp_vendor_msg_hdr *) req_msg;
+		req = (struct mctp_vendor_msg_hdr *)req_msg;
 		cmd_code = req->command_code;
 		/* Receive the data again if EID mismatch */
-		rc = mctp_client_recv_from_eid(eid, fd, cmd_code, resp_msg, resp_len);
+		rc = mctp_client_recv_from_eid(eid, fd, cmd_code, resp_msg,
+					       resp_len);
 
 		if (rc == MCTP_REQUESTER_SUCCESS) {
 			break;

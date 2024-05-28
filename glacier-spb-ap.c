@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #define _GNU_SOURCE
 #include <errno.h>
 #include <stdint.h>
@@ -35,13 +34,13 @@
 //#include "mctp-spi-gpio.h"
 //#include "mctp-ctrl-log.h"
 
-#define POLL_SREG_TIMEOUT_MSECS 10000ULL
-#define POLL_LOCK_TIMEOUT_MSECS 10000ULL
-#define POLL_INT_TIMEOUT_MSECS 100ULL
+#define POLL_SREG_TIMEOUT_MSECS	  10000ULL
+#define POLL_LOCK_TIMEOUT_MSECS	  10000ULL
+#define POLL_INT_TIMEOUT_MSECS	  100ULL
 #define MAX_BYTES_PER_TRANSACTION 32
-#define WAIT_CYCLES 0
-#define TAR_CYCLES 1 // 1 in single, 4 in quad
-#define TAR_WAIT_CYCLES (WAIT_CYCLES + TAR_CYCLES)
+#define WAIT_CYCLES		  0
+#define TAR_CYCLES		  1 // 1 in single, 4 in quad
+#define TAR_WAIT_CYCLES		  (WAIT_CYCLES + TAR_CYCLES)
 
 #define nullptr ((void *)0)
 

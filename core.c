@@ -40,16 +40,17 @@ struct mctp {
 	void *message_rx_data;
 
 	/* Packet capture callback */
-	mctp_capture_fn		capture;
-	void			*capture_data;
+	mctp_capture_fn capture;
+	void *capture_data;
 
 	/* Message reassembly.
 	 * @todo: flexible context count
 	 */
 	struct mctp_msg_ctx msg_ctxs[16];
 
-	enum { ROUTE_ENDPOINT,
-	       ROUTE_BRIDGE,
+	enum {
+		ROUTE_ENDPOINT,
+		ROUTE_BRIDGE,
 	} route_policy;
 	size_t max_message_size;
 };
@@ -296,7 +297,7 @@ void mctp_destroy(struct mctp *mctp)
 
 	/* Cleanup message assembly contexts */
 	BUILD_ASSERT(ARRAY_SIZE(mctp->msg_ctxs) < SIZE_MAX,
-			"msg_ctxs array is larger than SIZE_MAX");
+		     "msg_ctxs array is larger than SIZE_MAX");
 	for (i = 0; i < ARRAY_SIZE(mctp->msg_ctxs); i++) {
 		struct mctp_msg_ctx *tmp = &mctp->msg_ctxs[i];
 		if (tmp->buf)
@@ -380,8 +381,8 @@ void mctp_unregister_bus(struct mctp *mctp, struct mctp_binding *binding)
 	}
 }
 
-int mctp_bridge_busses(struct mctp *mctp,
-		struct mctp_binding *b1, struct mctp_binding *b2)
+int mctp_bridge_busses(struct mctp *mctp, struct mctp_binding *b1,
+		       struct mctp_binding *b2)
 {
 	int rc = 0;
 
@@ -513,8 +514,7 @@ static void mctp_rx(struct mctp *mctp, struct mctp_bus *bus, mctp_eid_t src,
 				continue;
 
 			mctp_message_tx_on_bus(dest_bus, src, dest, tag_owner,
-					       msg_tag, buf, len,
-					       NULL);
+					       msg_tag, buf, len, NULL);
 		}
 	}
 }
@@ -550,8 +550,8 @@ void mctp_bus_rx(struct mctp_binding *binding, struct mctp_pktbuf *pkt)
 	flags = hdr->flags_seq_tag & (MCTP_HDR_FLAG_SOM | MCTP_HDR_FLAG_EOM);
 	tag = (hdr->flags_seq_tag >> MCTP_HDR_TAG_SHIFT) & MCTP_HDR_TAG_MASK;
 	seq = (hdr->flags_seq_tag >> MCTP_HDR_SEQ_SHIFT) & MCTP_HDR_SEQ_MASK;
-	tag_owner =
-		(hdr->flags_seq_tag >> MCTP_HDR_TO_SHIFT) & MCTP_HDR_TO_MASK;
+	tag_owner = (hdr->flags_seq_tag >> MCTP_HDR_TO_SHIFT) &
+		    MCTP_HDR_TO_MASK;
 
 	switch (flags) {
 	case MCTP_HDR_FLAG_SOM | MCTP_HDR_FLAG_EOM:
@@ -732,7 +732,7 @@ void mctp_binding_set_tx_enabled(struct mctp_binding *binding, bool enable)
 
 		if (bus->binding->mctp_send_tx_queue) {
 			bus->binding->mctp_send_tx_queue(bus);
-		} else{
+		} else {
 			mctp_send_tx_queue(bus);
 		}
 		return;
@@ -740,7 +740,7 @@ void mctp_binding_set_tx_enabled(struct mctp_binding *binding, bool enable)
 }
 
 static int mctp_message_tx_on_bus(struct mctp_bus *bus, mctp_eid_t src,
-				  mctp_eid_t dest,  bool tag_owner,
+				  mctp_eid_t dest, bool tag_owner,
 				  uint8_t msg_tag, void *msg, size_t msg_len,
 				  void *msg_binding_private)
 {
@@ -817,7 +817,7 @@ static int mctp_message_tx_on_bus(struct mctp_bus *bus, mctp_eid_t src,
 	if (bus->binding->mctp_send_tx_queue) {
 		bus->binding->mctp_send_tx_queue(bus);
 		mctp_prinfo("Sent batch Tx");
-	} else{
+	} else {
 		mctp_send_tx_queue(bus);
 		mctp_prinfo("Sent non-batch Tx");
 	}
@@ -842,25 +842,25 @@ int mctp_message_tx(struct mctp *mctp, mctp_eid_t eid, bool tag_owner,
 		return 0;
 
 	return mctp_message_tx_on_bus(bus, bus->eid, eid, tag_owner, msg_tag,
-					  msg, msg_len, NULL);
+				      msg, msg_len, NULL);
 }
 
 int mctp_message_pvt_bind_tx(struct mctp *mctp, mctp_eid_t eid, bool tag_owner,
-		             uint8_t msg_tag, void *msg, size_t msg_len,
+			     uint8_t msg_tag, void *msg, size_t msg_len,
 			     void *msg_binding_private)
 {
-       struct mctp_bus *bus;
+	struct mctp_bus *bus;
 
-       /* TODO: Protect against same tag being used across
+	/* TODO: Protect against same tag being used across
         * different callers */
-       if ((msg_tag & MCTP_HDR_TAG_MASK) != msg_tag) {
-               mctp_prerr("Incorrect message tag %u passed.", msg_tag);
-               return -EINVAL;
-       }
+	if ((msg_tag & MCTP_HDR_TAG_MASK) != msg_tag) {
+		mctp_prerr("Incorrect message tag %u passed.", msg_tag);
+		return -EINVAL;
+	}
 
-       bus = find_bus_for_eid(mctp, eid);
-       if (!bus)
-               return 0;
-       return mctp_message_tx_on_bus(bus, bus->eid, eid, tag_owner, msg_tag,
-                                     msg, msg_len, msg_binding_private);
+	bus = find_bus_for_eid(mctp, eid);
+	if (!bus)
+		return 0;
+	return mctp_message_tx_on_bus(bus, bus->eid, eid, tag_owner, msg_tag,
+				      msg, msg_len, msg_binding_private);
 }

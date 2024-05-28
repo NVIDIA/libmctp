@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 #ifndef __GLACIER_SPB_AP_H__
 #define __GLACIER_SPB_AP_H__
 

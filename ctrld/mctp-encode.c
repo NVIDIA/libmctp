@@ -269,7 +269,7 @@ bool mctp_decode_resp_get_ver_support(
 {
 	if (!mctp_ver_support_resp)
 		return false;
-	
+
 	if (mctp_ver_support_resp->completion_code != MCTP_CTRL_CC_SUCCESS)
 		return false;
 

@@ -992,9 +992,9 @@ static void astlpc_test_buffers_bad_host_init(void)
 	host.mmio.bmc = false;
 
 	/* Set the MTU to 0 to provoke a failure */
-	host.astlpc =
-		mctp_astlpc_init(MCTP_BINDING_ASTLPC_MODE_HOST, 0, lpc_mem,
-				 &astlpc_direct_mmio_ops, &host.mmio);
+	host.astlpc = mctp_astlpc_init(MCTP_BINDING_ASTLPC_MODE_HOST, 0,
+				       lpc_mem, &astlpc_direct_mmio_ops,
+				       &host.mmio);
 
 	rc = mctp_register_bus(host.mctp, &host.astlpc->binding, 8);
 	assert(rc < 0);
@@ -1442,7 +1442,7 @@ int main(void)
 	mctp_set_log_stdio(MCTP_LOG_DEBUG);
 
 	BUILD_ASSERT(ARRAY_SIZE(astlpc_tests) < SIZE_MAX,
-			"Array size is greater than SIZE_MAX");
+		     "Array size is greater than SIZE_MAX");
 	for (i = 0; i < ARRAY_SIZE(astlpc_tests); i++) {
 		mctp_prlog(MCTP_LOG_DEBUG, "begin: %s", astlpc_tests[i].name);
 		astlpc_tests[i].test();

@@ -50,7 +50,7 @@
 #define pr_fmt(x) "spi: " x
 #endif
 
-#define AST_GPIO_POLL_LOW 0
+#define AST_GPIO_POLL_LOW  0
 #define AST_GPIO_POLL_HIGH 1
 
 #ifndef container_of
@@ -66,7 +66,7 @@
 #define MCTP_SPI_LOAD_CMD_SIZE 128
 
 /* MCTP message interrupt macros */
-#define MCTP_RX_MSG_INTR 1
+#define MCTP_RX_MSG_INTR     1
 #define MCTP_RX_MSG_INTR_RST 0
 
 /* MCTP SPI Control daemon delay default */
@@ -83,7 +83,7 @@
 
 #define MCTP_SPI_LOAD_UNLOAD_DELAY_SECS 2
 
-#define ERR_SPI_RX -1
+#define ERR_SPI_RX	   -1
 #define ERR_SPI_RX_NO_DATA -2
 
 struct mctp_binding_spi {
@@ -204,7 +204,8 @@ int mctp_unload_flash_driver(void)
 
 	fd = open(path, O_WRONLY);
 	if (fd < 0) {
-		mctp_prinfo("%s: Could not open %s \n trying: %s\n", __func__, path, path2);
+		mctp_prinfo("%s: Could not open %s \n trying: %s\n", __func__,
+			    path, path2);
 		fd = open(path2, O_WRONLY);
 	}
 	MCTP_ASSERT_RET(fd >= 0, fd, "Could not open %s.", path);
@@ -351,7 +352,6 @@ static int mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 		spi->nvda_spb_ap.msgs_available = 0;
 	}
 
-
 	MCTP_ASSERT_RET(ret >= 0, -1, "Error in tx of spi message");
 
 	return (0);
@@ -445,9 +445,10 @@ static int mctp_spi_rx(struct mctp_binding_spi *spi)
 	payload_len = spi_hdr_rx->byte_count;
 	len = payload_len + hdr_size;
 
-	MCTP_ASSERT_RET((size_t)len >= hdr_size, ERR_SPI_RX, "Invalid packet size: %zi", len);
-	MCTP_ASSERT_RET(payload_len > 0, ERR_SPI_RX, "Invalid payload size: %zi",
-			payload_len);
+	MCTP_ASSERT_RET((size_t)len >= hdr_size, ERR_SPI_RX,
+			"Invalid packet size: %zi", len);
+	MCTP_ASSERT_RET(payload_len > 0, ERR_SPI_RX,
+			"Invalid payload size: %zi", payload_len);
 
 	/* command_code != 0x02 => Not a payload intended for us */
 	MCTP_ASSERT_RET(spi_hdr_rx->command_code == MCTP_COMMAND_CODE, 0,
@@ -823,7 +824,7 @@ static int ast_spi_gpio_export(unsigned int gpio)
 	ret = write(fd, buf, len);
 	/* EBUSY means the settings were already set. */
 	MCTP_ASSERT_RET(ret == len || (ret == -1 && errno == EBUSY), ret,
-		    "write(2) failed: %d (%s)", errno, strerror(errno));
+			"write(2) failed: %d (%s)", errno, strerror(errno));
 	close(fd);
 
 	return (0);

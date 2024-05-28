@@ -36,15 +36,15 @@ extern "C" {
 
 /* Default socket path */
 #define MCTP_SOCK_PATH_PCIE "\0mctp-pcie-mux"
-#define MCTP_SOCK_PATH_SPI "\0mctp-spi-mux"
-#define MCTP_SOCK_PATH_I2C "\0mctp-i2c-mux"
-#define MCTP_SOCK_PATH_USB "\0mctp-usb-mux"
+#define MCTP_SOCK_PATH_SPI  "\0mctp-spi-mux"
+#define MCTP_SOCK_PATH_I2C  "\0mctp-i2c-mux"
+#define MCTP_SOCK_PATH_USB  "\0mctp-usb-mux"
 
 /* Define Max buffer size */
 #define MCTP_RX_BUFFER_MAX_SIZE 64
 
 /* Default destination eid table size */
-#define MCTP_DEST_EID_TABLE_MAX	256
+#define MCTP_DEST_EID_TABLE_MAX 256
 
 /* Runtime debug configuration files */
 #define MCTP_CTRL_EMU_CFG_DIR	    "/tmp"

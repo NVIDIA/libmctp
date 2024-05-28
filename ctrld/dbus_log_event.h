@@ -19,8 +19,8 @@
 
 #define REDFISH_ARG_LEN 256
 
-#define EVT_INFO "xyz.openbmc_project.Logging.Entry.Level.Informational"
-#define EVT_WARNING "xyz.openbmc_project.Logging.Entry.Level.Warning"
+#define EVT_INFO     "xyz.openbmc_project.Logging.Entry.Level.Informational"
+#define EVT_WARNING  "xyz.openbmc_project.Logging.Entry.Level.Warning"
 #define EVT_CRITICAL "xyz.openbmc_project.Logging.Entry.Level.Critical"
 
 extern void doLog(sd_bus *bus, char *arg0, char *arg1, char *severity,

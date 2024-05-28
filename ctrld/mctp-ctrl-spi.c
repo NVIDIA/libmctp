@@ -69,4 +69,3 @@ int exec_spi_test(const mctp_cmdline_args_t *cmdline, mctp_ctrl_t *mctp_ctrl)
 
 	return EXIT_SUCCESS;
 }
-

@@ -23,41 +23,41 @@
  * START: GPIO lib specific mocked function */
 
 struct gpio_mock_desc {
-	unsigned long		flags;
-	/* flag symbols are bit numbers */
-	#define FLAG_REQUESTED	0
-	#define FLAG_IS_OUT	1
-	#define FLAG_EXPORT	2	/* protected by sysfs_lock */
-	#define FLAG_SYSFS	3	/* exported via /sys/class/gpio/control */
-	#define FLAG_ACTIVE_LOW	6	/* value has active low */
-	#define FLAG_OPEN_DRAIN	7	/* Gpio is open drain type */
-	#define FLAG_OPEN_SOURCE 8	/* Gpio is open source type */
-	#define FLAG_USED_AS_IRQ 9	/* GPIO is connected to an IRQ */
-	#define FLAG_IRQ_IS_ENABLED 10	/* GPIO is connected to an enabled IRQ */
-	#define FLAG_IS_HOGGED	11	/* GPIO is hogged */
-	#define FLAG_TRANSITORY 12	/* GPIO may lose value in sleep or reset */
-	#define FLAG_PULL_UP    13	/* GPIO has pull up enabled */
-	#define FLAG_PULL_DOWN  14	/* GPIO has pull down enabled */
-	#define FLAG_BIAS_DISABLE    15	/* GPIO has pull disabled */
-	#define FLAG_EDGE_RISING     16	/* GPIO CDEV detects rising edge events */
-	#define FLAG_EDGE_FALLING    17	/* GPIO CDEV detects falling edge events */
+	unsigned long flags;
+/* flag symbols are bit numbers */
+#define FLAG_REQUESTED	    0
+#define FLAG_IS_OUT	    1
+#define FLAG_EXPORT	    2  /* protected by sysfs_lock */
+#define FLAG_SYSFS	    3  /* exported via /sys/class/gpio/control */
+#define FLAG_ACTIVE_LOW	    6  /* value has active low */
+#define FLAG_OPEN_DRAIN	    7  /* Gpio is open drain type */
+#define FLAG_OPEN_SOURCE    8  /* Gpio is open source type */
+#define FLAG_USED_AS_IRQ    9  /* GPIO is connected to an IRQ */
+#define FLAG_IRQ_IS_ENABLED 10 /* GPIO is connected to an enabled IRQ */
+#define FLAG_IS_HOGGED	    11 /* GPIO is hogged */
+#define FLAG_TRANSITORY	    12 /* GPIO may lose value in sleep or reset */
+#define FLAG_PULL_UP	    13 /* GPIO has pull up enabled */
+#define FLAG_PULL_DOWN	    14 /* GPIO has pull down enabled */
+#define FLAG_BIAS_DISABLE   15 /* GPIO has pull disabled */
+#define FLAG_EDGE_RISING    16 /* GPIO CDEV detects rising edge events */
+#define FLAG_EDGE_FALLING   17 /* GPIO CDEV detects falling edge events */
 
 	/* Connection label */
-	const char		*label;
+	const char *label;
 	/* Name of the GPIO */
-	const char		*name;
+	const char *name;
 	/* Value of the mocked GPIO */
-	int				value;
+	int value;
 	/* Direction of the mocked GPIO */
-	int				dir;
+	int dir;
 	/* number of this GPIO (the same as in the name) */
-	long 			gpio;
+	long gpio;
 };
 
 /* Mocked GPIOs - run time created in this module */
 struct gpio_mock_gpios {
-	struct gpio_mock_desc	*descs;
-	u16						ngpio;
+	struct gpio_mock_desc *descs;
+	u16 ngpio;
 } _mocked_gpios = { 0 };
 
 int mock_desc_to_gpio(const struct gpio_mock_desc *desc)
@@ -65,7 +65,8 @@ int mock_desc_to_gpio(const struct gpio_mock_desc *desc)
 	return desc->gpio;
 }
 
-static inline void mock_desc_set_label(struct gpio_mock_desc *d, const char *label)
+static inline void mock_desc_set_label(struct gpio_mock_desc *d,
+				       const char *label)
 {
 	d->label = label;
 }
@@ -73,9 +74,10 @@ static inline void mock_desc_set_label(struct gpio_mock_desc *d, const char *lab
 int gpiod_mock_export(struct gpio_mock_desc *desc, bool direction_may_change);
 void gpiod_mock_unexport(struct gpio_mock_desc *desc);
 
-static int gpiod_mock_request_commit(struct gpio_mock_desc *desc, const char *label)
+static int gpiod_mock_request_commit(struct gpio_mock_desc *desc,
+				     const char *label)
 {
-	int	ret;
+	int ret;
 
 	if (label) {
 		label = kstrdup_const(label, GFP_KERNEL);
@@ -84,7 +86,7 @@ static int gpiod_mock_request_commit(struct gpio_mock_desc *desc, const char *la
 	}
 
 	if (test_and_set_bit(FLAG_REQUESTED, &desc->flags) == 0) {
-		mock_desc_set_label(desc, label ? : "?");
+		mock_desc_set_label(desc, label ?: "?");
 		ret = 0;
 	} else {
 		kfree_const(label);
@@ -108,16 +110,18 @@ static int validate_desc(const struct gpio_mock_desc *desc, const char *func)
 	return 1;
 }
 
-#define VALIDATE_DESC(desc) do { \
-	int __valid = validate_desc(desc, __func__); \
-	if (__valid <= 0) \
-		return __valid; \
+#define VALIDATE_DESC(desc)                                                    \
+	do {                                                                   \
+		int __valid = validate_desc(desc, __func__);                   \
+		if (__valid <= 0)                                              \
+			return __valid;                                        \
 	} while (0)
 
-#define VALIDATE_DESC_VOID(desc) do { \
-	int __valid = validate_desc(desc, __func__); \
-	if (__valid <= 0) \
-		return; \
+#define VALIDATE_DESC_VOID(desc)                                               \
+	do {                                                                   \
+		int __valid = validate_desc(desc, __func__);                   \
+		if (__valid <= 0)                                              \
+			return;                                                \
 	} while (0)
 
 int gpiod_mock_request(struct gpio_mock_desc *desc, const char *label)
@@ -134,7 +138,7 @@ int gpiod_mock_request(struct gpio_mock_desc *desc, const char *label)
 
 static bool gpiod_mock_free_commit(struct gpio_mock_desc *desc)
 {
-	bool			ret = false;
+	bool ret = false;
 
 	gpiod_mock_unexport(desc);
 
@@ -204,7 +208,7 @@ int gpiod_mock_get_value(const struct gpio_mock_desc *desc)
 void gpiod_mock_set_value(struct gpio_mock_desc *desc, int value)
 {
 	VALIDATE_DESC_VOID(desc);
-	
+
 	desc->value = value;
 }
 
@@ -224,7 +228,7 @@ struct gpio_mock_desc *gpiod_mock_to_desc(long gpio)
 
 	desc = NULL;
 
-	for (i=0; i<_mocked_gpios.ngpio; i++) {
+	for (i = 0; i < _mocked_gpios.ngpio; i++) {
 		if (_mocked_gpios.descs[i].gpio == gpio) {
 			desc = &(_mocked_gpios.descs[i]);
 		}
@@ -236,12 +240,12 @@ struct gpio_mock_desc *gpiod_mock_to_desc(long gpio)
 /* END: GPIO lib specific mocked function 
  * ------------------------------------------------*/
 
-#define GPIO_MOCKED_NUMBER_MAX		3
+#define GPIO_MOCKED_NUMBER_MAX 3
 
-#define GPIO_IRQF_TRIGGER_FALLING	BIT(0)
-#define GPIO_IRQF_TRIGGER_RISING	BIT(1)
-#define GPIO_IRQF_TRIGGER_BOTH		(GPIO_IRQF_TRIGGER_FALLING | \
-					 GPIO_IRQF_TRIGGER_RISING)
+#define GPIO_IRQF_TRIGGER_FALLING BIT(0)
+#define GPIO_IRQF_TRIGGER_RISING  BIT(1)
+#define GPIO_IRQF_TRIGGER_BOTH                                                 \
+	(GPIO_IRQF_TRIGGER_FALLING | GPIO_IRQF_TRIGGER_RISING)
 
 struct gpiod_mock_data {
 	struct gpio_mock_desc *desc;
@@ -282,26 +286,26 @@ static DEFINE_MUTEX(sysfs_lock);
  *        /edge configuration
  */
 
-static ssize_t direction_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t direction_show(struct device *dev, struct device_attribute *attr,
+			      char *buf)
 {
 	struct gpiod_mock_data *data = dev_get_drvdata(dev);
 	struct gpio_mock_desc *desc = data->desc;
-	ssize_t			status;
+	ssize_t status;
 
 	status = sprintf(buf, "%s\n",
-			test_bit(FLAG_IS_OUT, &desc->flags)
-				? "out" : "in");
+			 test_bit(FLAG_IS_OUT, &desc->flags) ? "out" : "in");
 
 	return status;
 }
 
 static ssize_t direction_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t size)
+			       struct device_attribute *attr, const char *buf,
+			       size_t size)
 {
 	struct gpiod_mock_data *data = dev_get_drvdata(dev);
 	struct gpio_mock_desc *desc = data->desc;
-	ssize_t			status;
+	ssize_t status;
 
 	mutex_lock(&data->mutex);
 
@@ -316,16 +320,16 @@ static ssize_t direction_store(struct device *dev,
 
 	mutex_unlock(&data->mutex);
 
-	return status ? : size;
+	return status ?: size;
 }
 static DEVICE_ATTR_RW(direction);
 
-static ssize_t value_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t value_show(struct device *dev, struct device_attribute *attr,
+			  char *buf)
 {
 	struct gpiod_mock_data *data = dev_get_drvdata(dev);
 	struct gpio_mock_desc *desc = data->desc;
-	ssize_t			status;
+	ssize_t status;
 
 	mutex_lock(&data->mutex);
 
@@ -342,8 +346,8 @@ err:
 	return status;
 }
 
-static ssize_t value_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t size)
+static ssize_t value_store(struct device *dev, struct device_attribute *attr,
+			   const char *buf, size_t size)
 {
 	struct gpiod_mock_data *data = dev_get_drvdata(dev);
 	struct gpio_mock_desc *desc = data->desc;
@@ -354,7 +358,7 @@ static ssize_t value_store(struct device *dev,
 	if (!test_bit(FLAG_IS_OUT, &desc->flags)) {
 		status = -EPERM;
 	} else {
-		long		value;
+		long value;
 
 		if (size <= 2 && isdigit(buf[0]) &&
 		    (size == 1 || buf[1] == '\n'))
@@ -376,9 +380,9 @@ static DEVICE_ATTR_PREALLOC(value, S_IWUSR | S_IRUGO, value_show, value_store);
 /* Caller holds gpiod-data mutex. */
 static int gpio_mock_sysfs_request_irq(struct device *dev, unsigned char flags)
 {
-	struct gpiod_mock_data	*data = dev_get_drvdata(dev);
-	struct gpio_mock_desc	*desc = data->desc;
-	unsigned long		irq_flags;
+	struct gpiod_mock_data *data = dev_get_drvdata(dev);
+	struct gpio_mock_desc *desc = data->desc;
+	unsigned long irq_flags;
 
 	pr_debug("%s: Setup gpio %ld as irq\n", __func__, desc->gpio);
 
@@ -391,10 +395,12 @@ static int gpio_mock_sysfs_request_irq(struct device *dev, unsigned char flags)
 	irq_flags = IRQF_SHARED;
 	if (flags & GPIO_IRQF_TRIGGER_FALLING)
 		irq_flags |= test_bit(FLAG_ACTIVE_LOW, &desc->flags) ?
-			IRQF_TRIGGER_RISING : IRQF_TRIGGER_FALLING;
+				     IRQF_TRIGGER_RISING :
+				     IRQF_TRIGGER_FALLING;
 	if (flags & GPIO_IRQF_TRIGGER_RISING)
 		irq_flags |= test_bit(FLAG_ACTIVE_LOW, &desc->flags) ?
-			IRQF_TRIGGER_FALLING : IRQF_TRIGGER_RISING;
+				     IRQF_TRIGGER_FALLING :
+				     IRQF_TRIGGER_RISING;
 
 	data->irq_flags = flags;
 
@@ -408,7 +414,7 @@ static int gpio_mock_sysfs_request_irq(struct device *dev, unsigned char flags)
 static void gpio_mock_sysfs_free_irq(struct device *dev)
 {
 	struct gpiod_mock_data *data = dev_get_drvdata(dev);
-	struct gpio_mock_desc	*desc = data->desc;
+	struct gpio_mock_desc *desc = data->desc;
 
 	pr_debug("%s: Free gpio %ld as irq\n", __func__, desc->gpio);
 
@@ -422,17 +428,17 @@ static const struct {
 	const char *name;
 	unsigned char flags;
 } trigger_types[] = {
-	{ "none",    0 },
+	{ "none", 0 },
 	{ "falling", GPIO_IRQF_TRIGGER_FALLING },
-	{ "rising",  GPIO_IRQF_TRIGGER_RISING },
-	{ "both",    GPIO_IRQF_TRIGGER_BOTH },
+	{ "rising", GPIO_IRQF_TRIGGER_RISING },
+	{ "both", GPIO_IRQF_TRIGGER_BOTH },
 };
 
-static ssize_t edge_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t edge_show(struct device *dev, struct device_attribute *attr,
+			 char *buf)
 {
 	struct gpiod_mock_data *data = dev_get_drvdata(dev);
-	ssize_t	status = 0;
+	ssize_t status = 0;
 	int i;
 
 	mutex_lock(&data->mutex);
@@ -449,12 +455,12 @@ static ssize_t edge_show(struct device *dev,
 	return status;
 }
 
-static ssize_t edge_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t size)
+static ssize_t edge_store(struct device *dev, struct device_attribute *attr,
+			  const char *buf, size_t size)
 {
 	struct gpiod_mock_data *data = dev_get_drvdata(dev);
 	unsigned char flags;
-	ssize_t	status = size;
+	ssize_t status = size;
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(trigger_types); i++) {
@@ -493,10 +499,10 @@ static DEVICE_ATTR_RW(edge);
 /* Caller holds gpiod-data mutex. */
 static int gpio_sysfs_set_active_low(struct device *dev, int value)
 {
-	struct gpiod_mock_data	*data = dev_get_drvdata(dev);
-	struct gpio_mock_desc	*desc = data->desc;
-	int			status = 0;
-	unsigned int		flags = data->irq_flags;
+	struct gpiod_mock_data *data = dev_get_drvdata(dev);
+	struct gpio_mock_desc *desc = data->desc;
+	int status = 0;
+	unsigned int flags = data->irq_flags;
 
 	if (!!test_bit(FLAG_ACTIVE_LOW, &desc->flags) == !!value)
 		return 0;
@@ -508,7 +514,7 @@ static int gpio_sysfs_set_active_low(struct device *dev, int value)
 
 	/* reconfigure poll(2) support if enabled on one edge only */
 	if (flags == GPIO_IRQF_TRIGGER_FALLING ||
-					flags == GPIO_IRQF_TRIGGER_RISING) {
+	    flags == GPIO_IRQF_TRIGGER_RISING) {
 		gpio_mock_sysfs_free_irq(dev);
 		status = gpio_mock_sysfs_request_irq(dev, flags);
 	}
@@ -517,16 +523,16 @@ static int gpio_sysfs_set_active_low(struct device *dev, int value)
 }
 
 static ssize_t active_low_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+			       struct device_attribute *attr, char *buf)
 {
 	struct gpiod_mock_data *data = dev_get_drvdata(dev);
 	struct gpio_mock_desc *desc = data->desc;
-	ssize_t			status;
+	ssize_t status;
 
 	mutex_lock(&data->mutex);
 
-	status = sprintf(buf, "%d\n",
-				!!test_bit(FLAG_ACTIVE_LOW, &desc->flags));
+	status =
+		sprintf(buf, "%d\n", !!test_bit(FLAG_ACTIVE_LOW, &desc->flags));
 
 	mutex_unlock(&data->mutex);
 
@@ -534,11 +540,12 @@ static ssize_t active_low_show(struct device *dev,
 }
 
 static ssize_t active_low_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t size)
+				struct device_attribute *attr, const char *buf,
+				size_t size)
 {
-	struct gpiod_mock_data	*data = dev_get_drvdata(dev);
-	ssize_t			status;
-	long			value;
+	struct gpiod_mock_data *data = dev_get_drvdata(dev);
+	ssize_t status;
+	long value;
 
 	mutex_lock(&data->mutex);
 
@@ -548,12 +555,12 @@ static ssize_t active_low_store(struct device *dev,
 
 	mutex_unlock(&data->mutex);
 
-	return status ? : size;
+	return status ?: size;
 }
 static DEVICE_ATTR_RW(active_low);
 
-static umode_t gpio_mock_is_visible(struct kobject *kobj, struct attribute *attr,
-			       int n)
+static umode_t gpio_mock_is_visible(struct kobject *kobj,
+				    struct attribute *attr, int n)
 {
 	struct device *dev = kobj_to_dev(kobj);
 	struct gpiod_mock_data *data = dev_get_drvdata(dev);
@@ -585,10 +592,8 @@ static const struct attribute_group gpio_mock_group = {
 	.is_visible = gpio_mock_is_visible,
 };
 
-static const struct attribute_group *gpio_mock_groups[] = {
-	&gpio_mock_group,
-	NULL
-};
+static const struct attribute_group *gpio_mock_groups[] = { &gpio_mock_group,
+							    NULL };
 
 /*
  * /sys/class/gpio/export ... write-only
@@ -598,17 +603,16 @@ static const struct attribute_group *gpio_mock_groups[] = {
  */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
 static ssize_t export_store(const struct class *class,
-				const struct class_attribute *attr,
-				const char *buf, size_t len)
+			    const struct class_attribute *attr, const char *buf,
+			    size_t len)
 #else
-static ssize_t export_store(struct class *class,
-				struct class_attribute *attr,
-				const char *buf, size_t len)
+static ssize_t export_store(struct class *class, struct class_attribute *attr,
+			    const char *buf, size_t len)
 #endif
 {
-	long			gpio;
-	struct gpio_mock_desc	*desc;
-	int			status;
+	long gpio;
+	struct gpio_mock_desc *desc;
+	int status;
 
 	status = kstrtol(buf, 0, &gpio);
 	if (status < 0)
@@ -643,23 +647,22 @@ static ssize_t export_store(struct class *class,
 done:
 	if (status)
 		pr_debug("%s: status %d\n", __func__, status);
-	return status ? : len;
+	return status ?: len;
 }
 static CLASS_ATTR_WO(export);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
 static ssize_t unexport_store(const struct class *class,
-				const struct class_attribute *attr,
-				const char *buf, size_t len)
+			      const struct class_attribute *attr,
+			      const char *buf, size_t len)
 #else
-static ssize_t unexport_store(struct class *class,
-				struct class_attribute *attr,
-				const char *buf, size_t len)
+static ssize_t unexport_store(struct class *class, struct class_attribute *attr,
+			      const char *buf, size_t len)
 #endif
 {
-	long			gpio;
-	struct gpio_mock_desc	*desc;
-	int			status;
+	long gpio;
+	struct gpio_mock_desc *desc;
+	int status;
 
 	status = kstrtol(buf, 0, &gpio);
 	if (status < 0)
@@ -685,7 +688,7 @@ static ssize_t unexport_store(struct class *class,
 done:
 	if (status)
 		pr_debug("%s: status %d\n", __func__, status);
-	return status ? : len;
+	return status ?: len;
 }
 static CLASS_ATTR_WO(unexport);
 
@@ -698,9 +701,9 @@ static struct attribute *gpio_mock_class_attrs[] = {
 ATTRIBUTE_GROUPS(gpio_mock_class);
 
 static struct class gpio_mock_class = {
-	.name =		"gpio_mock",
+	.name = "gpio_mock",
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 5, 0)
-	.owner =	THIS_MODULE,
+	.owner = THIS_MODULE,
 #endif
 	.class_groups = gpio_mock_class_groups,
 };
@@ -714,8 +717,8 @@ static int match_export(struct device *dev, const void *desc)
 
 void gpiod_mock_gen_irq(long gpio)
 {
-	struct gpio_mock_desc	*desc;
-	struct gpiod_mock_data 	*data;
+	struct gpio_mock_desc *desc;
+	struct gpiod_mock_data *data;
 	struct device *dev;
 
 	mutex_lock(&sysfs_lock);
@@ -733,7 +736,8 @@ void gpiod_mock_gen_irq(long gpio)
 
 	dev = class_find_device(&gpio_mock_class, NULL, desc, match_export);
 	if (!dev) {
-		pr_warn("%s: GPIO %ld - cannot find a device\n", __func__, gpio);
+		pr_warn("%s: GPIO %ld - cannot find a device\n", __func__,
+			gpio);
 		goto err_unlock;
 	}
 
@@ -742,7 +746,7 @@ void gpiod_mock_gen_irq(long gpio)
 	sysfs_notify_dirent(data->value_kn);
 
 err_unlock:
-	mutex_unlock(&sysfs_lock);	
+	mutex_unlock(&sysfs_lock);
 }
 EXPORT_SYMBOL_GPL(gpiod_mock_gen_irq);
 
@@ -763,9 +767,9 @@ EXPORT_SYMBOL_GPL(gpiod_mock_gen_irq);
  */
 int gpiod_mock_export(struct gpio_mock_desc *desc, bool direction_may_change)
 {
-	struct gpiod_mock_data	*data;
-	int			status;
-	struct device		*dev;
+	struct gpiod_mock_data *data;
+	int status;
+	struct device *dev;
 
 	/* can't export until sysfs is available ... */
 	/* The linux kernel version may be wrong here - at least it was working earlier */
@@ -786,11 +790,10 @@ int gpiod_mock_export(struct gpio_mock_desc *desc, bool direction_may_change)
 	mutex_lock(&sysfs_lock);
 
 	if (!test_bit(FLAG_REQUESTED, &desc->flags) ||
-	     test_bit(FLAG_EXPORT, &desc->flags)) {
+	    test_bit(FLAG_EXPORT, &desc->flags)) {
 		pr_debug("%s: unavailable (requested=%d, exported=%d)\n",
-				__func__,
-				test_bit(FLAG_REQUESTED, &desc->flags),
-				test_bit(FLAG_EXPORT, &desc->flags));
+			 __func__, test_bit(FLAG_REQUESTED, &desc->flags),
+			 test_bit(FLAG_EXPORT, &desc->flags));
 		status = -EPERM;
 		goto err_unlock;
 	}
@@ -805,9 +808,8 @@ int gpiod_mock_export(struct gpio_mock_desc *desc, bool direction_may_change)
 	mutex_init(&data->mutex);
 	data->direction_can_change = direction_may_change;
 
-	dev = device_create_with_groups(&gpio_mock_class, NULL,
-					MKDEV(0, 0), data, gpio_mock_groups,
-					"gpio%u",
+	dev = device_create_with_groups(&gpio_mock_class, NULL, MKDEV(0, 0),
+					data, gpio_mock_groups, "gpio%u",
 					mock_desc_to_gpio(desc));
 	if (IS_ERR(dev)) {
 		status = PTR_ERR(dev);
@@ -839,7 +841,7 @@ EXPORT_SYMBOL_GPL(gpiod_mock_export);
  * Returns zero on success, else an error.
  */
 int gpiod_mock_export_link(struct device *dev, const char *name,
-		      struct gpio_mock_desc *desc)
+			   struct gpio_mock_desc *desc)
 {
 	struct device *cdev;
 	int ret;
@@ -911,9 +913,11 @@ EXPORT_SYMBOL_GPL(gpiod_mock_unexport);
 
 static int __init gpiolib_mock_sysfs_init(void)
 {
-	int		status;
+	int status;
 
-	_mocked_gpios.descs = kmalloc(sizeof(struct gpio_mock_desc) * GPIO_MOCKED_NUMBER_MAX, GFP_KERNEL);
+	_mocked_gpios.descs =
+		kmalloc(sizeof(struct gpio_mock_desc) * GPIO_MOCKED_NUMBER_MAX,
+			GFP_KERNEL);
 	_mocked_gpios.descs[0].gpio = 1;
 	_mocked_gpios.descs[1].gpio = 796;
 	_mocked_gpios.descs[2].gpio = 986;
@@ -924,7 +928,8 @@ static int __init gpiolib_mock_sysfs_init(void)
 	return status;
 }
 
-static void __exit gpiolib_mock_sysfs_exit(void) {
+static void __exit gpiolib_mock_sysfs_exit(void)
+{
 	printk(KERN_INFO "[gpiolib_mock_sysfs_exit] Exit module!\n");
 	class_unregister(&gpio_mock_class);
 

@@ -32,7 +32,7 @@
 #include "libmctp-vdm-cmds.h"
 
 /* MCTP Tx/Rx timeouts */
-#define MCTP_VDM_TXRX_TIMEOUT_SECS 5
+#define MCTP_VDM_TXRX_TIMEOUT_SECS	 5
 #define MCTP_VDM_TXRX_TIMEOUT_MICRO_SECS 0
 
 /*

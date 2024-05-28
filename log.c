@@ -9,17 +9,18 @@
 
 #include <syslog.h>
 
-enum { MCTP_LOG_NONE,
-       MCTP_LOG_STDIO,
-       MCTP_LOG_SYSLOG,
-       MCTP_LOG_CUSTOM,
+enum {
+	MCTP_LOG_NONE,
+	MCTP_LOG_STDIO,
+	MCTP_LOG_SYSLOG,
+	MCTP_LOG_CUSTOM,
 } log_type = MCTP_LOG_NONE;
 
 static int log_stdio_level;
 static void (*log_custom_fn)(int, const char *, va_list);
 
 #define MAX_TRACE_BYTES	  512
-#define TRACE_FORMAT "%02X "
+#define TRACE_FORMAT	  "%02X "
 #define TRACE_FORMAT_SIZE 3
 
 static bool trace_enable;
