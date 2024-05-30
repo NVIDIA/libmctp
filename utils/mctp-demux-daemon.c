@@ -357,17 +357,14 @@ static void clean_all_clients(struct ctx *ctx)
 #ifdef MOCKUP_ENDPOINT
 
 static void forward_message(struct client *src_client, uint8_t eid,
-			    bool tag_owner, uint8_t msg_tag, void *data,
-			    void *msg, size_t len)
+			    uint8_t msg_tag, void *data, void *msg, size_t len)
 {
 	struct ctx *ctx = data;
 	struct iovec iov[2];
 	struct msghdr msghdr;
 	uint8_t type;
 	int i, rc;
-	uint8_t tag_eid[2] = {
-		((tag_owner << 3) | (msg_tag & LIBMCTP_TAG_MASK)), eid
-	};
+	uint8_t tag_eid[2] = { msg_tag, eid };
 
 	if (len < 2)
 		return;
@@ -1449,7 +1446,7 @@ static int client_process_recv(struct ctx *ctx, int idx)
 			idx, eid, rc - 2);
 
 #ifdef MOCKUP_ENDPOINT
-	forward_message(client, eid, MCTP_MESSAGE_TO_DST, 0, ctx,
+	forward_message(client, eid, *((uint8_t *)ctx->buf), ctx,
 			(uint8_t *)ctx->buf + 2, rc - 2);
 	return 0;
 #endif
