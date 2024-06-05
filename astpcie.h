@@ -101,7 +101,7 @@ struct mctp_pcie_hdr {
 #define PCIE_SET_TARGET_ID(x, val) (x->target |= (htobe16(val)))
 
 #define ALIGN_MASK(x, mask) (((x) + (mask)) & ~(mask))
-#define ALIGN(x, a)	    ALIGN_MASK(x, (a) - 1)
+#define ALIGN(x, a)	    ALIGN_MASK(x, (a)-1)
 /* All PCIe packets are dword aligned */
 #define PCIE_PKT_ALIGN(x) ALIGN(x, sizeof(uint32_t))
 
