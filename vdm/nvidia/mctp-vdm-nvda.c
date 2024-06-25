@@ -51,6 +51,9 @@
 /* MCTP-VDM response binary file */
 #define MCTP_VDM_RESP_OUTPUT_FILE "/var/mctp-vdm-output.bin"
 
+/* MCTP control destination */
+#define MCTP_CTRL_DEST "xyz.openbmc_project.MCTP.Control"
+
 #define _cleanup_(f) __attribute__((cleanup(f)))
 
 /* Global definitions */
@@ -70,11 +73,6 @@ static const struct option options[] = {
 	{ "json", no_argument, 0, 'j' },
 	{ 0 },
 };
-
-static char *dbus_services[] = { "xyz.openbmc_project.MCTP.Control.PCIe",
-				 "xyz.openbmc_project.MCTP.Control.SPI",
-				 "xyz.openbmc_project.MCTP.Control.SMBus",
-				 "xyz.openbmc_project.MCTP.Control.USB" };
 
 /* List of commands that support JSON output */
 const char *commands_supported_json_flag[] = { "query_boot_status",
@@ -343,6 +341,74 @@ static bool is_json_supported(const char *command)
 }
 
 /*
+ * Function to get destination by EID
+ */
+int get_destination_by_path(sd_bus *bus, const uint8_t eid, char *service_name)
+{
+	int rc;
+	const char *name;
+	char path[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE] = { 0 };
+
+	_cleanup_(sd_bus_message_unrefp) sd_bus_message *msg = NULL;
+	_cleanup_(sd_bus_error_free) sd_bus_error err = SD_BUS_ERROR_NULL;
+
+	snprintf(path, sizeof(path), "/xyz/openbmc_project/mctp/0/%d", eid);
+
+	rc = sd_bus_call_method(bus, "xyz.openbmc_project.ObjectMapper",
+				"/xyz/openbmc_project/object_mapper",
+				"xyz.openbmc_project.ObjectMapper", "GetObject",
+				&err, &msg, "sas", path, 0, NULL);
+	if (rc < 0) {
+		printf("sd_bus_call_method failed: %s, %s\n", strerror(-rc),
+		       err.message);
+		return -1;
+	}
+
+	rc = sd_bus_message_enter_container(msg, SD_BUS_TYPE_ARRAY, "{sas}");
+	MCTP_ASSERT_RET(rc >= 0, -1,
+			"sd_bus_message_enter_container fail: %s\n",
+			strerror(-rc));
+
+	for (;;) {
+		rc = sd_bus_message_enter_container(msg, SD_BUS_TYPE_DICT_ENTRY,
+						    "sas");
+		if (rc == 0) {
+			/* end ot array */
+			break;
+		}
+		MCTP_ASSERT_RET(rc >= 0, -1,
+				"sd_bus_message_enter_container fail: %s\n",
+				strerror(-rc));
+
+		/* get destionation */
+		rc = sd_bus_message_read_basic(msg, SD_BUS_TYPE_STRING, &name);
+		MCTP_ASSERT_RET(rc >= 0, -1,
+				"sd_bus_message_read_basic fail: %s\n",
+				strerror(-rc));
+
+		/* check if it is a CTP control destination */
+		if (strstr(name, MCTP_CTRL_DEST)) {
+			strncpy(service_name, name, strlen(name));
+			return 0;
+		}
+
+		/* skip array as we only need to the destination */
+		sd_bus_message_skip(msg, NULL);
+
+		rc = sd_bus_message_exit_container(msg);
+		MCTP_ASSERT_RET(rc >= 0, -1,
+				"sd_bus_message_exit_container fail: %s\n",
+				strerror(-rc));
+	}
+
+	rc = sd_bus_message_exit_container(msg);
+	MCTP_ASSERT_RET(rc >= 0, -1, "sd_bus_message_exit_container fail: %s\n",
+			strerror(-rc));
+
+	return 0;
+}
+
+/*
  * Main function
  */
 int main(int argc, char *const *argv)
@@ -353,6 +419,7 @@ int main(int argc, char *const *argv)
 	int found = 0;
 	char item[MCTP_VDM_COMMAND_NAME_SIZE] = { '\0' };
 	char file[PATH_MAX] = { 0 };
+	char service_name[PATH_MAX] = { 0 };
 	unsigned int max_len = 0;
 	uint8_t teid = 0;
 	bool more = false;
@@ -472,14 +539,10 @@ int main(int argc, char *const *argv)
 	rc = sd_bus_default(&bus);
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "sd_bus_default failed\n");
 
-	found = 0;
-	for (i = 0;
-	     (unsigned int)i < sizeof(dbus_services) / sizeof(dbus_services[0]);
-	     i++) {
-		found = sock_name_helper(bus, dbus_services[i], teid);
-		if (found == 1)
-			break;
-	}
+	rc = get_destination_by_path(bus, teid, service_name);
+	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "get destination failed\n");
+
+	found = sock_name_helper(bus, service_name, teid);
 
 	/* free D-Bus*/
 	sd_bus_unref(bus);
