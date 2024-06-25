@@ -638,9 +638,53 @@ static void binding_astspi_usage(void)
 		"\tchannel=<chan num> - SPI channel to open\n"
 		"\tmode=<mode num> - SPI mode (default: 0)\n"
 		"\tdisablecs=<0|1> - enable / disable CS (default: 0)\n"
-		"\tsinglemode=<0|1> - enable / disable single mode (default: 0)\n");
+		"\tsinglemode=<0|1> - enable / disable single mode (default: 0)\n"
+		"\tspi_config_file=<config.json> - SPI json config file\n");
 
 	fprintf(stderr, "Example: astpspi gpio=11 disablecs=1\n");
+}
+
+static void
+binding_spi_use_default_config(struct mctp_astspi_device_conf *config)
+{
+	config->dev = AST_MCTP_SPI_DEV_NUM;
+	config->channel = AST_MCTP_SPI_CHANNEL_NUM;
+	config->gpio = SPB_GPIO_INTR_NUM;
+	mctp_prinfo(
+		"Default configuration. dev = %d, channel = %d, gpio = %d\n",
+		config->dev, config->channel, config->gpio);
+}
+
+static void parse_spi_json_config(char *config_json_file_path,
+				  struct binding *binding,
+				  struct mctp_astspi_device_conf *config)
+{
+	json_object *parsed_json;
+	int rc;
+
+	rc = mctp_json_get_tokener_parse(&parsed_json, config_json_file_path);
+
+	if (rc == EXIT_FAILURE) {
+		mctp_prinfo("Use default config. JSON parsing failed\n");
+		binding_spi_use_default_config(config);
+		return;
+	}
+
+	// Get SPI common parameters
+	mctp_json_spi_get_common_params_mctp_demux(parsed_json,
+						   &binding->sockname, config);
+	if (binding->sockname == NULL) {
+		mctp_prerr("Get null socket name");
+		return;
+	} else if (binding->sockname[0] == '\0') {
+		mctp_prdebug("Chosen socket path unix: %s\n",
+			     &(binding->sockname[1]));
+	} else {
+		mctp_prdebug("Chosen socket path: %s\n", binding->sockname);
+	}
+
+	// free parsed json object
+	json_object_put(parsed_json);
 }
 
 static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
@@ -660,6 +704,7 @@ static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
 		char *prefix;
 		void *target;
 	} options[] = {
+		{ "spi_config_file=", NULL },
 		{ "gpio=", &config.gpio },
 		{ "device=", &config.dev },
 		{ "channel=", &config.channel },
@@ -669,19 +714,35 @@ static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
 		{ NULL, NULL },
 	};
 	binding->bindings_changed = false;
+	char *config_json_file_path = NULL;
 
 	for (int ii = 0; ii < n_params; ii++) {
 		bool parsed = false;
-
+		/* Check if path or values are given */
 		for (int jj = 0; options[jj].prefix != NULL; jj++) {
 			const char *prefix = options[jj].prefix;
 			const size_t len = strlen(prefix);
 
 			if (strncmp(params[ii], prefix, len) == 0) {
-				int val = 0;
 				char *arg = strstr(params[ii], "=") + 1;
-				val = (int)strtoimax(arg, NULL, 10);
-				*(int *)options[jj].target = val;
+				/* TODO: Need a better logic instead of using magic number 0 */
+				if (strncmp(params[ii], options[0].prefix,
+					    strlen(options[0].prefix)) == 0) {
+					if (!config_json_file_path) {
+						config_json_file_path =
+							malloc(strlen(arg) + 1);
+						memcpy(config_json_file_path,
+						       arg, (strlen(arg) + 1));
+						mctp_prinfo(
+							"[%s] Using config %s\n",
+							__func__,
+							config_json_file_path);
+					}
+				} else {
+					int val = 0;
+					val = (int)strtoimax(arg, NULL, 10);
+					*(int *)options[jj].target = val;
+				}
 				parsed = true;
 			}
 		}
@@ -690,6 +751,11 @@ static int binding_astspi_init(struct mctp *mctp, struct binding *binding,
 			binding_astspi_usage();
 			exit(1);
 		}
+	}
+
+	if (config_json_file_path != NULL) {
+		parse_spi_json_config(config_json_file_path, binding, &config);
+		free(config_json_file_path);
 	}
 
 	astspi = mctp_spi_bind_init(&config);
@@ -791,8 +857,8 @@ static void fix_muxed_bus_numbers()
 	}
 }
 
-static void parse_joson_config(char *config_json_file_path,
-			       struct binding *binding, mctp_eid_t *eid)
+static void parse_smbus_joson_config(char *config_json_file_path,
+				     struct binding *binding, mctp_eid_t *eid)
 {
 	json_object *parsed_json;
 	int rc;
@@ -965,7 +1031,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 	}
 
 	if (config_json_file_path != NULL) {
-		parse_joson_config(config_json_file_path, binding, &eid);
+		parse_smbus_joson_config(config_json_file_path, binding, &eid);
 		free(config_json_file_path);
 	}
 

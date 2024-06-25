@@ -927,3 +927,101 @@ int mctp_json_i2c_get_params_pool_ctrl(json_object *jo, uint8_t *bus_num,
 
 	return EXIT_SUCCESS;
 }
+
+/**
+ * @brief Get common paramiters from json_object for mctp-demux
+ *        using SPI.
+ *
+ * @param[in]  jo - json_object got after parse string from JSON file
+ * @param[out] sockname - Socket name
+ * @param[out] config - SPI config
+ */
+int mctp_json_spi_get_common_params_mctp_demux(
+	json_object *jo, char **sockname,
+	struct mctp_astspi_device_conf *config)
+{
+	json_object *j, *j_tmp;
+	int val = 0;
+
+	j = json_object_object_get(jo, "spi");
+	if (j == NULL) {
+		MCTP_ERR("Failed to get spi JSON object\n");
+		return -1;
+	}
+
+	/* Get SPI device number */
+	j_tmp = json_object_object_get(j, "device_num");
+	val = json_object_get_int(j_tmp);
+	config->dev = val;
+
+	/* Get SPI channel channel */
+	j_tmp = json_object_object_get(j, "channel_num");
+	val = json_object_get_int(j_tmp);
+	config->channel = val;
+
+	/* Get GPIO number */
+	j_tmp = json_object_object_get(j, "gpio_intr");
+	val = json_object_get_int(j_tmp);
+	config->gpio = val;
+
+	/* Get socket path */
+	mctp_json_get_socket_name(sockname, j);
+
+	return EXIT_SUCCESS;
+}
+
+/**
+ * @brief Get common paramiters from json_object for mctp-ctrl
+ *        using SPI.
+ *
+ * @param[in]  jo - json_object got after parse string from JSON file
+ * @param[out] sockname - Socket name
+ * @param[out] cmdline - struct for config setting
+ */
+void mctp_json_spi_get_params_ctrl(json_object *jo, char **sockname,
+				   mctp_cmdline_args_t *cmdline)
+{
+	json_object *j;
+	json_object *j_eps, *j_tmp, *j_ep;
+	const char *val_str;
+	int val_int = 0;
+	bool val_bool = false;
+	size_t i;
+
+	j = json_object_object_get(jo, "spi");
+	if (j == NULL) {
+		MCTP_ERR("Failed to get spi object\n");
+		return;
+	}
+
+	/* Get SPI device number */
+	j_tmp = json_object_object_get(j, "device_num");
+	val_int = json_object_get_int(j_tmp);
+	cmdline->spi.dev_num = val_int;
+
+	/* Get SPI device number */
+	j_tmp = json_object_object_get(j, "heartbeat_enable");
+	val_bool = json_object_get_boolean(j_tmp);
+	cmdline->spi.hb_enable = val_bool;
+
+	/* Get socket path */
+	mctp_json_get_socket_name(sockname, j);
+
+	/* Get array of endpoints */
+	j_eps = json_object_object_get(j, "endpoints");
+	size_t num_eps = json_object_array_length(j_eps);
+
+	for (i = 0; i < num_eps; i++) {
+		j_ep = json_object_array_get_idx(j_eps, i);
+
+		/* Get Destination EID */
+		j_tmp = json_object_object_get(j_ep, "eid");
+		val_int = json_object_get_int(j_tmp);
+		cmdline->dest_eid = val_int;
+
+		/* Get UUID */
+		j_tmp = json_object_object_get(j_ep, "uuid");
+		val_str = json_object_get_string(j_tmp);
+		memcpy(cmdline->uuid_str, val_str, strlen(val_str));
+	}
+}

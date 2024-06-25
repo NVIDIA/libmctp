@@ -101,9 +101,9 @@ static int mctp_spi_get_message_type(int sock, const mctp_cmdline_args_t *cmd)
 	(void)cmd;
 
 	mctp_encode_ctrl_cmd_get_msg_type_support(&req);
-	rc = mctp_client_send_recv(MCTP_NULL_ENDPOINT, sock,
-				   MCTP_CTRL_HDR_MSG_TYPE, (uint8_t *)&req,
-				   sizeof(req), &resp, &resp_len);
+	rc = mctp_client_send_recv(cmd->dest_eid, sock, MCTP_CTRL_HDR_MSG_TYPE,
+				   (uint8_t *)&req, sizeof(req), &resp,
+				   &resp_len);
 
 	if (rc != MCTP_REQUESTER_SUCCESS)
 		fprintf(stderr, "%s: fail to recv [rc: %d] response\n",
@@ -222,6 +222,15 @@ void *mctp_spi_keepalive_event(void *arg)
 	int retries = MAX_HEARTBEAT_RETRY;
 	mctp_ctrl_t *ctrl = (mctp_ctrl_t *)arg;
 
+	/* return if we don't need send keep alive */
+	if (!ctrl->cmdline->spi.hb_enable) {
+		MCTP_CTRL_ERR("[%s] Skip keep alive for EID %d\n", __func__,
+			      ctrl->eid);
+		ctrl->worker_is_ready = true;
+		pthread_cond_signal(&ctrl->worker_cv);
+		return NULL;
+	}
+
 	sigemptyset(&mask);
 	sigaddset(&mask, SIGUSR2);
 
@@ -252,8 +261,7 @@ void *mctp_spi_keepalive_event(void *arg)
 	MCTP_CTRL_INFO("[%s] Send 'Boot complete v2' message, fd = %d\n",
 		       __func__, socket_fd);
 
-	rc = boot_complete_v2(socket_fd, MCTP_NULL_ENDPOINT, 0, 0,
-			      VERBOSE_DISABLE);
+	rc = boot_complete_v2(socket_fd, ctrl->eid, 0, 0, VERBOSE_DISABLE);
 	if (rc != 0) {
 		doLog(ctrl->bus, "ERoT SPI", "Boot Complete failed",
 		      EVT_CRITICAL, "Reset the baseboard");
@@ -279,8 +287,8 @@ void *mctp_spi_keepalive_event(void *arg)
 #endif
 
 	MCTP_CTRL_INFO("[%s] Send 'Enable Heartbeat' message\n", __func__);
-	rc = set_heartbeat_enable(socket_fd, MCTP_NULL_ENDPOINT,
-				  MCTP_SPI_HB_ENABLE_CMD, VERBOSE_DISABLE);
+	rc = set_heartbeat_enable(socket_fd, ctrl->eid, MCTP_SPI_HB_ENABLE_CMD,
+				  VERBOSE_DISABLE);
 	if (rc != 0) {
 		doLog(ctrl->bus, "ERoT SPI", "Enable HeartBeat failed",
 		      EVT_CRITICAL, "Reset the baseboard");
@@ -299,7 +307,7 @@ void *mctp_spi_keepalive_event(void *arg)
 	while (mctp_ctrl_running) {
 		MCTP_CTRL_DEBUG("[%s] Send 'Heartbeat' message\n", __func__);
 
-		rc = heartbeat(socket_fd, MCTP_NULL_ENDPOINT, VERBOSE_DISABLE);
+		rc = heartbeat(socket_fd, ctrl->eid, VERBOSE_DISABLE);
 		if (rc != 0) {
 			MCTP_CTRL_ERR("[%s] Heartbeat message failed.\n",
 				      __func__);

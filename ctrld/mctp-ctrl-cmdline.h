@@ -98,6 +98,8 @@ typedef enum mctp_spi_hrtb_ops {
 struct mctp_cmdline_spi {
 	mctp_spi_vdm_ops_t vdm_ops;
 	mctp_spi_cmd_mode_t cmd_mode;
+	uint8_t dev_num;
+	bool hb_enable;
 };
 
 /* I2C specific configuration */
@@ -143,6 +145,7 @@ typedef struct mctp_cmdline_args_ {
 	uint8_t dest_eid_tab_len;
 	uint8_t uuid;
 	char uuid_str[UUID_STR_LEN];
+	bool use_json;
 	union {
 		struct mctp_cmdline_pcie pcie;
 		struct mctp_cmdline_spi spi;

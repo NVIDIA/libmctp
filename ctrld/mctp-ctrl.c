@@ -110,7 +110,8 @@ extern mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 extern mctp_ret_codes_t
 mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd, mctp_ctrl_t *ctrl);
 extern void *mctp_spi_keepalive_event(void *arg);
-extern mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl);
+extern mctp_ret_codes_t
+mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd, mctp_ctrl_t *ctrl);
 
 #ifdef MOCKUP_ENDPOINT
 // Create selected endpoint
@@ -799,7 +800,12 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
 	} else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 		MCTP_CTRL_INFO("%s: Binding type: SPI\n", __func__);
-		mctp_sock_path = MCTP_SOCK_PATH_SPI;
+		if (!mctp_sock_path) {
+			mctp_sock_path = MCTP_SOCK_PATH_SPI;
+			MCTP_CTRL_INFO(
+				"%s: no specified socket path, use the default socket path: %s\n",
+				__func__, mctp_sock_path);
+		}
 		mctp_medium_type = "SPI";
 
 		/* Open the user socket file-descriptor for CTRL MSG type */
@@ -853,8 +859,8 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		/* Discover endpoints via PCIe*/
 		MCTP_CTRL_INFO("%s: Start MCTP-over-SPI Discovery\n", __func__);
 
-		/* Create static endpoint 0 for spi ctrl daemon */
-		mctp_spi_discover_endpoint(mctp_ctrl);
+		/* Create static endpoint for spi ctrl daemon */
+		mctp_spi_discover_endpoint(cmdline, mctp_ctrl);
 
 		mctp_ctrl->worker_is_ready = false;
 
@@ -870,7 +876,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 			return EXIT_FAILURE;
 		}
 
-		/* Create pthread for sening keepalive messages */
+		/* Create pthread for sending keepalive messages */
 		pthread_create(&g_keepalive_thread, NULL,
 			       &mctp_spi_keepalive_event, (void *)mctp_ctrl);
 
@@ -999,8 +1005,8 @@ void set_uuid_str(char *uuid_str, char *from, int length)
 	}
 }
 
-static void parse_json_config(char *config_json_file_path,
-			      mctp_cmdline_args_t *cmdline)
+static void parse_smbus_json_config(char *config_json_file_path,
+				    mctp_cmdline_args_t *cmdline)
 {
 	json_object *parsed_json;
 	int rc;
@@ -1061,6 +1067,25 @@ static void parse_json_config(char *config_json_file_path,
 	json_object_put(parsed_json);
 }
 
+static void parse_spi_json_config(char *config_json_file_path,
+				  mctp_cmdline_args_t *cmdline)
+{
+	json_object *parsed_json;
+	int rc;
+	rc = mctp_json_get_tokener_parse(&parsed_json, config_json_file_path);
+
+	if (rc == EXIT_FAILURE) {
+		MCTP_CTRL_ERR("[%s] Json tokener parse fail\n", __func__);
+		exit(EXIT_FAILURE);
+	}
+
+	// Get common parameters
+	mctp_json_spi_get_params_ctrl(parsed_json, &mctp_sock_path, cmdline);
+
+	// free json object
+	json_object_put(parsed_json);
+}
+
 static void parse_command_line(int argc, char *const *argv,
 			       mctp_cmdline_args_t *cmdline,
 			       mctp_ctrl_t *mctp_ctrl)
@@ -1068,6 +1093,7 @@ static void parse_command_line(int argc, char *const *argv,
 	char *config_json_file_path = NULL;
 
 	cmdline->verbose = false;
+	cmdline->use_json = false;
 	cmdline->binding_type = MCTP_BINDING_RESERVED;
 	cmdline->delay = MCTP_CTRL_DELAY_DEFAULT;
 	cmdline->ops = MCTP_CMDLINE_OP_WRITE_DATA;
@@ -1143,6 +1169,7 @@ static void parse_command_line(int argc, char *const *argv,
 					malloc(strlen(optarg) + 1);
 				memcpy(config_json_file_path, optarg,
 				       (strlen(optarg) + 1));
+				cmdline->use_json = true;
 			}
 			break;
 		case 'p':
@@ -1225,10 +1252,15 @@ static void parse_command_line(int argc, char *const *argv,
 	case MCTP_BINDING_SPI:
 		cmdline->spi.vdm_ops = vdm_ops;
 		cmdline->spi.cmd_mode = command_mode;
+		cmdline->spi.hb_enable = true;
+		if (config_json_file_path != NULL) {
+			parse_spi_json_config(config_json_file_path, cmdline);
+			mctp_ctrl->eid = cmdline->dest_eid;
+		}
 		break;
 	case MCTP_BINDING_SMBUS:
 		if (config_json_file_path != NULL) {
-			parse_json_config(config_json_file_path, cmdline);
+			parse_smbus_json_config(config_json_file_path, cmdline);
 		} else {
 			// Run as Bridge
 			set_g_val_for_pvt_binding(

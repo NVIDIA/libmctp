@@ -1648,12 +1648,16 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 }
 
 /* Routine to create the endpoint devices with the static eid */
-mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl)
+mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
+					    mctp_ctrl_t *ctrl)
 {
-	int mode = MCTP_GET_EP_UUID_REQUEST;
+	int mode = MCTP_SET_EP_REQUEST;
 	mctp_ret_codes_t mctp_ret;
+	mctp_ctrl_cmd_set_eid_op set_eid_op;
 	uint8_t *mctp_resp_msg = NULL;
+	uint8_t eid = 0, eid_count = 0;
 	size_t resp_msg_len;
+	int timeout = 0;
 	mctp_binding_ids_t bind_id = MCTP_BINDING_SPI;
 
 	/* Implement SPI UUID and MSG_TYPE commamnds*/
@@ -1667,11 +1671,79 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl)
 		}
 
 		switch (mode) {
+		case MCTP_SET_EP_REQUEST:
+
+			/* Update the EID operation and EID number */
+			set_eid_op = set_eid;
+			eid = cmd->dest_eid;
+
+			/* Send the MCTP_SET_EP_REQUEST */
+			mctp_ret = mctp_set_eid_send_request(
+				ctrl->sock, bind_id, set_eid_op, eid);
+			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+				MCTP_CTRL_ERR(
+					"%s: Failed MCTP_SET_EP_REQUEST\n",
+					__func__);
+				doLog(ctrl->bus,
+				      "SPI Device Enumeration Service",
+				      "Failed to discover", EVT_CRITICAL,
+				      "Reset the baseboard");
+				return MCTP_RET_DISCOVERY_FAILED;
+			}
+
+			/* Wait for the endpoint response */
+			mode = MCTP_SET_EP_RESPONSE;
+			break;
+
+		case MCTP_SET_EP_RESPONSE:
+
+			/* Process the MCTP_SET_EP_RESPONSE */
+			mctp_ret = mctp_set_eid_get_response(mctp_resp_msg,
+							     resp_msg_len,
+							     cmd->dest_eid,
+							     &eid_count);
+			/* Free Rx packet */
+			free(mctp_resp_msg);
+			mctp_resp_msg = NULL;
+
+			/* Retry if the device is not ready */
+			if (mctp_ret == MCTP_RET_DEVICE_NOT_READY) {
+				/* Make sure it's not timedout before continuing */
+				if (timeout < MCTP_DEVICE_SET_EID_TIMEOUT) {
+					/* Increment the timeout */
+					timeout += MCTP_DEVICE_READY_DELAY;
+
+					/* Set the discover mode as MCTP_SET_EP_REQUEST */
+					mode = MCTP_SET_EP_REQUEST;
+					break;
+				}
+
+				MCTP_CTRL_ERR(
+					"%s: Timedout[%d] MCTP_EP_DISCOVERY_RESPONSE\n",
+					__func__, timeout);
+				return MCTP_RET_DISCOVERY_FAILED;
+			}
+
+			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+				MCTP_CTRL_ERR(
+					"%s: Failed MCTP_EP_DISCOVERY_RESPONSE\n",
+					__func__);
+				return MCTP_RET_DISCOVERY_FAILED;
+			}
+
+			/* Reset the timeout */
+			timeout = 0;
+
+			/* Next step is to Get UUID */
+			mode = MCTP_GET_EP_UUID_REQUEST;
+
+			break;
+
 		case MCTP_GET_EP_UUID_REQUEST:
 
 			/* Send the MCTP_GET_EP_UUID_REQUEST */
 			mctp_ret = mctp_get_endpoint_uuid_send_request(
-				ctrl->sock, bind_id, MCTP_NULL_ENDPOINT);
+				ctrl->sock, bind_id, eid);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_GET_EP_UUID_REQUEST\n",
@@ -1693,8 +1765,7 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl)
 			} else {
 				/* Process the MCTP_GET_EP_UUID_RESPONSE */
 				mctp_ret = mctp_get_endpoint_uuid_response(
-					MCTP_NULL_ENDPOINT, mctp_resp_msg,
-					resp_msg_len);
+					eid, mctp_resp_msg, resp_msg_len);
 
 				if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 					MCTP_CTRL_ERR(
@@ -1714,10 +1785,10 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl)
 			/* Send the MCTP_GET_MSG_TYPE_REQUEST */
 			MCTP_CTRL_DEBUG(
 				"%s: Send Get Msg type Request for EID: 0x%x\n",
-				__func__, MCTP_NULL_ENDPOINT);
+				__func__, eid);
 
-			mctp_ret = mctp_get_msg_type_request(
-				ctrl->sock, bind_id, MCTP_NULL_ENDPOINT);
+			mctp_ret = mctp_get_msg_type_request(ctrl->sock,
+							     bind_id, eid);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_GET_MSG_TYPE_REQUEST\n",
@@ -1733,12 +1804,11 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(mctp_ctrl_t *ctrl)
 			if (mctp_ret == MCTP_RET_REQUEST_FAILED) {
 				MCTP_CTRL_ERR(
 					"%s: MCTP_GET_MSG_TYPE_RESPONSE Failed EID: %d\n",
-					__func__, MCTP_NULL_ENDPOINT);
+					__func__, eid);
 			} else {
 				/* Process the MCTP_GET_MSG_TYPE_RESPONSE */
 				mctp_ret = mctp_get_msg_type_response(
-					MCTP_NULL_ENDPOINT, mctp_resp_msg,
-					resp_msg_len);
+					eid, mctp_resp_msg, resp_msg_len);
 
 				/* Free Rx packet */
 				free(mctp_resp_msg);

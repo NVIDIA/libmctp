@@ -17,6 +17,7 @@
 #include <json-c/json.h>
 
 #include "libmctp-smbus.h"
+#include "ctrld/mctp-ctrl-cmdline.h"
 
 enum eid_types {
 	EID_TYPE_BRIDGE,
@@ -59,3 +60,9 @@ int mctp_json_i2c_get_params_static_ctrl(json_object *jo, uint8_t *bus_num,
 int mctp_json_i2c_get_params_pool_ctrl(json_object *jo, uint8_t *bus_num,
 				       uint8_t *dest_pool_eid_tab,
 				       uint8_t *dest_pool_eid_len);
+
+int mctp_json_spi_get_common_params_mctp_demux(
+	json_object *jo, char **sockname,
+	struct mctp_astspi_device_conf *config);
+void mctp_json_spi_get_params_ctrl(json_object *jo, char **sockname,
+				   mctp_cmdline_args_t *cmdline);

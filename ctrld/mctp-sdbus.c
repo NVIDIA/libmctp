@@ -434,7 +434,7 @@ static int mctp_ctrl_sdbus_get_uuid(sd_bus *bus, const char *path,
 		if (entry->eid == eid_req) {
 			uint8_t nil_uuid[sizeof(ctx->cmdline->uuid_str)] = { 0 };
 			/* For SPI service, always report the one passed in from the command
-			   line, if any */
+			   line or JSON config, if any */
 			if (!strncmp(mctp_medium_type, "SPI",
 				     sizeof("SPI") - 1) &&
 			    memcmp(ctx->cmdline->uuid_str, nil_uuid,
@@ -846,6 +846,17 @@ mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
 		snprintf(mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE,
 			 "%s.%s%d", MCTP_CTRL_DBUS_NAME, mctp_medium_type,
 			 cmdline->i2c.bus_num);
+	} else if (MCTP_BINDING_SPI == cmdline->binding_type) {
+		if (cmdline->use_json) {
+			snprintf(mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE,
+				 "%s.%s%d", MCTP_CTRL_DBUS_NAME,
+				 mctp_medium_type, cmdline->spi.dev_num);
+		} else {
+			/* keep using original dbus name for backward compatibility */
+			snprintf(mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE,
+				 "%s.%s", MCTP_CTRL_DBUS_NAME,
+				 mctp_medium_type);
+		}
 	} else {
 		snprintf(mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE, "%s.%s",
 			 MCTP_CTRL_DBUS_NAME, mctp_medium_type);
