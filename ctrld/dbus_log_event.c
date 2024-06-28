@@ -57,7 +57,7 @@ static void createLog(sd_bus *bus, char *message, char *arg0, char *arg1,
 			    severity, 4, "REDFISH_MESSAGE_ID", message,
 			    "REDFISH_MESSAGE_ARGS", args,
 			    "xyz.openbmc_project.Logging.Entry.Resolution",
-			    resolution, "namespace", "FWUpdate") < 0) {
+			    resolution) < 0) {
 			fprintf(stderr,
 				"Warning: Unable to create SDBUS log (%s) for msg: %s\n",
 				severity, message);
