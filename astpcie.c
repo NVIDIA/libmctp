@@ -408,8 +408,11 @@ int mctp_astpcie_rx(struct mctp_binding_astpcie *astpcie)
 	hdr = (struct mctp_pcie_hdr *)data;
 	payload_len = mctp_astpcie_rx_get_payload_size(hdr);
 
-	mctp_trace_rx(&data, (sizeof(struct mctp_pcie_hdr) +
-			      sizeof(struct mctp_hdr) + payload_len));
+	size_t len = (sizeof(struct mctp_pcie_hdr) + sizeof(struct mctp_hdr) +
+			payload_len);
+	len = len > MCTP_ASTPCIE_BINDING_DEFAULT_BUFFER ?
+			MCTP_ASTPCIE_BINDING_DEFAULT_BUFFER : len;
+	mctp_trace_rx(&data, len);
 
 	pkt_prv.routing = PCIE_GET_ROUTING(hdr);
 
