@@ -466,6 +466,7 @@ int mctp_msg_type_entry_add(mctp_msg_type_table_t *msg_type_tbl)
 				"%s: EID %d already exists in message type list, ignoring.\n",
 				__func__, temp_entry->eid);
 			temp_entry->enabled = true;
+			free(new_entry);
 			return 0;
 		}
 		temp_entry = temp_entry->next;
@@ -476,6 +477,7 @@ int mctp_msg_type_entry_add(mctp_msg_type_table_t *msg_type_tbl)
 			"%s: EID %d already exists in message type list, ignoring.\n",
 			__func__, temp_entry->eid);
 		temp_entry->enabled = true;
+		free(new_entry);
 		return 0;
 	}
 
