@@ -54,7 +54,7 @@ static void createLog(sd_bus *bus, char *message, char *arg0, char *arg1,
 			    bus, NULL, LOG_SERVICE, LOG_PATH,
 			    LOG_CREATE_INTERFACE, LOG_CREATE_FUNCTION,
 			    logCallback, NULL, LOG_CREATE_SIGNATURE, message,
-			    severity, 4, "REDFISH_MESSAGE_ID", message,
+			    severity, 3, "REDFISH_MESSAGE_ID", message,
 			    "REDFISH_MESSAGE_ARGS", args,
 			    "xyz.openbmc_project.Logging.Entry.Resolution",
 			    resolution) < 0) {
