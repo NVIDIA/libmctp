@@ -46,6 +46,8 @@ extern "C" {
 #define MCTP_CTRL_DBUS_DECORATOR_INTERFACE                                     \
 	"xyz.openbmc_project.Inventory.Decorator.I2CDevice"
 #define MCTP_CTRL_DBUS_ENABLE_INTERFACE "xyz.openbmc_project.Object.Enable"
+#define MCTP_CTRL_DBUS_SERVICE_READY_INTERFACE                                 \
+	"xyz.openbmc_project.State.ServiceReady"
 
 #define MCTP_CTRL_SDBUS_OBJ_PATH_SIZE 1024
 #define MCTP_CTRL_SDBUS_NMAE_SIZE     255

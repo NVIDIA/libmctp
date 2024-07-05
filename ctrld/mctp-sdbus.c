@@ -567,6 +567,45 @@ static int mctp_ctrl_sdbus_set_enabled(sd_bus *bus, const char *path,
 	return 1;
 }
 
+static int mctp_ctrl_sdbus_get_service_type(sd_bus *bus, const char *path,
+					    const char *interface,
+					    const char *property,
+					    sd_bus_message *reply,
+					    void *userdata, sd_bus_error *error)
+{
+	(void)bus;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
+	(void)path;
+
+	/* append the message */
+	return sd_bus_message_append(
+		reply, "s",
+		"xyz.openbmc_project.State.ServiceReady.ServiceTypes.MCTP");
+}
+
+static int mctp_ctrl_sdbus_get_service_state(sd_bus *bus, const char *path,
+					     const char *interface,
+					     const char *property,
+					     sd_bus_message *reply,
+					     void *userdata,
+					     sd_bus_error *error)
+{
+	(void)bus;
+	(void)interface;
+	(void)property;
+	(void)userdata;
+	(void)error;
+	(void)path;
+
+	/* append the message - We are always in enabled state if we get here */
+	return sd_bus_message_append(
+		reply, "s",
+		"xyz.openbmc_project.State.ServiceReady.States.Enabled");
+}
+
 static int mctp_ctrl_monitor_signal_events(mctp_sdbus_context_t *context)
 {
 	int ret;
@@ -688,6 +727,30 @@ static const sd_bus_vtable mctp_ctrl_object_enable_vtable[] = {
 					 SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
 	SD_BUS_VTABLE_END
 };
+
+static const sd_bus_vtable mctp_ctrl_service_ready_vtable[] = {
+	SD_BUS_VTABLE_START(0),
+	SD_BUS_PROPERTY("ServiceType", "s", mctp_ctrl_sdbus_get_service_type, 0,
+			SD_BUS_VTABLE_PROPERTY_CONST),
+	SD_BUS_PROPERTY("State", "s", mctp_ctrl_sdbus_get_service_state, 0,
+			SD_BUS_VTABLE_PROPERTY_CONST),
+	SD_BUS_VTABLE_END
+};
+
+static int mctp_mark_service_ready(mctp_sdbus_context_t *context)
+{
+	int r = 0;
+	MCTP_CTRL_TRACE("Registering object '%s' for ServiceReady.\n",
+			MCTP_CTRL_OBJ_NAME);
+	r = sd_bus_add_object_vtable(context->bus, NULL, MCTP_CTRL_OBJ_NAME,
+				     MCTP_CTRL_DBUS_SERVICE_READY_INTERFACE,
+				     mctp_ctrl_service_ready_vtable, context);
+	if (r < 0) {
+		MCTP_CTRL_ERR("Failed to add service ready interface: %s\n",
+			      strerror(-r));
+	}
+	return r;
+}
 
 static int mctp_sdbus_refresh_endpoints(const mctp_cmdline_args_t *cmdline,
 					mctp_sdbus_context_t *context)
@@ -875,6 +938,14 @@ mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
 	r = mctp_sdbus_refresh_endpoints(cmdline, context);
 	if (r < 0) {
 		MCTP_CTRL_ERR("Failed to add/refresh D-Bus objects: %s\n",
+			      strerror(-r));
+		goto finish;
+	}
+
+	/* Mark the service as ready by hosting the ServiceReady interface */
+	r = mctp_mark_service_ready(context);
+	if (r < 0) {
+		MCTP_CTRL_ERR("Failed to mark service ready: %s\n",
 			      strerror(-r));
 		goto finish;
 	}
