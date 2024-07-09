@@ -26,5 +26,10 @@ option(
     value: 'disabled',
     description: '''Enable mctp-tun as the binding layer communicating with physical devices.'''
 )
+option(
+    'mctp-in-kernel-enable',
+    type: 'feature',
+    value: 'disabled',
+    description: 'Enable the in kernel MCTP stack and disable the demux daemon communication')
 option('enable-fuzzctrl', type: 'feature', description: 'Fuzz tests for MCTP control demon', value: 'disabled')
 option('mocked-drivers', type: 'feature', description: 'Use mocked drivers - for UT or Fuzz tests purposes only', value: 'disabled')

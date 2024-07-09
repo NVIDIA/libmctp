@@ -198,49 +198,6 @@ static void mctp_ctrl_clean_up(void)
 	mctp_msg_types_delete_all();
 }
 
-mctp_requester_rc_t
-mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_fd,
-			      const uint8_t *mctp_req_msg, size_t req_msg_len,
-			      const mctp_binding_ids_t *bind_id,
-			      void *mctp_binding_info, size_t mctp_binding_len)
-{
-	uint8_t hdr[2] = { dest_eid, MCTP_MSG_TYPE_HDR };
-	struct iovec iov[4];
-
-	MCTP_ASSERT_RET(mctp_req_msg[0] == MCTP_MSG_TYPE_HDR,
-			MCTP_REQUESTER_SEND_FAIL, " unsupported Msg type: %d\n",
-			mctp_req_msg[0]);
-
-	/* Binding ID and information */
-	iov[0].iov_base = (uint8_t *)bind_id;
-	iov[0].iov_len = sizeof(uint8_t);
-	iov[1].iov_base = (uint8_t *)mctp_binding_info;
-	iov[1].iov_len = mctp_binding_len;
-
-	/* MCTP header and payload */
-	iov[2].iov_base = hdr;
-	iov[2].iov_len = sizeof(hdr);
-	iov[3].iov_base = (uint8_t *)(mctp_req_msg + 1);
-	iov[3].iov_len = req_msg_len;
-
-	struct msghdr msg = { 0 };
-	msg.msg_iov = iov;
-	msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
-
-	mctp_trace_common("mctp_bind_id  >> ", (uint8_t *)bind_id,
-			  sizeof(uint8_t));
-	mctp_trace_common("mctp_pvt_data >> ", mctp_binding_info,
-			  mctp_binding_len);
-	mctp_trace_common("mctp_req_hdr  >> ", hdr, sizeof(hdr));
-	mctp_trace_common("mctp_req_msg  >> ", mctp_req_msg, req_msg_len);
-
-	ssize_t rc = sendmsg(mctp_fd, &msg, 0);
-	MCTP_ASSERT_RET(rc >= 0, MCTP_REQUESTER_SEND_FAIL,
-			"failed to sendmsg\n");
-
-	return MCTP_REQUESTER_SUCCESS;
-}
-
 static const struct option g_options[] = {
 	{ "verbose", no_argument, 0, 'v' },
 	{ "remove_duplicates", no_argument, 0, 'c' },

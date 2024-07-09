@@ -27,6 +27,9 @@
 #include <sys/un.h>
 #include <sys/time.h>
 
+#include <linux/if_arp.h>
+#include <linux/mctp.h>
+
 #define pr_fmt(x) "mctp-socket: " x
 
 #include "libmctp.h"
@@ -52,6 +55,158 @@ const uint8_t MCTP_MSG_TYPE_HDR = 0;
 /* MCTP TX/RX retry threshold */
 #define MCTP_CMD_THRESHOLD 2
 
+#ifdef MCTP_IN_KERNEL
+
+mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
+					 uint8_t msgtype, time_t timeout)
+{
+	(void)timeout;
+	(void)path;
+	(void)msgtype;
+
+	*fd = socket(AF_MCTP, SOCK_DGRAM, 0);
+	if (*fd < 0) {
+		MCTP_ASSERT_RET(*fd != -1, MCTP_REQUESTER_OPEN_FAIL,
+			"open socket failed, errno=%d\n", errno);
+	}
+
+	return MCTP_REQUESTER_SUCCESS;
+}
+
+mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
+				     uint8_t msgtype,
+				     const uint8_t *mctp_req_msg,
+				     size_t req_msg_len)
+{
+	struct sockaddr_mctp addr;
+
+	if(mctp_fd < 0) {
+		return MCTP_REQUESTER_SEND_FAIL;
+	}
+
+	memset(&addr, 0, sizeof(addr));
+
+	addr.smctp_family = AF_MCTP;
+    addr.smctp_network = MCTP_NET_ANY; /* any network */
+    addr.smctp_addr.s_addr = dest_eid;    /* remote eid */
+    addr.smctp_tag = MCTP_TAG_OWNER; /* kernel will allocate an owned tag */
+    addr.smctp_type = msgtype;
+
+	ssize_t ret = sendto(mctp_fd, mctp_req_msg, req_msg_len, 0,(struct sockaddr *)&addr, sizeof(addr));
+	if (ret != (int)req_msg_len) {
+		err(EXIT_FAILURE, "sendto(%zd) - rc: %zd", req_msg_len, ret);
+		return MCTP_REQUESTER_SEND_FAIL;
+	}
+
+	return MCTP_REQUESTER_SUCCESS;
+}
+
+mctp_requester_rc_t mctp_client_send_ext(mctp_eid_t dest_eid, int mctp_fd,
+				     uint8_t msgtype,
+				     const uint8_t *mctp_req_msg,
+				     size_t req_msg_len)
+{
+	struct sockaddr_mctp_ext addr;
+	socklen_t addrlen;
+	int rc;
+
+	if (mctp_fd < 0) {
+		err(EXIT_FAILURE, "socket");
+		return MCTP_REQUESTER_SEND_FAIL;
+	}
+
+	memset(&addr, 0x0, sizeof(addr));
+	addrlen = sizeof(struct sockaddr_mctp);
+	addr.smctp_base.smctp_family = AF_MCTP;
+	addr.smctp_base.smctp_network = 1;
+	addr.smctp_base.smctp_addr.s_addr = dest_eid;
+	addr.smctp_base.smctp_type = msgtype;
+	addr.smctp_base.smctp_tag = MCTP_TAG_OWNER;
+	
+	addrlen = sizeof(struct sockaddr_mctp_ext);
+	addr.smctp_halen = 1;
+	addr.smctp_haddr[0] = 0;
+	addr.smctp_ifindex = 3;
+
+	int val = 1;
+	rc = setsockopt(mctp_fd, SOL_MCTP, MCTP_OPT_ADDR_EXT, &val, sizeof(val));
+	if (rc < 0)
+		errx(EXIT_FAILURE,
+			"Kernel does not support MCTP extended addressing");
+
+	/* send data */
+	rc = sendto(mctp_fd, mctp_req_msg, req_msg_len, 0,
+			(struct sockaddr *)&addr, addrlen);
+	if (rc != (int)req_msg_len) {
+		err(EXIT_FAILURE, "sendto(%zd) - rc: %zd", req_msg_len, rc);
+		return MCTP_REQUESTER_SEND_FAIL;
+	}
+
+	return MCTP_REQUESTER_SUCCESS;
+}
+
+mctp_requester_rc_t
+mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_fd,
+			      const uint8_t *mctp_req_msg, size_t req_msg_len,
+			      const mctp_binding_ids_t *bind_id,
+			      void *mctp_binding_info, size_t mctp_binding_len)
+{
+	(void)bind_id;
+	(void)mctp_binding_info;
+	(void)mctp_binding_len;
+	if(dest_eid == MCTP_EID_BROADCAST || dest_eid == MCTP_EID_NULL)
+		return mctp_client_send_ext(dest_eid, mctp_fd, 0, mctp_req_msg + 1, req_msg_len - 1);
+	else
+		return mctp_client_send(dest_eid, mctp_fd, 0, mctp_req_msg + 1, req_msg_len - 1);
+}
+
+static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
+				     uint8_t **mctp_resp_msg,
+				     size_t *resp_msg_len, mctp_eid_t *resp_eid)
+{
+	struct sockaddr_mctp addr;
+    socklen_t addrlen;
+    addrlen = sizeof(addr);
+
+	sleep(1);
+	memset(&addr, 0, sizeof(addr));
+
+	addr.smctp_family = AF_MCTP;
+    addr.smctp_network = MCTP_NET_ANY; /* any network */
+    addr.smctp_addr.s_addr = eid;    /* remote eid */
+    addr.smctp_tag = MCTP_TAG_OWNER; /* kernel will allocate an owned tag */
+    addr.smctp_type = 0;
+
+    ssize_t bufLen = recv(mctp_fd, NULL, 0, MSG_PEEK | MSG_TRUNC);
+
+	if (bufLen < 0) {
+		mctp_prinfo("%s: Recv failed: due to timedout\n", __func__);
+		return MCTP_REQUESTER_TIMEOUT;
+	}
+
+	*mctp_resp_msg = malloc(bufLen + 1);
+
+	MCTP_ASSERT_RET(*mctp_resp_msg != NULL,
+		MCTP_REQUESTER_RECV_FAIL,
+		"fail to allocate %zu bytes memory\n",
+		bufLen);
+
+	ssize_t ret = recvfrom(mctp_fd, *mctp_resp_msg + 1, bufLen, MSG_TRUNC, (struct sockaddr *)&addr, &addrlen);
+
+	if (ret != bufLen) {
+		err(EXIT_FAILURE, "recvfrom");
+		return MCTP_REQUESTER_RECV_FAIL;
+	}
+	*resp_msg_len = bufLen + 1;
+	(*mctp_resp_msg)[0] = 0;
+	*resp_eid = (*mctp_resp_msg)[1];
+
+	return MCTP_REQUESTER_SUCCESS;
+}
+
+#endif
+
+#ifndef MCTP_IN_KERNEL
 mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 					 uint8_t msgtype, time_t time_out)
 {
@@ -110,7 +265,9 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 
 	return MCTP_REQUESTER_SUCCESS;
 }
+#endif
 
+#ifndef MCTP_IN_KERNEL
 static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 				     uint8_t **mctp_resp_msg,
 				     size_t *resp_msg_len, mctp_eid_t *resp_eid)
@@ -186,6 +343,7 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 
 	return MCTP_REQUESTER_SUCCESS;
 }
+#endif
 
 /* The function won't do eid checking mainly for mctp control messages,
  * especailly mctp discovery messages.
@@ -265,6 +423,7 @@ mctp_client_recv_from_eid(mctp_eid_t eid, int mctp_fd, uint8_t cmd_code,
 	return rc;
 }
 
+#ifndef MCTP_IN_KERNEL
 mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
 				     uint8_t msgtype,
 				     const uint8_t *mctp_req_msg,
@@ -294,6 +453,50 @@ mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
 
 	return MCTP_REQUESTER_SUCCESS;
 }
+
+mctp_requester_rc_t
+mctp_client_with_binding_send(mctp_eid_t dest_eid, int mctp_fd,
+			      const uint8_t *mctp_req_msg, size_t req_msg_len,
+			      const mctp_binding_ids_t *bind_id,
+			      void *mctp_binding_info, size_t mctp_binding_len)
+{
+	uint8_t hdr[2] = { dest_eid, MCTP_MSG_TYPE_HDR };
+	struct iovec iov[4];
+
+	MCTP_ASSERT_RET(mctp_req_msg[0] == MCTP_MSG_TYPE_HDR,
+			MCTP_REQUESTER_SEND_FAIL, " unsupported Msg type: %d\n",
+			mctp_req_msg[0]);
+
+	/* Binding ID and information */
+	iov[0].iov_base = (uint8_t *)bind_id;
+	iov[0].iov_len = sizeof(uint8_t);
+	iov[1].iov_base = (uint8_t *)mctp_binding_info;
+	iov[1].iov_len = mctp_binding_len;
+
+	/* MCTP header and payload */
+	iov[2].iov_base = hdr;
+	iov[2].iov_len = sizeof(hdr);
+	iov[3].iov_base = (uint8_t *)(mctp_req_msg + 1);
+	iov[3].iov_len = req_msg_len;
+
+	struct msghdr msg = { 0 };
+	msg.msg_iov = iov;
+	msg.msg_iovlen = sizeof(iov) / sizeof(iov[0]);
+
+	mctp_trace_common("mctp_bind_id  >> ", (uint8_t *)bind_id,
+			  sizeof(uint8_t));
+	mctp_trace_common("mctp_pvt_data >> ", mctp_binding_info,
+			  mctp_binding_len);
+	mctp_trace_common("mctp_req_hdr  >> ", hdr, sizeof(hdr));
+	mctp_trace_common("mctp_req_msg  >> ", mctp_req_msg, req_msg_len);
+
+	ssize_t rc = sendmsg(mctp_fd, &msg, 0);
+	MCTP_ASSERT_RET(rc >= 0, MCTP_REQUESTER_SEND_FAIL,
+			"failed to sendmsg\n");
+
+	return MCTP_REQUESTER_SUCCESS;
+}
+#endif
 
 mctp_requester_rc_t mctp_client_send_recv(mctp_eid_t eid, int fd,
 					  uint8_t msgtype,

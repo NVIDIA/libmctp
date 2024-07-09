@@ -74,6 +74,21 @@ mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
 				     size_t req_msg_len);
 
 /**
+ * @brief Write MCTP socket. If the data is sent out, return success.
+ *
+ * @param[in] eid - destination MCTP eid
+ * @param[in] mctp_fd - MCTP socket fd
+ * @param[in] mctp_req_msg - the request message will be sent out.
+ * @param[in] req_msg_len - the length of the request message.
+ *
+ * @return int (errno may be set). failure is returned.
+ */
+mctp_requester_rc_t mctp_client_send_ext(mctp_eid_t dest_eid, int mctp_fd,
+				     uint8_t msgtype,
+				     const uint8_t *mctp_req_msg,
+				     size_t req_msg_len);
+
+/**
  * @brief Write MCTP socket and then read  MCTP socket. If the read timeout incurs,
  *  there will be retry happening.
  *
