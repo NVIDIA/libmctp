@@ -745,6 +745,12 @@ static int mctp_mark_service_ready(mctp_sdbus_context_t *context)
 	memset(mctp_ctrl_objpath, '\0', MCTP_CTRL_SDBUS_OBJ_PATH_SIZE);
 	snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_OBJ_PATH_SIZE, "%s/%s",
 		 MCTP_CTRL_OBJ_NAME, mctp_medium_type);
+	r = sd_bus_add_object_manager(context->bus, NULL, mctp_ctrl_objpath);
+	if (r < 0) {
+		MCTP_CTRL_ERR("Failed to add object manager: %s\n",
+			      strerror(-r));
+		return r;
+	}
 	MCTP_CTRL_TRACE("Registering object '%s' for ServiceReady.\n",
 			mctp_ctrl_objpath);
 	r = sd_bus_add_object_vtable(context->bus, NULL, mctp_ctrl_objpath,
@@ -753,6 +759,13 @@ static int mctp_mark_service_ready(mctp_sdbus_context_t *context)
 	if (r < 0) {
 		MCTP_CTRL_ERR("Failed to add service ready interface: %s\n",
 			      strerror(-r));
+		return r;
+	}
+	r = sd_bus_emit_object_added(context->bus, mctp_ctrl_objpath);
+	if (r < 0) {
+		MCTP_CTRL_ERR("Failed to emit object added: %s\n",
+			      strerror(-r));
+		return r;
 	}
 	return r;
 }
