@@ -1126,6 +1126,23 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			}
 		}
 
+		if (mctp_resp_msg) {
+			/* Check for and discard any discovery notifies we might get when
+			   we are in the midst of a discovery. Set a flag in the MCTP
+			   context, so that the notifies can be processed at a later point
+			   in our event loop */
+			struct mctp_ctrl_cmd_msg_hdr *hdr = &(
+				((struct mctp_ctrl_resp *)mctp_resp_msg)->hdr);
+			if (hdr->ic_msg_type == MCTP_CONTROL_MESSAGE_TYPE &&
+			    hdr->command_code ==
+				    MCTP_COMMAND_CODE_DISCOVERY_NOTIFY) {
+				ctrl->perform_rediscovery = true;
+				free(mctp_resp_msg);
+				mctp_resp_msg = NULL;
+				continue;
+			}
+		}
+
 		switch (discovery_mode) {
 		case MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST:
 

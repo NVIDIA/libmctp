@@ -72,6 +72,7 @@ typedef struct {
 	pthread_cond_t worker_cv;
 	pthread_mutex_t worker_mtx;
 	bool worker_is_ready;
+	bool perform_rediscovery;
 } mctp_ctrl_t;
 
 /* MCTP ctrl requester return codes */

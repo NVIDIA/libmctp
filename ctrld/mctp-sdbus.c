@@ -61,7 +61,7 @@ extern char *mctp_sock_path;
 extern const char *mctp_medium_type;
 
 extern int g_disc_timer_fd;
-
+extern void mctp_handle_discovery_notify();
 int mctp_ctrl_running = 1;
 
 /* String map for supported bus type */
@@ -1024,6 +1024,16 @@ static int mctp_ctrl_handle_timer(mctp_ctrl_t *mctp_ctrl,
 
 		/* Refresh D-Bus states */
 		mctp_sdbus_refresh_endpoints(mctp_ctrl->cmdline, context);
+
+		/* Re-arm the timer if we received a discovery notify during our
+		handling of the discovery notify */
+		if (mctp_ctrl->perform_rediscovery == true) {
+			MCTP_CTRL_INFO(
+				"%s: Re-arm discovery timer after handling discovery notify\n",
+				__func__);
+			mctp_handle_discovery_notify();
+			mctp_ctrl->perform_rediscovery = false;
+		}
 	}
 	return 0;
 }
@@ -1088,12 +1098,6 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 {
 	int r = 0;
 	mctp_sdbus_context_t *context = NULL;
-	if (-1 == g_disc_timer_fd) {
-		MCTP_CTRL_INFO(
-			"%s: Creating discovery timer for the first time\n",
-			__func__);
-		g_disc_timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
-	}
 
 	context = mctp_ctrl_sdbus_create_context(mctp_ctrl->bus, cmdline);
 	if (!context) {

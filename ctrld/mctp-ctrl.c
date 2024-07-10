@@ -547,7 +547,7 @@ int mctp_cmdline_copy_tx_buff(char src[], uint8_t *dest, int len)
 	return buff_len;
 }
 
-static void mctp_handle_discovery_notify()
+void mctp_handle_discovery_notify()
 {
 	/* Broad logic: This function bumps up discovery notify handler timer for
     another 5s. This is done to ensure that a flood of discovery notifies do
@@ -1306,6 +1306,7 @@ int main_ctrl(int argc, char *const *argv)
 	/* Initialize MCTP ctrl structure */
 	mctp_ctrl = &_mctp_ctrl;
 	mctp_ctrl->type = MCTP_MSG_TYPE_HDR;
+	mctp_ctrl->perform_rediscovery = false;
 
 	/* Initialize the cmdline structure */
 	memset(&cmdline, 0, sizeof(cmdline));
@@ -1368,6 +1369,23 @@ int main_ctrl(int argc, char *const *argv)
 			MCTP_CTRL_ERR("Running demon mode failure\n");
 			ret_val = EXIT_FAILURE;
 		} else {
+			if (-1 == g_disc_timer_fd) {
+				MCTP_CTRL_INFO(
+					"%s: Creating discovery timer for the first time\n",
+					__func__);
+				g_disc_timer_fd = timerfd_create(
+					CLOCK_MONOTONIC, TFD_NONBLOCK);
+			}
+
+			/* Arm the rediscovery timer in case we got any discovery notifies
+			during the discovery process */
+			if (mctp_ctrl->perform_rediscovery == true) {
+				MCTP_CTRL_INFO(
+					"%s: Re-arm discovery timer after handling discovery notify\n",
+					__func__);
+				mctp_handle_discovery_notify();
+				mctp_ctrl->perform_rediscovery = false;
+			}
 			MCTP_CTRL_INFO("%s: Initiate dbus\n", __func__);
 #ifdef MOCKUP_ENDPOINT
 			/* Start D-Bus initialization and monitoring */
