@@ -1100,6 +1100,10 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 		__func__, g_own_eid, g_bridge_eid, g_bridge_pool_start);
 
 	do {
+		/* Process D-Bus events every so often during discovery */
+		int sdret = sd_bus_process(ctrl->bus, NULL);
+		MCTP_CTRL_INFO("%s: Processed %d D-Bus messages", __func__,
+			       sdret);
 		/* Wait for MCTP response */
 		mctp_ret = mctp_discover_response(ctrl, discovery_mode,
 						  cmd->dest_eid, &mctp_resp_msg,

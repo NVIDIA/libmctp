@@ -99,17 +99,31 @@ enum { SDBUS_POLLING_TIMEOUT = 1, SDBUS_PROCESS_EVENT };
  * @param[in] mctp_ctrl - the MCTP control main structure.
  * @param[in] signalfd - the signal fd to terminate threads,
  * @param[in] cmdline - the command line structure
+ * @param[in] context - the MCTP D-Bus context
  *
  * @return int (errno may be set). failure is returned.
  */
 #ifdef MOCKUP_ENDPOINT
 int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signalfd,
 			 const mctp_cmdline_args_t *cmdline,
-			 const mctp_sdbus_fd_watch_t *monfd);
+			 const mctp_sdbus_fd_watch_t *monfd,
+			 mctp_sdbus_context_t *context);
 #else
 int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signalfd,
-			 const mctp_cmdline_args_t *cmdline);
+			 const mctp_cmdline_args_t *cmdline,
+			 mctp_sdbus_context_t *context);
 #endif
+
+/**
+ * @brief initialize D-Bus objects for mctp ctrl servies and hanlde D-Bus requests
+ *
+ * @param[in] bus - The sdbus structure.
+ * @param[in] cmdline - the command line structure
+ *
+ * @return mctp_sdbus_context_t - Returns a pointer to the MCTP D-Bus context.
+ */
+mctp_sdbus_context_t *
+mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline);
 
 /**
  * @brief stop serving the D-Bus requests

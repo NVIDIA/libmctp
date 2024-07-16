@@ -593,17 +593,42 @@ static int mctp_ctrl_sdbus_get_service_state(sd_bus *bus, const char *path,
 					     void *userdata,
 					     sd_bus_error *error)
 {
+	mctp_sdbus_context_t *ctx = (mctp_sdbus_context_t *)userdata;
 	(void)bus;
 	(void)interface;
 	(void)property;
-	(void)userdata;
 	(void)error;
 	(void)path;
 
-	/* append the message - We are always in enabled state if we get here */
-	return sd_bus_message_append(
-		reply, "s",
-		"xyz.openbmc_project.State.ServiceReady.States.Enabled");
+	if (ctx->fds[MCTP_CTRL_SD_BUS_FD].fd != 0) {
+		/* append the message - We are in enabled state after we set the D-Bus
+		monitoring FD */
+		return sd_bus_message_append(
+			reply, "s",
+			"xyz.openbmc_project.State.ServiceReady.States.Enabled");
+	} else {
+		return sd_bus_message_append(
+			reply, "s",
+			"xyz.openbmc_project.State.ServiceReady.States.Starting");
+	}
+}
+
+static int mctp_ctrl_sdbus_set_service_state(sd_bus *bus, const char *path,
+					     const char *interface,
+					     const char *property,
+					     sd_bus_message *msg,
+					     void *userdata,
+					     sd_bus_error *error)
+{
+	(void)bus;
+	(void)path;
+	(void)interface;
+	(void)property;
+	(void)msg;
+	(void)userdata;
+	(void)error;
+
+	return -EINVAL;
 }
 
 static int mctp_ctrl_monitor_signal_events(mctp_sdbus_context_t *context)
@@ -732,8 +757,11 @@ static const sd_bus_vtable mctp_ctrl_service_ready_vtable[] = {
 	SD_BUS_VTABLE_START(0),
 	SD_BUS_PROPERTY("ServiceType", "s", mctp_ctrl_sdbus_get_service_type, 0,
 			SD_BUS_VTABLE_PROPERTY_CONST),
-	SD_BUS_PROPERTY("State", "s", mctp_ctrl_sdbus_get_service_state, 0,
-			SD_BUS_VTABLE_PROPERTY_CONST),
+	SD_BUS_WRITABLE_PROPERTY("State", "s",
+				 mctp_ctrl_sdbus_get_service_state,
+				 mctp_ctrl_sdbus_set_service_state, 0,
+				 SD_BUS_VTABLE_UNPRIVILEGED |
+					 SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
 	SD_BUS_VTABLE_END
 };
 
@@ -900,7 +928,7 @@ static int mctp_sdbus_refresh_endpoints(const mctp_cmdline_args_t *cmdline,
 	return r;
 }
 
-static mctp_sdbus_context_t *
+mctp_sdbus_context_t *
 mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
 {
 	mctp_sdbus_context_t *context = NULL;
@@ -953,19 +981,35 @@ mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
 		goto finish;
 	}
 
-	r = mctp_sdbus_refresh_endpoints(cmdline, context);
-	if (r < 0) {
-		MCTP_CTRL_ERR("Failed to add/refresh D-Bus objects: %s\n",
-			      strerror(-r));
-		goto finish;
-	}
-
 	/* Mark the service as ready by hosting the ServiceReady interface */
 	r = mctp_mark_service_ready(context);
 	if (r < 0) {
 		MCTP_CTRL_ERR("Failed to mark service ready: %s\n",
 			      strerror(-r));
 		goto finish;
+	}
+	return context;
+
+finish:
+	free(context);
+
+	return NULL;
+}
+
+static int mctp_ctrl_sdbus_host_endpoints(const mctp_cmdline_args_t *cmdline,
+					  mctp_sdbus_context_t *context)
+{
+	char mctp_ctrl_objpath[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE];
+	int r = 0;
+
+	memset(mctp_ctrl_objpath, '\0', MCTP_CTRL_SDBUS_OBJ_PATH_SIZE);
+	snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_OBJ_PATH_SIZE, "%s/%s",
+		 MCTP_CTRL_OBJ_NAME, mctp_medium_type);
+	r = mctp_sdbus_refresh_endpoints(cmdline, context);
+	if (r < 0) {
+		MCTP_CTRL_ERR("Failed to add/refresh D-Bus objects: %s\n",
+			      strerror(-r));
+		return r;
 	}
 
 	MCTP_CTRL_TRACE("Getting D-Bus file descriptors\n");
@@ -974,17 +1018,17 @@ mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
 		r = -errno;
 		MCTP_CTRL_TRACE("Couldn't get the bus file descriptor: %s\n",
 				strerror(errno));
-		goto finish;
+		return r;
 	}
 
 	context->fds[MCTP_CTRL_SD_BUS_FD].events = POLLIN;
 	context->fds[MCTP_CTRL_SD_BUS_FD].revents = 0;
-	return context;
 
-finish:
-	free(context);
-
-	return NULL;
+	/* Emit a properties changed signal for service ready */
+	sd_bus_emit_properties_changed(context->bus, mctp_ctrl_objpath,
+				       MCTP_CTRL_DBUS_SERVICE_READY_INTERFACE,
+				       "State", NULL);
+	return EXIT_SUCCESS;
 }
 
 static int mctp_ctrl_handle_timer(mctp_ctrl_t *mctp_ctrl,
@@ -1089,20 +1133,21 @@ void mctp_ctrl_sdbus_stop(void)
 /* MCTP ctrl D-Bus initialization */
 int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 			 const mctp_cmdline_args_t *cmdline,
-			 const mctp_sdbus_fd_watch_t *monfd)
+			 const mctp_sdbus_fd_watch_t *monfd,
+			 mctp_sdbus_context_t *context)
 #else
 /* MCTP ctrl D-Bus initialization */
 int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
-			 const mctp_cmdline_args_t *cmdline)
+			 const mctp_cmdline_args_t *cmdline,
+			 mctp_sdbus_context_t *context)
 #endif
 {
 	int r = 0;
-	mctp_sdbus_context_t *context = NULL;
 
-	context = mctp_ctrl_sdbus_create_context(mctp_ctrl->bus, cmdline);
-	if (!context) {
+	r = mctp_ctrl_sdbus_host_endpoints(cmdline, context);
+	if (r != 0) {
 		MCTP_CTRL_ERR(
-			"%s: mctp_ctrl_sdbus_create_context did return an error\n",
+			"%s: mctp_ctrl_sdbus_host_endpoints did return an error\n",
 			__func__);
 		return -1;
 	}

@@ -770,24 +770,10 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 		       EXIT_FAILURE;
 }
 
-static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
-			    mctp_ctrl_t *mctp_ctrl)
+static int open_mctp_sock(const mctp_cmdline_args_t *cmdline,
+			  mctp_ctrl_t *mctp_ctrl)
 {
 	int rc = -1, fd;
-	mctp_ret_codes_t mctp_err_ret;
-
-#if !USE_FUZZ_CTRL
-	/* Create D-Bus for loging event and handling D-Bus request*/
-	rc = sd_bus_default_system(&mctp_ctrl->bus);
-#else
-	/* For Fuzz tests create user D-Bus */
-	rc = sd_bus_open_user(&mctp_ctrl->bus);
-#endif
-	if (rc < 0) {
-		MCTP_CTRL_ERR("D-Bus failed to create\n");
-		return EXIT_FAILURE;
-	}
-	g_sdbus = mctp_ctrl->bus;
 
 	if (cmdline->binding_type == MCTP_BINDING_PCIE) {
 		MCTP_CTRL_INFO("%s: Binding type: PCIe\n", __func__);
@@ -854,6 +840,14 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 
 	/* Update global socket pointer */
 	g_socket_fd = fd;
+	return EXIT_SUCCESS;
+}
+
+static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
+			    mctp_ctrl_t *mctp_ctrl)
+{
+	mctp_ret_codes_t mctp_err_ret;
+	int rc = -1;
 
 	if (cmdline->binding_type == MCTP_BINDING_SPI) {
 		/* Discover endpoints via PCIe*/
@@ -1364,6 +1358,26 @@ int main_ctrl(int argc, char *const *argv)
 	} else {
 		// Run mode: daemon mode
 		MCTP_CTRL_INFO("%s: Run mode: Daemon mode\n", __func__);
+#if !USE_FUZZ_CTRL
+		/* Create D-Bus for loging event and handling D-Bus request*/
+		rc = sd_bus_default_system(&mctp_ctrl->bus);
+#else
+		/* For Fuzz tests create user D-Bus */
+		rc = sd_bus_open_user(&mctp_ctrl->bus);
+#endif
+		if (rc < 0) {
+			MCTP_CTRL_ERR("D-Bus failed to create\n");
+			return EXIT_FAILURE;
+		}
+		g_sdbus = mctp_ctrl->bus;
+
+		if (open_mctp_sock(&cmdline, mctp_ctrl) != EXIT_SUCCESS) {
+			MCTP_CTRL_ERR("MCTP socket open failure\n");
+			ret_val = EXIT_FAILURE;
+		}
+
+		mctp_sdbus_context_t *context = mctp_ctrl_sdbus_create_context(
+			mctp_ctrl->bus, &cmdline);
 
 		if (exec_daemon_mode(&cmdline, mctp_ctrl) != EXIT_SUCCESS) {
 			MCTP_CTRL_ERR("Running demon mode failure\n");
@@ -1394,7 +1408,7 @@ int main_ctrl(int argc, char *const *argv)
 #else
 			/* Start D-Bus initialization and monitoring */
 			rc = mctp_ctrl_sdbus_init(mctp_ctrl, g_signal_fd,
-						  &cmdline);
+						  &cmdline, context);
 #endif
 
 			MCTP_CTRL_INFO("%s: Event Loop Exit: result = %d\n",
