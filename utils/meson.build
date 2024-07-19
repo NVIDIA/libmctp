@@ -37,3 +37,14 @@ executable(
   link_with: libmctp,
   install: true
 )
+
+if get_option('enable-mctp-tun').enabled()
+executable(
+  'mctp-tun',
+  'mctp-tun.c',
+  include_directories: include_directories(headers),
+  dependencies: deps,
+  link_with: libmctp,
+  install: true
+)
+endif

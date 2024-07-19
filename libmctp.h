@@ -191,6 +191,7 @@ int mctp_message_tx(struct mctp *mctp, mctp_eid_t eid, bool tag_owner,
 int mctp_message_pvt_bind_tx(struct mctp *mctp, mctp_eid_t eid, bool tag_owner,
 			     uint8_t msg_tag, void *msg, size_t msg_len,
 			     void *msg_binding_private);
+int mctp_packet_raw_tx(struct mctp_binding *binding, void *pkt, size_t pkt_len);
 
 /* hardware bindings */
 struct mctp_binding {

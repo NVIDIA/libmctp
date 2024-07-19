@@ -20,5 +20,11 @@ option(
     value: 'disabled',
     description: '''Enable Mockup Endpoint..'''
 )
+option(
+    'enable-mctp-tun',
+    type: 'feature',
+    value: 'disabled',
+    description: '''Enable mctp-tun as the binding layer communicating with physical devices.'''
+)
 option('enable-fuzzctrl', type: 'feature', description: 'Fuzz tests for MCTP control demon', value: 'disabled')
 option('mocked-drivers', type: 'feature', description: 'Use mocked drivers - for UT or Fuzz tests purposes only', value: 'disabled')
