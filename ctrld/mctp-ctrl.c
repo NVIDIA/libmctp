@@ -1404,7 +1404,7 @@ int main_ctrl(int argc, char *const *argv)
 #ifdef MOCKUP_ENDPOINT
 			/* Start D-Bus initialization and monitoring */
 			rc = mctp_ctrl_sdbus_init(mctp_ctrl, g_signal_fd,
-						  &cmdline, &extra_mon);
+						  &cmdline, &extra_mon, context);
 #else
 			/* Start D-Bus initialization and monitoring */
 			rc = mctp_ctrl_sdbus_init(mctp_ctrl, g_signal_fd,
