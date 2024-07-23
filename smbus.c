@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -188,9 +189,12 @@ static int get_dest_i2c_addr(struct mctp_binding_smbus *smbus, uint8_t eid)
  * 
  * @param[in] smbus - Struct mctp_binding_smbus
  * @param[in] len - Byte length of MCTP packet to send via i2c
+ * @param[in] dest_eid - The destination EID
+ * @param[in] dest_addr - The destination slave address
  * @return int > 0 - successfull, errno - failure.
  */
-static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
+static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len,
+			 int dest_eid, int dest_addr)
 {
 	uint16_t hold_timeout = MCTP_SMBUS_I2C_M_HOLD_TIMEOUT_MS; /* ms */
 	struct i2c_msg msgs[2] = {
@@ -221,20 +225,6 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 		msgrdwr.nmsgs = 2;
 	}
 
-	/* Choose outfd based on the EID */
-	int dest_eid = hdr->dest;
-
-	/* For SetEndpoint control command, fetch the EID from the data packet */
-	if (dest_eid == 0) {
-		uint8_t *mctp_body =
-			(uint8_t *)(smbus->txbuf +
-				    sizeof(struct mctp_smbus_header_tx) +
-				    sizeof(struct mctp_hdr));
-		if (mctp_body[0] == 0x00 && mctp_body[2] == 0x01) {
-			dest_eid = mctp_body[4];
-		}
-	}
-
 	int out_fd = get_out_fd(smbus, dest_eid);
 
 	mctp_prdebug("Tx Out FD: %d\n", out_fd);
@@ -244,7 +234,9 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len)
 		return 0;
 	}
 
-	msgs[0].addr = get_dest_i2c_addr(smbus, dest_eid); /* 7-bit address */
+	msgs[0].addr = dest_addr;
+
+	mctp_prdebug("Tx Out Addr: 0x%02x\n", msgs[0].addr);
 
 	do {
 		rc = ioctl(out_fd, I2C_RDWR, &msgrdwr);
@@ -294,10 +286,26 @@ static int mctp_binding_smbus_tx(struct mctp_binding *b,
 	/* 8 bit address */
 	hdr->source_slave_address = (smbus->src_slave_addr << 1) | 0x01;
 
+	buf_ptr = (uint8_t *)smbus->txbuf + sizeof(*hdr);
+	memcpy(buf_ptr, &pkt->data[pkt->start], pkt_length);
+
+	struct mctp_hdr *mctp_hdr = (struct mctp_hdr *)(buf_ptr);
+	int dest_eid = mctp_hdr->dest;
+	/* For SetEndpoint control command, fetch the EID from the data packet */
+	if (dest_eid == 0) {
+		uint8_t *mctp_body =
+			(uint8_t *)(smbus->txbuf +
+				    sizeof(struct mctp_smbus_header_tx) +
+				    sizeof(struct mctp_hdr));
+		if (mctp_body[0] == 0x00 && mctp_body[2] == 0x01) {
+			dest_eid = mctp_body[4];
+		}
+	}
+	int dest_addr = get_dest_i2c_addr(smbus, dest_eid);
+
 	// Check if static endpoints support mctp, if no just drop send message
 	for (i = 0; i < smbus->static_endpoints_len; i++) {
-		if (smbus->static_endpoints[i].slave_address ==
-		    smbus->dest_slave_addr[0]) {
+		if (smbus->static_endpoints[i].slave_address == dest_addr) {
 			if (smbus->static_endpoints[i].support_mctp == 0) {
 				mctp_prerr(
 					"EID: %d, address: %d, bus: %d does not support MCTP, dropping packet\n",
@@ -309,17 +317,14 @@ static int mctp_binding_smbus_tx(struct mctp_binding *b,
 		}
 	}
 
-	buf_ptr = (uint8_t *)smbus->txbuf + sizeof(*hdr);
-	memcpy(buf_ptr, &pkt->data[pkt->start], pkt_length);
-
 	buf_ptr = buf_ptr + pkt_length;
 	*buf_ptr = calculate_pec_byte(smbus->txbuf, sizeof(*hdr) + pkt_length,
-				      smbus->dest_slave_addr[0], 0);
+				      (uint8_t)dest_addr, 0);
 
 	//MCTP packet length of [ header, data, pec byte ]
 	i2c_message_len = sizeof(*hdr) + pkt_length + SMBUS_PEC_BYTE_SIZE;
 
-	rv = mctp_smbus_tx(smbus, i2c_message_len);
+	rv = mctp_smbus_tx(smbus, i2c_message_len, dest_eid, dest_addr);
 	MCTP_ASSERT_RET(rv >= 0, -1, "mctp_smbus_tx failed: %d", rv);
 
 	return 0;
@@ -806,11 +811,25 @@ static int mctp_smbus_start(struct mctp_binding *b)
 		if (smbus->static_endpoints[i].bus_num == 0xFF) {
 			continue;
 		}
-		mctp_prdebug("%s: Setting up I2C output fd", __func__);
-		outfd = mctp_smbus_open_out_bus(smbus, smbus->bus_num[i]);
-		MCTP_ASSERT_RET(outfd >= 0, -1,
-				"Failed to open I2C Tx node: %d", outfd);
-		smbus->out_fd[i] = outfd;
+		/* Check if we have already opened the fd before */
+		for (uint8_t j = 0; i > 0 && j < i; ++j) {
+			if (smbus->static_endpoints[j].bus_num ==
+			    smbus->static_endpoints[i].bus_num) {
+				mctp_prdebug("%s: Reusing I2C output fd",
+					     __func__);
+				smbus->out_fd[i] = smbus->out_fd[j];
+				break;
+			}
+		}
+		if (smbus->out_fd[i] == -1) {
+			mctp_prdebug("%s: Setting up I2C output fd", __func__);
+			outfd = mctp_smbus_open_out_bus(smbus,
+							smbus->bus_num[i]);
+			MCTP_ASSERT_RET(outfd >= 0, -1,
+					"Failed to open I2C Tx node: %d",
+					outfd);
+			smbus->out_fd[i] = outfd;
+		}
 		smbus->static_endpoints[i].out_fd = outfd;
 	}
 

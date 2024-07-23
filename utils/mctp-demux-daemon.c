@@ -1057,9 +1057,9 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 		     smbus_static_endpoints_len);
 	for (uint8_t i = 0; i < smbus_static_endpoints_len; ++i) {
 		mctp_prdebug("Endpoint: bus: %d, addr: %d, eid: %d\n",
-			     smbus_static_endpoints[0].endpoint_num,
 			     smbus_static_endpoints[i].bus_num,
-			     smbus_static_endpoints[i].slave_address);
+			     smbus_static_endpoints[i].slave_address,
+			     smbus_static_endpoints[i].endpoint_num);
 	}
 
 	smbus = mctp_smbus_init(i2c_bus_num, i2c_bus_num_smq,
