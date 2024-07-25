@@ -62,6 +62,9 @@ uint8_t g_verbose_level = 0;
 /* Global socket name */
 char g_sock_name[32] = { 0 };
 
+/* Is the endpoint enabled? */
+int g_enabled = 0;
+
 /* Global commandline options */
 static const struct option options[] = {
 	{ "verbose", no_argument, 0, 'v' },
@@ -207,6 +210,11 @@ static int cb_dbus_properity(sd_bus_message *m, uint8_t eid)
 				"sd_bus_message_read_array fail rc=%d\n", rc);
 
 		memcpy(g_sock_name, ptr, len);
+	} else if (type == SD_BUS_TYPE_BOOLEAN &&
+		   strcmp(name, "Enabled") == 0) {
+		rc = sd_bus_message_read_basic(m, 'b', &g_enabled);
+		MCTP_ASSERT_RET(rc >= 0, -1,
+				"sd_bus_message_read_basic fail rc=%d\n", rc);
 	} else {
 		sd_bus_message_skip(m, NULL);
 	}
@@ -226,7 +234,8 @@ static int cb_dbus_interfaces(sd_bus_message *m, uint8_t eid)
 	MCTP_ASSERT_RET(rc >= 0, -1, "sd_bus_message_read_basic fail rc= %d\n",
 			rc);
 
-	if (strcmp(iface, "xyz.openbmc_project.Common.UnixSocket") != 0) {
+	if (strcmp(iface, "xyz.openbmc_project.Common.UnixSocket") != 0 &&
+	    strcmp(iface, "xyz.openbmc_project.Object.Enable") != 0) {
 		sd_bus_message_skip(m, NULL);
 		return 0;
 	}
@@ -551,6 +560,9 @@ int main(int argc, char *const *argv)
 	sd_bus_unref(bus);
 
 	MCTP_ASSERT_RET(found == 1, EXIT_FAILURE, "can't find the interface\n");
+
+	MCTP_ASSERT_RET(g_enabled == 1, EXIT_FAILURE,
+			"Endpoint is in disabled state\n");
 
 	/* Establish the socket connection */
 	rc = mctp_usr_socket_init(&fd, g_sock_name, MCTP_MESSAGE_TYPE_VDIANA,
