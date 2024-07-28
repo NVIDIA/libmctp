@@ -1,0 +1,42 @@
+#!/bin/sh
+
+usage()
+{
+        printf "Usage: %s: <BUS>, where BUS is PCIe|USB|SPI\n" "$0"
+        exit 1;
+}
+
+if [ "$1" != "PCIe" ] && [ "$1" != "USB" ] && [ "$1" != "SPI" ]; then
+        usage
+fi
+
+SERVICE="xyz.openbmc_project.MCTP.Control.$1"
+
+# Use busctl to get the object tree for the service and extract the object paths
+OBJECTS=$(busctl tree "$SERVICE" | grep "/xyz/openbmc_project/mctp/0/" | awk -F' ' '{print $NF}')
+
+printf '%5s|%50s|%-10s\n' "EID" "UUID" "Supported MCTP Types"
+
+# Loop through each object path
+for OBJECT_PATH in $OBJECTS; do
+    if [ -n "$OBJECT_PATH" ]; then
+        ENABLED="true"
+        # Get all interfaces for the object
+        INTERFACES=$(busctl introspect "$SERVICE" "$OBJECT_PATH" | grep "interface" | awk '{print $1}')
+
+        # Loop through each interface
+        for INTERFACE in $INTERFACES; do
+                        if [ "$INTERFACE" = "xyz.openbmc_project.Object.Enable" ]; then
+                                ENABLED=$(busctl get-property "$SERVICE" "$OBJECT_PATH" "$INTERFACE" Enabled | awk '{print $2}')
+                        elif [ "$INTERFACE" = "xyz.openbmc_project.Common.UUID" ]; then
+                                UUID=$(busctl get-property "$SERVICE" "$OBJECT_PATH" "$INTERFACE" UUID | awk '{print $2}')
+                        elif [ "$INTERFACE" = "xyz.openbmc_project.MCTP.Endpoint" ]; then
+                                MSG_TYPES=$(busctl get-property "$SERVICE" "$OBJECT_PATH" "$INTERFACE" SupportedMessageTypes | awk '{$1=$2=""; print $0}')
+                                EID=$(busctl get-property "$SERVICE" "$OBJECT_PATH" "$INTERFACE" EID | awk '{print $2}')
+                        fi
+        done
+                if [ "$ENABLED" = "true" ]; then
+                        printf '%5s|%50s|%-10s\n' "$EID" "$UUID" "$MSG_TYPES"
+                fi
+    fi
+done

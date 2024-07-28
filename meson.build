@@ -187,6 +187,15 @@ configure_file(
   output: 'mctp-usb-ctrl'
 )
 
+configure_file(
+  copy: true,
+  input: 'mctp-list-eps',
+  install: true,
+  install_dir: get_option('bindir'),
+  install_mode: 'rwxr-xr-x',
+  output: 'mctp-list-eps'
+)
+
 subdir('utils')
 subdir('ctrld')
 subdir('vdm/nvidia')
