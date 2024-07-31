@@ -18,7 +18,6 @@
 
 #ifndef _LIBMCTP_USB_H
 #define _LIBMCTP_USB_H
-#define USB_BUF_MAX 5120
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,6 +25,13 @@ extern "C" {
 
 #include "libmctp.h"
 #include <poll.h>
+
+/* Maximum possible single transfer in MCTP_USB_BATCH_FRAG and
+   MCTP_USB_BATCH_ZPAD */
+#define USB_BUF_MAX_XFR 5120
+
+/* Maximum USB packet size for MCTP_USB_BATCH_REG */
+#define USB_MAX_PKT 512
 
 enum { MCTP_USB_NO_ERROR = 0, MCTP_USB_FD_CHANGE };
 

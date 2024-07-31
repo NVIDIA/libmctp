@@ -66,9 +66,9 @@ struct mctp_binding_usb {
 	libusb_context *ctx;
 	libusb_device_handle *dev_handle;
 	/* temporary transmit buffer */
-	uint8_t txbuf[512 * 10];
+	uint8_t txbuf[USB_BUF_MAX_XFR];
 	/* receive buffer */
-	uint8_t rxbuf[512];
+	uint8_t rxbuf[USB_MAX_PKT];
 	struct mctp_pktbuf *rx_pkt;
 	const struct libusb_pollfd **usb_poll_fds;
 	uint8_t bindingfds_cnt;
@@ -352,7 +352,7 @@ void mctp_send_tx_queue_usb(struct mctp_bus *bus)
 		/* data + binding header + mctp header */
 		usb_message_len = prepare_usb_hdr(pkt, pkt_length);
 
-		if ((usb_buf_len + usb_message_len) > USB_BUF_MAX) {
+		if ((usb_buf_len + usb_message_len) > USB_MAX_PKT) {
 			rv = mctp_usb_tx(usb, usb_buf_len);
 
 			MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
@@ -403,7 +403,7 @@ void mctp_send_tx_queue_usb_zpad(struct mctp_bus *bus)
 		/* data + binding header + mctp header */
 		usb_message_len = prepare_usb_hdr(pkt, pkt_length);
 
-		if ((usb_buf_len + usb_message_len) > USB_BUF_MAX) {
+		if ((usb_buf_len + usb_message_len) > USB_BUF_MAX_XFR) {
 			rv = mctp_usb_tx(usb, usb_buf_len);
 
 			MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
@@ -412,10 +412,11 @@ void mctp_send_tx_queue_usb_zpad(struct mctp_bus *bus)
 			continue;
 
 		} else {
-			if (usb_segment_len + usb_message_len > 512) {
-				memset(buf_ptr, 0, (512 - usb_segment_len));
-				buf_ptr += (512 - usb_segment_len);
-				usb_buf_len += (512 - usb_segment_len);
+			if (usb_segment_len + usb_message_len > USB_MAX_PKT) {
+				memset(buf_ptr, 0,
+				       (USB_MAX_PKT - usb_segment_len));
+				buf_ptr += (USB_MAX_PKT - usb_segment_len);
+				usb_buf_len += (USB_MAX_PKT - usb_segment_len);
 				usb_segment_len = 0;
 				continue;
 			} else {
@@ -463,7 +464,7 @@ void mctp_send_tx_queue_usb_frag(struct mctp_bus *bus)
 		/* data + binding header + mctp header */
 		usb_message_len = prepare_usb_hdr(pkt, pkt_length);
 
-		if ((usb_buf_len + usb_message_len) > USB_BUF_MAX) {
+		if ((usb_buf_len + usb_message_len) > USB_BUF_MAX_XFR) {
 			rv = mctp_usb_tx(usb, usb_buf_len);
 
 			MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
@@ -558,6 +559,8 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 
 	usb->binding.name = "usb";
 	usb->binding.version = 1;
+
+	mctp_prinfo("Starting USB binding with mode: %d\n", mode);
 
 	if (MCTP_USB_BATCH_NONE == mode) {
 		usb->binding.mctp_send_tx_queue = NULL;
