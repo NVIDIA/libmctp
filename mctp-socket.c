@@ -138,7 +138,7 @@ mctp_requester_rc_t mctp_client_send_ext(mctp_eid_t dest_eid, int mctp_fd,
 	rc = sendto(mctp_fd, mctp_req_msg, req_msg_len, 0,
 			(struct sockaddr *)&addr, addrlen);
 	if (rc != (int)req_msg_len) {
-		err(EXIT_FAILURE, "sendto(%zd) - rc: %zd", req_msg_len, rc);
+		err(EXIT_FAILURE, "sendto(%zd) - rc: %d", req_msg_len, rc);
 		return MCTP_REQUESTER_SEND_FAIL;
 	}
 
