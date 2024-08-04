@@ -912,14 +912,17 @@ static int mctp_sdbus_refresh_endpoints(const mctp_cmdline_args_t *cmdline,
 			}
 			entry->new = false;
 		} else {
-			/* Not a new entry, check if enabled was toggled*/
-			if (entry->old_enabled != entry->enabled) {
-				/* Emit a properties changed signal for entry */
-				sd_bus_emit_properties_changed(
-					context->bus, mctp_ctrl_objpath,
-					MCTP_CTRL_DBUS_ENABLE_INTERFACE,
-					"Enabled", NULL);
-			}
+			/* Not a new entry, but emit properties changed signal anyway. This
+			is to ensure that we don't miss state transitions when going from
+			enabled->disabled->....->enabled or
+			disabled->enabled->....->disabled due to the nature of the way we
+			process discovery notifies and the routing table reads following the
+			debounce. */
+			/* Emit a properties changed signal for entry */
+			sd_bus_emit_properties_changed(
+				context->bus, mctp_ctrl_objpath,
+				MCTP_CTRL_DBUS_ENABLE_INTERFACE, "Enabled",
+				NULL);
 		}
 
 		/* Increment for next entry */
