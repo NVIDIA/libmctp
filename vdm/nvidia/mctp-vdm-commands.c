@@ -1135,7 +1135,7 @@ int query_boot_status(int fd, uint8_t tid, uint8_t verbose, uint8_t more)
 				       (uint8_t **)&resp, &resp_len, verbose);
 
 	/* Show boot status codes when flag 'more' is set */
-	if (more == true) {
+	if (more == true && rc == MCTP_REQUESTER_SUCCESS) {
 		printf("\n");
 		if (is_booted_OK(resp, resp_len) == true) {
 			printf(MSG_BOOT_OK);
