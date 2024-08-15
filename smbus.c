@@ -470,6 +470,12 @@ int send_get_udid_command(struct mctp_binding_smbus *smbus, size_t idx,
 	struct i2c_rdwr_ioctl_data msgset[1];
 	int slave_addr = MCTP_SMBUS_DEFAULT_GET_UDID_SLAVE_ADDRESS;
 
+	if (smbus->out_fd[idx] < 0) {
+		mctp_prdebug("%s: Out FD at %zu is not valid, skip.", __func__,
+			     idx);
+		return EXIT_FAILURE;
+	}
+
 	/* Prepare message to send Get UDID */
 	msgs[0].addr = slave_addr;
 	msgs[0].flags = 0;
@@ -586,6 +592,12 @@ int check_mctp_get_ver_support(struct mctp_binding_smbus *smbus, size_t idx,
 
 	(void)which_endpoint;
 	(void)len;
+
+	if (smbus->out_fd[idx] < 0) {
+		mctp_prdebug("%s: Out FD at %zu is not valid, skip.", __func__,
+			     idx);
+		return EXIT_FAILURE;
+	}
 
 	// Check ASF bit from UDID
 	interface_ASF = inbuf[8];
@@ -825,12 +837,15 @@ static int mctp_smbus_start(struct mctp_binding *b)
 			mctp_prdebug("%s: Setting up I2C output fd", __func__);
 			outfd = mctp_smbus_open_out_bus(smbus,
 							smbus->bus_num[i]);
-			MCTP_ASSERT_RET(outfd >= 0, -1,
-					"Failed to open I2C Tx node: %d",
-					outfd);
-			smbus->out_fd[i] = outfd;
+			if (outfd >= 0) {
+				smbus->out_fd[i] = outfd;
+				smbus->static_endpoints[i].out_fd = outfd;
+			} else {
+				MCTP_ERR(
+					"Failed to open I2C Tx node /dev/i2c-%d, errno: %d",
+					smbus->bus_num[i], errno);
+			}
 		}
-		smbus->static_endpoints[i].out_fd = outfd;
 	}
 
 	/* Open default i2c node for non-static endpoints */
