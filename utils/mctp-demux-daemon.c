@@ -1566,6 +1566,9 @@ static int run_daemon(struct ctx *ctx)
 		}
 	}
 
+	rc = sd_notify(0, "STATUS=Daemon is running.\nREADY=1");
+	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
+
 	struct pollfd *bindingfds;
 	if (ctx->binding->init_pollfd) {
 		ctx->n_bindings =
@@ -1906,9 +1909,6 @@ int main(int argc, char *const *argv)
 	} else {
 		ctx->sock = SD_LISTEN_FDS_START;
 	}
-
-	rc = sd_notify(0, "STATUS=Daemon is running.\nREADY=1");
-	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "Could not notify systemd.");
 
 	/* setup initial buffer */
 	ctx->buf_size = 4096;
