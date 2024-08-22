@@ -329,6 +329,12 @@ void *mctp_spi_keepalive_event(void *arg)
 						   1000);
 	}
 
+	MCTP_CTRL_INFO("[%s] Send 'Restart notify' message\n", __func__);
+	rc = restart_notification(socket_fd, ctrl->eid, VERBOSE_DISABLE);
+	if (rc != 0) {
+		MCTP_CTRL_ERR("[%s] Restart notification failed!\n", __func__);
+	}
+
 exit_mctp_spi_keepalive_event:
 	close(socket_fd);
 
