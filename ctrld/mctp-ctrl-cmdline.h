@@ -22,6 +22,7 @@
 #define MCTP_WRITE_DATA_BUFF_SIZE 1024
 #define MCTP_READ_DATA_BUFF_SIZE  1024
 #define MCTP_PVT_BIND_BUFF_SIZE	  64
+#define MCTP_MAX_IGNORE_EID_LEN	  254
 
 #define MCTP_CMDLINE_WRBUFF_WIDTH 3
 
@@ -135,6 +136,8 @@ typedef struct mctp_cmdline_args_ {
 	uint8_t tx_data[MCTP_WRITE_DATA_BUFF_SIZE];
 	int tx_len;
 	uint8_t rx_data[MCTP_WRITE_DATA_BUFF_SIZE];
+	uint8_t ignore_eids[MCTP_MAX_IGNORE_EID_LEN];
+	int ignore_eids_len;
 	uint16_t target_bdf;
 	int use_socket;
 	int mode;

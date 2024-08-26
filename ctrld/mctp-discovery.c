@@ -55,6 +55,20 @@ static int g_target_bdf = 0;
 /* The EIDs and pool start information would be obtaind from commandline */
 static uint8_t g_bridge_eid, g_own_eid, g_bridge_pool_start;
 
+static bool in_ignore_list(const mctp_ctrl_t *ctrl,
+			   const struct get_routing_table_entry *routing_entry)
+{
+	bool ret = false;
+	for (int i = 0; i < ctrl->cmdline->ignore_eids_len; ++i) {
+		if (ctrl->cmdline->ignore_eids[i] ==
+		    routing_entry->starting_eid) {
+			ret = true;
+			break;
+		}
+	}
+	return ret;
+}
+
 /* Send function for Prepare for Endpoint discovery */
 mctp_ret_codes_t
 mctp_prepare_ep_discovery_send_request(int sock_fd, mctp_binding_ids_t bind_id)
@@ -636,6 +650,10 @@ int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
 			MCTP_CTRL_DEBUG(
 				"%s: Found it's own eid: [%d] in the Routing table\n",
 				__func__, routing_table_entry.starting_eid);
+		} else if (true == in_ignore_list(ctrl, &routing_table_entry)) {
+			MCTP_CTRL_INFO(
+				"%s: Ignoring EID [%d] as it is in the ignore list\n",
+				__func__, routing_table_entry.starting_eid);
 		} else {
 			/* Check transport binding id and filter out the unknown binding */
 			if (strncmp(phy_transport_binding_to_string(
@@ -1102,7 +1120,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 	do {
 		/* Process D-Bus events every so often during discovery */
 		int sdret = sd_bus_process(ctrl->bus, NULL);
-		MCTP_CTRL_INFO("%s: Processed %d D-Bus messages", __func__,
+		MCTP_CTRL_INFO("%s: Processed %d D-Bus messages\n", __func__,
 			       sdret);
 		/* Wait for MCTP response */
 		mctp_ret = mctp_discover_response(ctrl, discovery_mode,

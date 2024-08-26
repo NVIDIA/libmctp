@@ -219,6 +219,7 @@ static const struct option g_options[] = {
 	{ "i2c_bridge_eid", required_argument, 0, 'q' },
 	{ "pci_bridge_pool_start", required_argument, 0, 'x' },
 	{ "i2c_bridge_pool_start", required_argument, 0, 'y' },
+	{ "ignore_eids", required_argument, 0, 'z' },
 
 	/* SPI specific options */
 	{ "cmd_mode", required_argument, 0, 'x' },
@@ -229,7 +230,7 @@ static const struct option g_options[] = {
 };
 
 static const char *const short_options =
-	"v:c:e:m:t:d:s:r:b:f:n:u:i:j:p:q:x:y:h::";
+	"v:c:e:m:t:d:s:r:b:f:n:u:i:j:p:q:x:y:z:h::";
 
 static void usage(void)
 {
@@ -264,6 +265,8 @@ static void usage_pcie(void)
 		"\t-p\t pci bridge eid\n"
 		"\t-x\t pci bridge pool start eid\n"
 		"\t-c\t option to remove duplicate EID entries from the routing table\n"
+		"\t-z\t option to ignore certain EID entries from the routing table"
+		" supplied as a space separated list in decimal\n"
 		"To send MCTP message for PCIe binding type\n"
 		"Eg: Prepare for Endpoint Discovery\n"
 		"\t mctp-ctrl -s \"00 80 0b\" -b \"03 00 00 00 00 00\" -e 255 -i 9 -p 12 -x 13 -m 0 -t 2 -v\n"
@@ -303,6 +306,8 @@ static void usage_i2c(void)
 		"\t-j\t i2c own eid\n"
 		"\t-q\t i2c bridge eid\n"
 		"\t-y\t i2c bridge pool start eid\n"
+		"\t-z\t option to ignore certain EID entries from the routing table"
+		" supplied as a space separated list in decimal\n"
 		"To send MCTP message for I2C binding type\n"
 		"Eg: Set Endpoint ID\n"
 		"\t mctp-ctrl -s \"00 80 01 00 1e\" -t 1 -b \"30\" -e 0 -m 0 -v\n"
@@ -317,6 +322,8 @@ static void usage_usb(void)
 		"\t-p\t usb bridge eid\n"
 		"\t-x\t usb bridge pool start eid\n"
 		"\t-c\t option to remove duplicate EID entries from the routing table\n"
+		"\t-z\t option to ignore certain EID entries from the routing table"
+		" supplied as a space separated list in decimal\n"
 		"To send MCTP message for USB binding type\n"
 		"Eg: Prepare for Endpoint Discovery\n");
 }
@@ -492,13 +499,23 @@ uint16_t mctp_ctrl_get_target_bdf(const mctp_cmdline_args_t *cmd)
 	return (pvt_binding.remote_id);
 }
 
-int mctp_cmdline_copy_tx_buff(char src[], uint8_t *dest, int len)
+int mctp_cmdline_copy_tx_buff(char src[], uint8_t *dest, int len, int base,
+			      int max_buf)
 {
 	int i = 0, buff_len = 0;
+	char *str_end = NULL;
 
-	while (i < len) {
-		dest[buff_len++] = (unsigned char)strtol(&src[i], NULL, 16);
-		i = i + MCTP_CMDLINE_WRBUFF_WIDTH;
+	while ((i < len) && (buff_len < max_buf - 1)) {
+		uint8_t num = (unsigned char)strtol(&src[i], &str_end, base);
+		if (str_end == &src[i]) {
+			break;
+		}
+		dest[buff_len++] = num;
+		if (16 == base) {
+			i = i + MCTP_CMDLINE_WRBUFF_WIDTH;
+		} else {
+			i = i + (str_end - &src[i]);
+		}
 	}
 
 	return buff_len;
@@ -1104,12 +1121,30 @@ static void parse_command_line(int argc, char *const *argv,
 			break;
 		case 'b':
 			cmdline->bind_len = mctp_cmdline_copy_tx_buff(
-				optarg, cmdline->bind_info, strlen(optarg));
+				optarg, cmdline->bind_info, strlen(optarg), 16,
+				sizeof(cmdline->bind_info) /
+					sizeof(cmdline->bind_info[0]));
 			cmdline->ops = MCTP_CMDLINE_OP_BIND_WRITE_DATA;
 			break;
 		case 's':
 			cmdline->tx_len = mctp_cmdline_copy_tx_buff(
-				optarg, cmdline->tx_data, strlen(optarg));
+				optarg, cmdline->tx_data, strlen(optarg), 16,
+				sizeof(cmdline->tx_data) /
+					sizeof(cmdline->tx_data[0]));
+			break;
+		case 'z':
+			cmdline->ignore_eids_len = mctp_cmdline_copy_tx_buff(
+				optarg, cmdline->ignore_eids, strlen(optarg),
+				10,
+				sizeof(cmdline->ignore_eids) /
+					sizeof(cmdline->ignore_eids[0]));
+			MCTP_CTRL_INFO("%s: No. of EIDs to ignore: %d\n",
+				       __func__, cmdline->ignore_eids_len);
+			for (int i = 0; i < cmdline->ignore_eids_len; ++i) {
+				MCTP_CTRL_INFO("%s: EID to ignore: %d\n",
+					       __func__,
+					       cmdline->ignore_eids[i]);
+			}
 			break;
 		case 'u':
 			set_uuid_str(cmdline->uuid_str, optarg, UUID_STR_LEN);
