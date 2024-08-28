@@ -1416,7 +1416,7 @@ static int client_process_recv(struct ctx *ctx, int idx)
 		goto out_close;
 	}
 
-	if (rc <= 0) {
+	if (rc <= 3) {
 		rc = -1;
 		goto out_close;
 	}

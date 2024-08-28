@@ -415,7 +415,7 @@ mctp_client_recv_from_eid(mctp_eid_t eid, int mctp_fd, uint8_t cmd_code,
 		if (cmd_code != resp_command_code) {
 			mctp_prdebug(
 				"%s: Command code 0x%02x is not requested command code 0x%02x\n",
-				__func__, resp->command_code, cmd_code);
+				__func__, resp_command_code, cmd_code);
 		}
 
 	} while (1);

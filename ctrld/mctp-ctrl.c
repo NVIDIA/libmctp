@@ -850,7 +850,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 
 		/* Wait until we can populate Dbus objects. */
 		pthread_mutex_lock(&mctp_ctrl->worker_mtx);
-		if (!mctp_ctrl->worker_is_ready) {
+		while (!mctp_ctrl->worker_is_ready) {
 			pthread_cond_wait(&mctp_ctrl->worker_cv,
 					  &mctp_ctrl->worker_mtx);
 		}

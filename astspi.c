@@ -823,11 +823,12 @@ static int ast_spi_gpio_export(unsigned int gpio)
 
 	ret = write(fd, buf, len);
 	/* EBUSY means the settings were already set. */
-	MCTP_ASSERT_RET(ret == len || (ret == -1 && errno == EBUSY), ret,
-			"write(2) failed: %d (%s)", errno, strerror(errno));
+	if (!(ret == len || (ret == -1 && errno == EBUSY))) {
+		mctp_prerr("write(2) failed: %d (%s)", errno, strerror(errno));
+	}
 	close(fd);
 
-	return (0);
+	return ret;
 }
 
 #if DEBUG
@@ -846,11 +847,12 @@ static int ast_spi_gpio_unexport(unsigned int gpio)
 	len = snprintf(buf, sizeof(buf), "%d", gpio);
 
 	ret = write(fd, buf, len);
-	MCTP_ASSERT_RET(ret == len, ret, "write(2) failed: %d (%s)", errno,
-			strerror(errno));
+	if (ret != len) {
+		mctp_prerr("write(2) failed: %d (%s)", errno, strerror(errno));
+	}
 
 	close(fd);
-	return (0);
+	return ret;
 }
 #endif
 
@@ -869,15 +871,21 @@ static int ast_spi_gpio_set_dir(unsigned int gpio, unsigned int out_flag)
 
 	if (out_flag) {
 		ret = write(fd, "out", 4);
-		MCTP_ASSERT_RET(ret == 4, -1, "write(2) failed: %d (%s)", errno,
-				strerror(errno));
+		if (ret != 4) {
+			mctp_prerr("write(2) failed: %d (%s)", errno,
+				   strerror(errno));
+			ret = -1;
+		}
 	} else {
 		ret = write(fd, "in", 3);
-		MCTP_ASSERT_RET(ret == 3, -1, "write(2) failed: %d (%s)", errno,
-				strerror(errno));
+		if (ret != 3) {
+			mctp_prerr("write(2) failed: %d (%s)", errno,
+				   strerror(errno));
+			ret = -1;
+		}
 	}
 	close(fd);
-	return (0);
+	return ret;
 }
 
 #if DEBUG
@@ -896,15 +904,21 @@ static int ast_spi_gpio_set_value(unsigned int gpio, unsigned int value)
 
 	if (value) {
 		ret = write(fd, "1", 2);
-		MCTP_ASSERT_RET(ret == 1, -1, "write(2) failed: %d (%s)", errno,
-				strerror(errno));
+		if (ret != 1) {
+			mctp_prerr("write(2) failed: %d (%s)", errno,
+				   strerror(errno));
+			ret = -1;
+		}
 	} else {
 		ret = write(fd, "0", 2);
-		MCTP_ASSERT_RET(ret == 1, -1, "write(2) failed: %d (%s)", errno,
-				strerror(errno));
+		if (ret != 1) {
+			mctp_prerr("write(2) failed: %d (%s)", errno,
+				   strerror(errno));
+			ret = -1;
+		}
 	}
 	close(fd);
-	return (0);
+	return ret;
 }
 #endif
 
@@ -922,11 +936,13 @@ static int ast_spi_gpio_set_edge(unsigned int gpio, char *edge)
 			errno, strerror(errno));
 
 	ret = write(fd, edge, strlen(edge) + 1);
-	MCTP_ASSERT_RET((size_t)ret == strlen(edge) + 1, -1,
-			"write(2) failed: %d (%s)", errno, strerror(errno));
+	if (ret != (ssize_t)(strlen(edge) + 1)) {
+		mctp_prerr("write(2) failed: %d (%s)", errno, strerror(errno));
+		ret = -1;
+	}
 
 	close(fd);
-	return (0);
+	return ret;
 }
 
 static int ast_spi_gpio_fd_open(unsigned int gpio)
