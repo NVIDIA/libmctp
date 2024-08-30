@@ -771,8 +771,19 @@ static int mctp_mark_service_ready(mctp_sdbus_context_t *context)
 	char mctp_ctrl_objpath[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE];
 
 	memset(mctp_ctrl_objpath, '\0', MCTP_CTRL_SDBUS_OBJ_PATH_SIZE);
-	snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_OBJ_PATH_SIZE, "%s/%s",
-		 MCTP_CTRL_OBJ_NAME, mctp_medium_type);
+	if (MCTP_BINDING_SMBUS == context->cmdline->binding_type) {
+		snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_OBJ_PATH_SIZE,
+			 "%s/%s%d", MCTP_CTRL_OBJ_NAME, mctp_medium_type,
+			 context->cmdline->i2c.bus_num);
+	} else if ((MCTP_BINDING_SPI == context->cmdline->binding_type) &&
+		   context->cmdline->use_json == true) {
+		snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_OBJ_PATH_SIZE,
+			 "%s/%s%d", MCTP_CTRL_OBJ_NAME, mctp_medium_type,
+			 context->cmdline->spi.dev_num);
+	} else {
+		snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_OBJ_PATH_SIZE,
+			 "%s/%s", MCTP_CTRL_OBJ_NAME, mctp_medium_type);
+	}
 	r = sd_bus_add_object_manager(context->bus, NULL, mctp_ctrl_objpath);
 	if (r < 0) {
 		MCTP_CTRL_ERR("Failed to add object manager: %s\n",
