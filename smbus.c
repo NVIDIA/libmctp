@@ -61,7 +61,7 @@ struct mctp_binding_smbus {
 #define I2C_M_HOLD 0x0100
 #endif
 
-#define MCTP_SMBUS_I2C_M_HOLD_TIMEOUT_MS 100
+#define MCTP_SMBUS_I2C_M_HOLD_TIMEOUT_MS 800
 #define MCTP_SMBUS_I2C_TX_RETRIES_MAX                                          \
 	1000 /* 1000 retries with a 20us sleep, so a total of 20ms at worst*/
 #define MCTP_SMBUS_I2C_TX_RETRIES_US 20 /* 20 us * 1000 = 20ms*/
@@ -259,7 +259,7 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len,
 		}
 	} while ((rc < 0) && (retry--));
 
-	if (msgrdwr.nmsgs == 2 && (rc == 0)) {
+	if (msgrdwr.nmsgs == 2 && (rc >= 0)) {
 		mctp_prdebug("Mux grabbed\n");
 	}
 	return 0;
