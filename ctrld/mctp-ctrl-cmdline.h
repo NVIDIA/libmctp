@@ -18,6 +18,7 @@
 #define __MCTP_CMDLINE_H
 
 #include "libmctp-astspi.h"
+#include "libmctp-smbus.h"
 
 #define MCTP_WRITE_DATA_BUFF_SIZE 1024
 #define MCTP_READ_DATA_BUFF_SIZE  1024
@@ -110,8 +111,8 @@ struct mctp_cmdline_i2c {
 	uint8_t bridge_pool_start;
 	uint8_t bus_num;
 	uint8_t src_slave_addr;
-	uint8_t logical_busses[4];
-	uint8_t dest_slave_addr[4];
+	uint8_t logical_busses[MCTP_I2C_MAX_BUSES];
+	uint8_t dest_slave_addr[MCTP_I2C_MAX_BUSES];
 };
 
 /* USB specific configuration */
