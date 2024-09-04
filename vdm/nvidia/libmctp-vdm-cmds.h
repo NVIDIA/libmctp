@@ -174,7 +174,7 @@ struct mctp_vendor_cmd_cak_install {
 	struct mctp_vendor_msg_hdr vdr_msg_hdr;
 	unsigned char payload[MCTP_ECDSA_P_384_DOT_ENABLE_KEY];
 	uint8_t cak_disable;
-	uint8_t ap_fw_metadata_signature[95];
+	uint8_t ap_fw_metadata_signature[96];
 	uint8_t ap_fw_metadata_rbp[2];
 } __attribute__((__packed__));
 
