@@ -335,6 +335,8 @@ void *mctp_spi_keepalive_event(void *arg)
 	rc = restart_notification(socket_fd, ctrl->eid, VERBOSE_DISABLE);
 	if (rc != 0) {
 		MCTP_CTRL_ERR("[%s] Restart notification failed!\n", __func__);
+		doLog(ctrl->bus, "ERoT SPI", "Restart Notification failed!",
+		      EVT_CRITICAL, "Reset the baseboard");
 	}
 
 exit_mctp_spi_keepalive_event:
