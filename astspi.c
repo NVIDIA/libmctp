@@ -152,20 +152,30 @@ int mctp_check_spi_drv_exist(void)
 	FILE *fp = NULL;
 	char buff[MCTP_SYSTEM_CMD_BUFF_SIZE];
 	const char *cmd = "lsmod | grep fmc";
+	int pclose_ret;
 
 	/* Open the command for reading. */
 	fp = popen(cmd, "r");
-	MCTP_ASSERT_RET(fp != NULL, -1, "Failed to run command: %s", cmd);
+	MCTP_ASSERT_RET(fp != NULL, -1,
+			"%s: Failed to run command: %s, error: %s", __func__,
+			cmd, strerror(errno));
 
 	/* Read the output a line at a time - output it. */
 	while (fgets(buff, sizeof(buff), fp) != NULL) {
 		mctp_prdebug("Raw SPI driver exist: %s", buff);
-		pclose(fp);
+		pclose_ret = pclose(fp);
+		if (pclose_ret == -1) {
+			mctp_prerr("%s: pclose failed: %s", __func__,
+				   strerror(errno));
+		}
 		return (1);
 	}
 
 	/* close */
-	pclose(fp);
+	pclose_ret = pclose(fp);
+	if (pclose_ret == -1) {
+		mctp_prerr("%s: pclose failed: %s", __func__, strerror(errno));
+	}
 	return (0);
 }
 
@@ -174,20 +184,30 @@ int mctp_check_spi_flash_exist(void)
 	FILE *fp = NULL;
 	char buff[MCTP_SYSTEM_CMD_BUFF_SIZE];
 	const char *cmd = "cat /proc/mtd | grep mtd0";
+	int pclose_ret;
 
 	/* Open the command for reading. */
 	fp = popen(cmd, "r");
-	MCTP_ASSERT_RET(fp != NULL, -1, "Failed to run command: %s", cmd);
+	MCTP_ASSERT_RET(fp != NULL, -1,
+			"%s: Failed to run command: %s, error: %s", __func__,
+			cmd, strerror(errno));
 
 	/* Read the output a line at a time - output it. */
 	while (fgets(buff, sizeof(buff), fp) != NULL) {
 		mctp_prdebug("Flash driver exist : %s", buff);
-		pclose(fp);
+		pclose_ret = pclose(fp);
+		if (pclose_ret == -1) {
+			mctp_prerr("%s: pclose failed: %s", __func__,
+				   strerror(errno));
+		}
 		return (1);
 	}
 
 	/* close */
-	pclose(fp);
+	pclose_ret = pclose(fp);
+	if (pclose_ret == -1) {
+		mctp_prerr("%s: pclose failed: %s", __func__, strerror(errno));
+	}
 	return (0);
 }
 
@@ -204,8 +224,8 @@ int mctp_unload_flash_driver(void)
 
 	fd = open(path, O_WRONLY);
 	if (fd < 0) {
-		mctp_prinfo("%s: Could not open %s \n trying: %s\n", __func__,
-			    path, path2);
+		mctp_prinfo("%s: Could not open %s \n trying: %s\n Error: %s",
+			    __func__, path, path2, strerror(errno));
 		fd = open(path2, O_WRONLY);
 	}
 	MCTP_ASSERT_RET(fd >= 0, fd, "Could not open %s.", path);

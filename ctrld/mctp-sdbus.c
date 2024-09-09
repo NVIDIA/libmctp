@@ -85,8 +85,11 @@ static int mctp_ctrl_supported_bus_types(sd_bus *bus, const char *path,
 	(void)error;
 
 	r = sd_bus_message_open_container(reply, 'a', "s");
-	if (r < 0)
+	if (r < 0) {
+		MCTP_CTRL_ERR("%s: Failed sd_bus_message_open_container: %s",
+			      __func__, strerror(-r));
 		return r;
+	}
 
 	for (i = 0; i < MCTP_CTRL_MAX_BUS_TYPES; i++) {
 		r = sd_bus_message_append(reply, "s",
@@ -560,8 +563,13 @@ static int mctp_ctrl_sdbus_set_enabled(sd_bus *bus, const char *path,
 
 	if (entry && ((int)entry->enabled != set_enabled)) {
 		entry->enabled = set_enabled;
-		sd_bus_emit_properties_changed(bus, path, interface, property,
-					       NULL);
+		r = sd_bus_emit_properties_changed(bus, path, interface,
+						   property, NULL);
+		if (r < 0) {
+			MCTP_CTRL_ERR(
+				"%s: %d returned from sd bus emit properties changed",
+				__func__, r);
+		}
 	}
 
 	return 1;
@@ -640,12 +648,16 @@ static int mctp_ctrl_monitor_signal_events(mctp_sdbus_context_t *context)
 		ret = read(context->fds[MCTP_CTRL_SIGNAL_FD].fd, &si,
 			   sizeof(si));
 		if (ret < 0 || ret != sizeof(si)) {
-			MCTP_CTRL_ERR("[%s] Error read signal event: %s\n",
-				      __func__, strerror(-ret));
+			MCTP_CTRL_ERR(
+				"[%s] Error read signal event: %s (ret=%d, expected=%zu, fd=%d)\n",
+				__func__, strerror(errno), ret, sizeof(si),
+				context->fds[MCTP_CTRL_SIGNAL_FD].fd);
 			return 0;
 		}
 
 		if (si.ssi_signo == SIGINT || si.ssi_signo == SIGTERM) {
+			MCTP_CTRL_INFO("%s: %d signal received", __func__,
+				       si.ssi_signo);
 			mctp_ctrl_sdbus_stop();
 			return -1;
 		}
@@ -931,10 +943,15 @@ static int mctp_sdbus_refresh_endpoints(const mctp_cmdline_args_t *cmdline,
 			process discovery notifies and the routing table reads following the
 			debounce. */
 			/* Emit a properties changed signal for entry */
-			sd_bus_emit_properties_changed(
+			r = sd_bus_emit_properties_changed(
 				context->bus, mctp_ctrl_objpath,
 				MCTP_CTRL_DBUS_ENABLE_INTERFACE, "Enabled",
 				NULL);
+			if (r < 0) {
+				MCTP_CTRL_ERR(
+					"%s: %d returned from sd bus emit properties changed",
+					__func__, r);
+			}
 		}
 
 		/* Increment for next entry */
@@ -1040,9 +1057,14 @@ static int mctp_ctrl_sdbus_host_endpoints(const mctp_cmdline_args_t *cmdline,
 	context->fds[MCTP_CTRL_SD_BUS_FD].revents = 0;
 
 	/* Emit a properties changed signal for service ready */
-	sd_bus_emit_properties_changed(context->bus, mctp_ctrl_objpath,
-				       MCTP_CTRL_DBUS_SERVICE_READY_INTERFACE,
-				       "State", NULL);
+	r = sd_bus_emit_properties_changed(
+		context->bus, mctp_ctrl_objpath,
+		MCTP_CTRL_DBUS_SERVICE_READY_INTERFACE, "State", NULL);
+	if (r < 0) {
+		MCTP_CTRL_ERR(
+			"%s: %d returned from sd bus emit properties changed",
+			__func__, r);
+	}
 	return EXIT_SUCCESS;
 }
 
@@ -1162,8 +1184,8 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 	r = mctp_ctrl_sdbus_host_endpoints(cmdline, context);
 	if (r != 0) {
 		MCTP_CTRL_ERR(
-			"%s: mctp_ctrl_sdbus_host_endpoints did return an error\n",
-			__func__);
+			"%s %d: mctp_ctrl_sdbus_host_endpoints did return an error\n",
+			__func__, r);
 		return -1;
 	}
 	context->fds[MCTP_CTRL_SIGNAL_FD].fd = signal_fd;

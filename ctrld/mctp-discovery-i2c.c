@@ -141,7 +141,8 @@ mctp_ret_codes_t mctp_i2c_get_mctp_ver_support_request(int sock_fd, uint8_t eid)
 		(void *)&pvt_binding, sizeof(pvt_binding));
 
 	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
-		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
+		MCTP_CTRL_ERR("%s: Failed to send message (mctp_ret=%d)\n",
+			      __func__, mctp_ret);
 		return MCTP_RET_REQUEST_FAILED;
 	}
 

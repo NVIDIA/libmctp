@@ -92,6 +92,8 @@ mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
 	struct sockaddr_mctp addr;
 
 	if (mctp_fd < 0) {
+		mctp_prerr("%s: Failed to create socket for mctp_fd %d: %s",
+			   __func__, mctp_fd, strerror(errno));
 		return MCTP_REQUESTER_SEND_FAIL;
 	}
 
@@ -106,6 +108,10 @@ mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
 	ssize_t ret = sendto(mctp_fd, mctp_req_msg, req_msg_len, 0,
 			     (struct sockaddr *)&addr, sizeof(addr));
 	if (ret != (int)req_msg_len) {
+		mctp_prerr(
+			"%s: Failed to send message on mctp_fd %d. Sent %zd bytes, expected %d bytes: %s",
+			__func__, mctp_fd, ret, (int)req_msg_len,
+			strerror(errno));
 		err(EXIT_FAILURE, "sendto(%zd) - rc: %zd", req_msg_len, ret);
 		return MCTP_REQUESTER_SEND_FAIL;
 	}
@@ -123,6 +129,8 @@ mctp_requester_rc_t mctp_client_send_ext(mctp_eid_t dest_eid, int mctp_fd,
 	int rc;
 
 	if (mctp_fd < 0) {
+		mctp_prerr("%s: Invalid socket descriptor mctp_fd %d: %s",
+			   __func__, mctp_fd, strerror(errno));
 		err(EXIT_FAILURE, "socket");
 		return MCTP_REQUESTER_SEND_FAIL;
 	}
@@ -145,15 +153,19 @@ mctp_requester_rc_t mctp_client_send_ext(mctp_eid_t dest_eid, int mctp_fd,
 	int val = 1;
 	rc = setsockopt(mctp_fd, SOL_MCTP, MCTP_OPT_ADDR_EXT, &val,
 			sizeof(val));
-	if (rc < 0)
+	if (rc < 0) {
+		mctp_prerr(
+			"%s: Failed to setsockopt for mctp_fd %d with value%d: Error %s",
+			__func__, mctp_fd, rc, strerror(errno));
 		errx(EXIT_FAILURE,
 		     "Kernel does not support MCTP extended addressing");
-
+	}
 	/* send data */
 	rc = sendto(mctp_fd, mctp_req_msg, req_msg_len, 0,
 		    (struct sockaddr *)&addr, addrlen);
 	if (rc != (int)req_msg_len) {
-		err(EXIT_FAILURE, "sendto(%zd) - rc: %d", req_msg_len, rc);
+		err(EXIT_FAILURE, "%s: sendto(%zd) - rc: %d Error %s", __func__,
+		    req_msg_len, rc, strerror(errno));
 		return MCTP_REQUESTER_SEND_FAIL;
 	}
 
@@ -273,7 +285,8 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 	/* Register the type of the server */
 	rc = write(*fd, &msgtype, sizeof(msgtype));
 	if (-1 == rc) {
-		MCTP_ERR("register to socket[%d] failed\n", *fd);
+		MCTP_ERR("%s: register to socket[%d] failed with value %d\n",
+			 __func__, *fd, rc);
 		close(*fd);
 		return MCTP_REQUESTER_OPEN_FAIL;
 	}

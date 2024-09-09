@@ -87,7 +87,12 @@ int mctp_usb_handle_event(struct mctp_binding_usb *usb)
 	memset(&t, 0, sizeof(t));
 	int ret = MCTP_USB_NO_ERROR;
 
-	libusb_handle_events_timeout_completed(usb->ctx, &t, NULL);
+	ret = libusb_handle_events_timeout_completed(usb->ctx, &t, NULL);
+	if (ret < 0) {
+		mctp_prerr(
+			"%s: Libusb handle events timeout completed returned %d",
+			__func__, ret);
+	}
 
 	if (usb->bindingfds_change) {
 		ret = MCTP_USB_FD_CHANGE;
@@ -101,6 +106,7 @@ void mctp_usb_rx_transfer_callback(struct libusb_transfer *xfr)
 {
 	struct mctp_binding_usb *usb = xfr->user_data;
 	struct mctp_usb_header_rx *hdr;
+	int ret = MCTP_USB_NO_ERROR;
 
 	switch (xfr->status) {
 	case LIBUSB_TRANSFER_COMPLETED:
@@ -143,7 +149,12 @@ void mctp_usb_rx_transfer_callback(struct libusb_transfer *xfr)
 		break;
 	}
 out:
-	libusb_submit_transfer(xfr);
+	ret = libusb_submit_transfer(xfr);
+	if (ret < 0) {
+		mctp_prerr(
+			"%s: libusb_submit_transfer failed: %s (error code: %d)",
+			__func__, libusb_error_name(ret), ret);
+	}
 }
 
 int mctp_usb_hotplug_callback(struct libusb_context *ctx,
@@ -169,8 +180,9 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 			mctp_prinfo("Device attached: %04x:%04x\n",
 				    desc.idVendor, desc.idProduct);
 		} else {
-			mctp_prinfo("Device attached\n");
-			mctp_prerr("Error getting device descriptor: %s\n",
+			mctp_prerr("%s: Device attached\n", __func__);
+			mctp_prerr("%s: Error getting device descriptor: %s\n",
+				   __func__,
 				   libusb_strerror((enum libusb_error)rc));
 		}
 		// Iterate through all usb configurations to get mctp info
@@ -213,7 +225,9 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 
 		rc = libusb_open(dev, &dev_handle);
 		if (LIBUSB_SUCCESS != rc) {
-			mctp_prerr("Could not open USB device\n");
+			mctp_prerr(
+				"%s: Could not open USB device with value %d\n",
+				__func__, rc);
 		}
 		/* Free memory used to store previous FDs */
 		if (usb->usb_poll_fds) {
@@ -589,7 +603,9 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 		LIBUSB_HOTPLUG_MATCH_ANY, mctp_usb_hotplug_callback, usb,
 		&callback_handle);
 	if (LIBUSB_SUCCESS != rc) {
-		mctp_prerr("Error creating a hotplug callback\n");
+		mctp_prerr(
+			"%s: Error creating a hotplug callback with value %d\n",
+			__func__, rc);
 		libusb_exit(NULL);
 	}
 	usb->usb_poll_fds = libusb_get_pollfds(usb->ctx);

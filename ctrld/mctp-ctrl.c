@@ -831,7 +831,13 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		MCTP_CTRL_INFO("%s: Start MCTP-over-SPI Discovery\n", __func__);
 
 		/* Create static endpoint for spi ctrl daemon */
-		mctp_spi_discover_endpoint(cmdline, mctp_ctrl);
+		int rc = mctp_spi_discover_endpoint(cmdline, mctp_ctrl);
+		if (rc != MCTP_RET_DISCOVERY_SUCCESS) {
+			MCTP_CTRL_ERR(
+				"%s: MCTP spi discover endpoint failed.\n",
+				__func__);
+			return EXIT_FAILURE;
+		}
 
 		mctp_ctrl->worker_is_ready = false;
 
@@ -1373,6 +1379,10 @@ int main_ctrl(int argc, char *const *argv)
 
 		mctp_sdbus_context_t *context = mctp_ctrl_sdbus_create_context(
 			mctp_ctrl->bus, &cmdline);
+		if (context == NULL) {
+			MCTP_CTRL_ERR("%s: Context is null\n", __func__);
+			ret_val = EXIT_FAILURE;
+		}
 
 		if (exec_daemon_mode(&cmdline, mctp_ctrl) != EXIT_SUCCESS) {
 			MCTP_CTRL_ERR("Running demon mode failure\n");

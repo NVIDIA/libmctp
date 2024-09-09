@@ -353,6 +353,11 @@ int mctp_smbus_open_in_bus(struct mctp_binding_smbus *smbus, int in_bus,
 
 	mctp_prdebug("%s: Open: %s", __func__, filename);
 	ret = open(filename, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+	if (ret < 0) {
+		mctp_prerr(
+			"%s: Open syscall failed with rc %d (errno = %d, %s)",
+			__func__, ret, errno, strerror(errno));
+	}
 	mctp_prdebug("%s: ret = : %d", __func__, ret);
 
 	if (ret >= 0)
@@ -402,6 +407,11 @@ int mctp_smbus_open_out_bus(struct mctp_binding_smbus *smbus, int out_bus)
 		     SMBUS_MOCKED_DRIVER, out_bus);
 	int outfd =
 		open(SMBUS_MOCKED_DRIVER, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+	if (outfd < 0) {
+		mctp_prerr(
+			"%s: Open syscall failed with rc %d (errno = %d, %s)",
+			__func__, rc, errno, strerror(errno));
+	}
 	mctp_prdebug("%s: ret = : %d\n", __func__, outfd);
 	MCTP_ASSERT_RET(outfd >= 0, -1, "Failed to open I2C Tx node: %d",
 			outfd);
@@ -683,7 +693,8 @@ int mctp_smbus_read_only(struct mctp_binding_smbus *smbus)
 
 	ret = lseek(smbus->in_fd, 0, SEEK_SET);
 	if (ret < 0) {
-		mctp_prerr("Failed to seek");
+		mctp_prerr("%s: Failed to seek with rc %d (errno = %d, %s)",
+			   __func__, ret, errno, strerror(errno));
 		return -1;
 	}
 
@@ -709,7 +720,8 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 
 	ret = lseek(smbus->in_fd, 0, SEEK_SET);
 	if (ret < 0) {
-		mctp_prerr("Failed to seek");
+		mctp_prerr("%s: Failed to seek with rc %d (errno = %d, %s)",
+			   __func__, ret, errno, strerror(errno));
 		return -1;
 	}
 
