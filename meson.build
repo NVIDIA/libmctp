@@ -61,7 +61,11 @@ endif
 if get_option('mctp-in-kernel-enable').enabled()
     add_project_arguments('-DMCTP_IN_KERNEL', language: ['c', 'cpp'])
 endif
-
+if get_option('enable-journald').enabled()
+    add_project_arguments('-DMCTP_LOG_TO_JOURNAL', language: ['c'])
+    systemd = declare_dependency(dependencies: [comp.find_library('systemd')])
+    deps += [systemd]
+endif
 conf_data = configuration_data()
 conf_data.set('HAVE_PCAP', get_option('capture').enabled() ? 1 : 0)
 conf_data.set('USE_MOCKED_DRIVERS', get_option('mocked-drivers').enabled() ? 1 : 0)

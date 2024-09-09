@@ -8,6 +8,7 @@
 #include "config.h"
 #endif
 #include "libmctp.h"
+#include "libmctp-log.h"
 
 #include <sys/types.h>
 
@@ -38,15 +39,14 @@ void capture_socket(pcap_dumper_t *dumper, const void *buf, size_t len);
 #include <stdio.h>
 static inline int capture_init(void)
 {
-	fprintf(stderr,
-		"libpcap support is disabled, cannot initialise libpcap\n");
+	mctp_prerr("libpcap support is disabled, cannot initialise libpcap\n");
 	return 0;
 }
 
 static inline int capture_prepare(struct capture *cap)
 {
-	fprintf(stderr, "libpcap support is disabled, cannot capture to %s\n",
-		cap->path);
+	mctp_prerr("libpcap support is disabled, cannot capture to %s\n",
+		   cap->path);
 	return 0;
 }
 

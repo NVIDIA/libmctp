@@ -9,7 +9,7 @@ int capture_init(void)
 	int rc;
 
 	if ((rc = pcap_init(PCAP_CHAR_ENC_UTF_8, errbuf)) == -1) {
-		fprintf(stderr, "pcap_init: %s\n", errbuf);
+		mctp_prerr("pcap_init: %s\n", errbuf);
 		return -1;
 	}
 
@@ -22,19 +22,19 @@ int capture_prepare(struct capture *cap)
 
 	if (cap->linktype < CAPTURE_LINKTYPE_FIRST ||
 	    cap->linktype > CAPTURE_LINKTYPE_LAST) {
-		fprintf(stderr,
+		mctp_prerr(
 			"Invalid private linktype value %d: see https://www.tcpdump.org/linktypes.html\n",
 			cap->linktype);
 		return -1;
 	}
 
 	if (!(cap->pcap = pcap_open_dead(cap->linktype, UINT16_MAX))) {
-		fprintf(stderr, "pcap_open_dead: failed\n");
+		mctp_prerr("pcap_open_dead: failed\n");
 		return -1;
 	}
 
 	if (!(cap->dumper = pcap_dump_open(cap->pcap, cap->path))) {
-		fprintf(stderr, "pcap_dump_open: failed\n");
+		mctp_prerr("pcap_dump_open: failed\n");
 		return -1;
 	}
 

@@ -6,6 +6,7 @@
 #include "libmctp.h"
 #include "libmctp-alloc.h"
 #include "libmctp-cmds.h"
+#include "libmctp-log.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -39,8 +40,9 @@ static void control_message_transport_callback(mctp_eid_t src __unused,
 {
 	struct callback_data *ctx = data;
 	struct mctp_ctrl_msg_hdr *msg_hdr = buf;
-	printf("Transport control message received - command code: 0x%X\n",
-	       msg_hdr->command_code);
+	mctp_prdebug(
+		"Transport control message received - command code: 0x%X\n",
+		msg_hdr->command_code);
 	ctx->invoked++;
 	assert(msg_hdr->command_code == ctx->command_code);
 }
@@ -97,8 +99,8 @@ static void send_transport_control_message(void)
 	memset(&ctx, 0, sizeof(ctx));
 	setup_test_binding(&binding, endpoint, &ctx);
 	ctx.command_code = send_control_message_payload.ctrl_hdr.command_code;
-	printf("Sending transport control message: 0x%X\n",
-	       send_control_message_payload.ctrl_hdr.command_code);
+	mctp_prdebug("Sending transport control message: 0x%X\n",
+		     send_control_message_payload.ctrl_hdr.command_code);
 	rcv_ctrl_msg(&binding, (void *)&send_control_message_payload,
 		     sizeof(send_control_message_payload));
 	assert(ctx.invoked == 1);
