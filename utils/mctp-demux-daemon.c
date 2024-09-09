@@ -1388,7 +1388,7 @@ static int client_process_recv(struct ctx *ctx, int idx)
 			if (rc <= 0) {
 				mctp_prerr(
 					"%s: Read syscall failed with rc %d (errno = %d, %s)",
-					__func__ rc, errno, strerror(errno));
+					__func__, rc, errno, strerror(errno));
 				goto out_close;
 			}
 			client->type = type;
