@@ -74,10 +74,10 @@ struct ctx {
 	} pcap;
 };
 
-static void update_pollfds(struct ctx *ctx, struct pollfd *fds ,
-	int index, int fds_size)
+static void update_pollfds(struct ctx *ctx, struct pollfd *fds, int index,
+			   int fds_size)
 {
-	if(fds == NULL)
+	if (fds == NULL)
 		return;
 
 	memcpy(&ctx->pollfds[index], fds, fds_size * sizeof(*fds));
@@ -94,12 +94,12 @@ struct mctp_binding *mctp_binding_raw_core(struct mctp_binding_raw *b)
 #define binding_to_raw(b) container_of(b, struct mctp_binding_raw, binding)
 
 static int mctp_raw_init_pollfd(struct mctp_binding_raw *b,
-				 struct pollfd **pollfd)
+				struct pollfd **pollfd)
 {
 	*pollfd = __mctp_alloc(1 * sizeof(struct pollfd));
 	(*pollfd)->fd = b->tun_fd;
 	(*pollfd)->events = POLLIN;
-	
+
 	return 1;
 }
 
@@ -194,7 +194,6 @@ int tun_read(struct ctx *ctx)
 		return -1;
 	}
 
-
 	if ((size_t)rlen < sizeof(tun_pi)) {
 		warn("tun short read header (%zd bytes)", rlen);
 		return -1;
@@ -254,7 +253,6 @@ int main(int argc, char *const *argv)
 		{ NULL, NULL },
 	};
 
-
 	if (argc < 2) {
 		err(EXIT_FAILURE,
 		    "Need to specify a USB device for USB binding");
@@ -297,27 +295,30 @@ int main(int argc, char *const *argv)
 		for (int ii = (argc - optind - 1); ii < argc; ii++) {
 			bool parsed = false;
 
-			for (int jj = 0; extra_options[jj].prefix != NULL; jj++) {
+			for (int jj = 0; extra_options[jj].prefix != NULL;
+			     jj++) {
 				const char *prefix = extra_options[jj].prefix;
 				const size_t len = strlen(prefix);
 
 				if (strncmp(argv[ii], prefix, len) == 0) {
 					int val = 0;
-					char *arg = strstr(argv[ii], "=") + 1; // Get string after "="
+					char *arg = strstr(argv[ii], "=") +
+						    1; // Get string after "="
 
-					if (strncmp(arg, "0x", 2) == 0){
+					if (strncmp(arg, "0x", 2) == 0) {
 						val = strtoul(arg, NULL, 16);
-					}
-					else
+					} else
 						val = (int)strtoimax(arg, NULL,
 								     10);
-					*(uint16_t *)extra_options[jj].target = val;
+					*(uint16_t *)extra_options[jj].target =
+						val;
 					parsed = true;
 				}
 			}
 
 			if (!parsed) {
-				errx(EXIT_FAILURE, "usb parameters not configured correctly");
+				errx(EXIT_FAILURE,
+				     "usb parameters not configured correctly");
 			}
 		}
 	} else {
@@ -348,15 +349,13 @@ int main(int argc, char *const *argv)
 		errx(EXIT_FAILURE, "malloc");
 
 	/* Connect the two bindings */
-	rc = mctp_bridge_busses(ctx->mctp,
-				mctp_binding_usb_core(ctx->astusb),
+	rc = mctp_bridge_busses(ctx->mctp, mctp_binding_usb_core(ctx->astusb),
 				mctp_binding_raw_core(ctx->tun));
 	if (rc)
 		errx(EXIT_FAILURE, "can't connect lpc and tun bindings");
 
 	/* Enable bindings */
-	mctp_binding_set_tx_enabled(mctp_binding_usb_core(ctx->astusb),
-				    true);
+	mctp_binding_set_tx_enabled(mctp_binding_usb_core(ctx->astusb), true);
 	mctp_binding_set_tx_enabled(mctp_binding_raw_core(ctx->tun), true);
 
 	/* Init capture bindings  */
@@ -370,8 +369,7 @@ int main(int argc, char *const *argv)
 			goto cleanup_mctp;
 		}
 
-		mctp_set_capture_handler(ctx->mctp,
-					 capture_binding,
+		mctp_set_capture_handler(ctx->mctp, capture_binding,
 					 ctx->pcap.ast_binding.dumper);
 	}
 	if (ctx->pcap.raw_binding.path) {
@@ -384,8 +382,7 @@ int main(int argc, char *const *argv)
 			goto cleanup_mctp;
 		}
 
-		mctp_set_capture_handler(ctx->mctp,
-					 capture_binding,
+		mctp_set_capture_handler(ctx->mctp, capture_binding,
 					 ctx->pcap.raw_binding.dumper);
 	}
 	// set bindings status unchanged initially
@@ -397,7 +394,8 @@ int main(int argc, char *const *argv)
 	n = mctp_usb_init_pollfd(ctx->astusb, &pollfds);
 	// allocate all pollfds structure once
 	if (pollfds) {
-		ctx->pollfds = realloc(ctx->pollfds, (n + 1) * sizeof(*pollfds));
+		ctx->pollfds =
+			realloc(ctx->pollfds, (n + 1) * sizeof(*pollfds));
 	}
 	update_pollfds(ctx, pollfds, 1, n);
 	pollfds = NULL;
@@ -408,11 +406,12 @@ int main(int argc, char *const *argv)
 	pollfds = NULL;
 
 	for (;;) {
-		// check binding fd changes for hotplug devices. 
-		// update fds once changed.  
+		// check binding fd changes for hotplug devices.
+		// update fds once changed.
 		if (ctx->bindings_changed) {
 			ctx->bindings_changed = false;
-			int fds_size = mctp_usb_init_pollfd(ctx->astusb, &pollfds);
+			int fds_size =
+				mctp_usb_init_pollfd(ctx->astusb, &pollfds);
 			if (fds_size == ctx->n_bindings) {
 				printf("update usb pollfds ...........\n");
 				// only update usb pollfds
@@ -435,7 +434,7 @@ int main(int argc, char *const *argv)
 
 		if (!rc)
 			continue;
-		
+
 		if (ctx->pollfds[0].revents) {
 			rc = tun_read(ctx);
 			if (rc)
@@ -444,13 +443,13 @@ int main(int argc, char *const *argv)
 				break;
 		}
 
-		for (i = 1; i < ctx->n_bindings; i++ ) {
+		for (i = 1; i < ctx->n_bindings; i++) {
 			if (ctx->pollfds[i].revents == 0)
 				continue;
-			
+
 			rc = mctp_usb_handle_event(ctx->astusb);
 			if (rc == MCTP_USB_FD_CHANGE) {
-				//fd changes and break the loop 
+				//fd changes and break the loop
 				ctx->bindings_changed = true;
 				break;
 			}
