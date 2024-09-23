@@ -106,8 +106,8 @@ static int mctp_spi_get_message_type(int sock, const mctp_cmdline_args_t *cmd)
 				   &resp_len);
 
 	if (rc != MCTP_REQUESTER_SUCCESS)
-		MCTP_CTRL_ERR("%s: fail to recv [rc: %d] response\n", __func__,
-			      rc);
+		fprintf(stderr, "%s: fail to recv [rc: %d] response\n",
+			__func__, rc);
 
 	free(resp);
 
@@ -144,7 +144,7 @@ static void mctp_ctrl_wait_and_discard(int socket, int signal_fd, int timeout)
 
 	rc = clock_gettime(CLOCK_MONOTONIC, &target);
 	if (rc != 0) {
-		mctp_prerr("clock_gettime failed");
+		warn("clock_gettime failed");
 		return;
 	}
 
@@ -161,7 +161,7 @@ static void mctp_ctrl_wait_and_discard(int socket, int signal_fd, int timeout)
 
 	rc = clock_gettime(CLOCK_MONOTONIC, &curr);
 	if (rc != 0) {
-		mctp_prerr("clock_gettime(2) failed");
+		warn("clock_gettime(2) failed");
 		return;
 	}
 
@@ -171,7 +171,7 @@ static void mctp_ctrl_wait_and_discard(int socket, int signal_fd, int timeout)
 	while (timeout > 0) {
 		rc = poll(pollfd, 2, timeout);
 		if (rc < 0) {
-			mctp_prerr("poll(2) failed");
+			warn("poll(2) failed");
 			/* handle signal to exit blocking poll and exit loop immediately */
 			if (errno == EINTR) {
 				return;
@@ -182,7 +182,7 @@ static void mctp_ctrl_wait_and_discard(int socket, int signal_fd, int timeout)
 			/* Discard message. */
 			len = recv(pollfd[0].fd, NULL, 0, MSG_TRUNC);
 			if (len < 0) {
-				mctp_prerr("recv(2) failed");
+				warn("recv(2) failed");
 				return;
 			}
 		} else if (rc == 1 && pollfd[1].revents) {
@@ -204,7 +204,7 @@ static void mctp_ctrl_wait_and_discard(int socket, int signal_fd, int timeout)
 
 		rc = clock_gettime(CLOCK_MONOTONIC, &curr);
 		if (rc != 0) {
-			mctp_prerr("clock_gettime(2) failed");
+			warn("clock_gettime(2) failed");
 			return;
 		}
 

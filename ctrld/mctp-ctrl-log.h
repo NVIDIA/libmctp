@@ -22,7 +22,6 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdarg.h>
-#include <systemd/sd-journal.h>
 
 static inline void mctp_ctrl_prlog(int level, const char *fmt, ...)
 {
@@ -30,42 +29,9 @@ static inline void mctp_ctrl_prlog(int level, const char *fmt, ...)
 
 	(void)level;
 	va_start(ap, fmt);
-#ifdef MCTP_LOG_TO_JOURNAL
-	int syslog_level;
-	switch (level) {
-	case MCTP_LOG_ERR:
-		syslog_level = LOG_ERR;
-		break;
-	case MCTP_LOG_WARNING:
-		syslog_level = LOG_WARNING;
-		break;
-	case MCTP_LOG_NOTICE:
-		syslog_level = LOG_NOTICE;
-		break;
-	case MCTP_LOG_INFO:
-		syslog_level = LOG_INFO;
-		break;
-	case MCTP_LOG_DEBUG:
-		syslog_level = LOG_DEBUG;
-		break;
-	default:
-		syslog_level = LOG_INFO;
-		break;
-	}
-	const char *syslog_identifier = getenv("SYSLOG_IDENTIFIER");
-	if (!syslog_identifier) {
-		syslog_identifier = "mctp-ctrl"; // Default value.
-	}
-	char formatted_message[4096];
-	vsnprintf(formatted_message, sizeof(formatted_message), fmt, ap);
-	sd_journal_send("PRIORITY=%d", syslog_level, "SYSLOG_IDENTIFIER=%s",
-			syslog_identifier, "MESSAGE=%s", formatted_message,
-			NULL);
-#else
 	vfprintf(stderr, fmt, ap);
-	fflush(stderr);
-#endif
 	va_end(ap);
+	fflush(stderr);
 }
 
 extern uint8_t g_verbose_level;

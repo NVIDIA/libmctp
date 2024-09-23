@@ -118,9 +118,9 @@ static void print_hex(const void *buffer, size_t len)
 	const uint8_t *addr = (const uint8_t *)buffer;
 
 	for (ii = 0; ii < len; ii++)
-		mctp_prinfo("%02hhx%c", addr[ii], ii % 8 == 7 ? '\n' : ' ');
+		fprintf(stderr, "%02hhx%c", addr[ii], ii % 8 == 7 ? '\n' : ' ');
 	if (len % 8 != 0)
-		mctp_prinfo("\n");
+		fprintf(stderr, "\n");
 }
 #endif
 
@@ -649,7 +649,7 @@ int find_and_set_pool_of_endpoints(struct mctp_binding_smbus *smbus)
 	slave_address = slave_address >> 1;
 
 	for (i = 0; i < quantity_of_udid; i++) {
-		mctp_prdebug("%d\n", i);
+		printf("%d\n", i);
 		smbus->static_endpoints[i].slave_address = slave_address;
 		check_mctp_get_ver_support(smbus, 0, i, inbuf, inbuf_len);
 	}

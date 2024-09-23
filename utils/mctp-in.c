@@ -4,7 +4,6 @@
 #include "libmctp.h"
 #include "libmctp-serial.h"
 #include "libmctp-smbus.h"
-#include "libmctp-log.h"
 
 #include <assert.h>
 #include <err.h>
@@ -22,9 +21,9 @@ static void rx_message(uint8_t eid __unused, bool tag_owner __unused,
 
 	rc = write(STDOUT_FILENO, msg, len);
 	if (rc < 0)
-		mctp_prerr("Write failed");
+		warn("Write failed");
 	else if ((size_t)rc < len)
-		mctp_prerr("Short write of length %zd, requested %zd", rc, len);
+		warnx("Short write of length %zd, requested %zd", rc, len);
 }
 
 int main(void)

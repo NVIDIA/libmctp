@@ -120,8 +120,8 @@ static int mctp_binding_raw_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 
 	wlen = writev(binding->tun_fd, iov, 2);
 	if (wlen != (ssize_t)(sizeof(tun_pi) + mctp_pktbuf_size(pkt))) {
-		mctp_prerr("tun short write (wrote %zd, expected %zu)", wlen,
-			   sizeof(tun_pi) + mctp_pktbuf_size(pkt));
+		warnx("tun short write (wrote %zd, expected %zu)", wlen,
+		      sizeof(tun_pi) + mctp_pktbuf_size(pkt));
 		return -1;
 	}
 
@@ -150,7 +150,7 @@ static int tun_init(struct mctp_binding_raw *tun)
 
 	fd = open("/dev/net/tun", O_RDWR);
 	if (fd < 0) {
-		mctp_prerr("can't open tun device");
+		warn("can't open tun device");
 		return -1;
 	}
 
@@ -159,18 +159,18 @@ static int tun_init(struct mctp_binding_raw *tun)
 
 	rc = ioctl(fd, TUNSETIFF, &ifreq);
 	if (rc) {
-		mctp_prerr("ioctl(TUNSETIFF)");
+		warn("ioctl(TUNSETIFF)");
 		return -1;
 	}
 
 	// configure net device's type for hw addr
 	rc = ioctl(fd, TUNSETLINK, ARPHRD_LOCALTLK);
 	if (rc) {
-		mctp_prerr("ioctl(TUNSETLINK)");
+		warn("ioctl(TUNSETLINK)");
 		return -1;
 	}
 
-	mctp_prinfo("tun interface created: %s\n", ifreq.ifr_name);
+	printf("tun interface created: %s\n", ifreq.ifr_name);
 
 	tun->tun_fd = fd;
 	return 0;
@@ -190,12 +190,12 @@ int tun_read(struct ctx *ctx)
 
 	rlen = readv(tun->tun_fd, iov, 2);
 	if (rlen < 0) {
-		mctp_prerr("tun read failed");
+		warn("tun read failed");
 		return -1;
 	}
 
 	if ((size_t)rlen < sizeof(tun_pi)) {
-		mctp_prerr("tun short read header (%zd bytes)", rlen);
+		warn("tun short read header (%zd bytes)", rlen);
 		return -1;
 	}
 
@@ -203,7 +203,7 @@ int tun_read(struct ctx *ctx)
 		return 0;
 
 	if ((size_t)rlen < sizeof(tun_pi) + 4) {
-		mctp_prerr("tun short read (%zd bytes)", rlen);
+		warn("tun short read (%zd bytes)", rlen);
 		return -1;
 	}
 
@@ -212,8 +212,7 @@ int tun_read(struct ctx *ctx)
 
 	pkt = mctp_pktbuf_alloc(&tun->binding, rlen);
 	if (!pkt) {
-		mctp_prerr("couldn't allocate packet of size (%zd bytes)",
-			   rlen);
+		warn("couldn't allocate packet of size (%zd bytes)", rlen);
 		return -1;
 	}
 	memcpy(mctp_pktbuf_hdr(pkt), tun->tun_buf, rlen);
@@ -282,7 +281,7 @@ int main(int argc, char *const *argv)
 			ctx->verbose = true;
 			break;
 		default:
-			mctp_prerr("Invalid argument\n");
+			fprintf(stderr, "Invalid argument\n");
 			return EXIT_FAILURE;
 		}
 	}
@@ -363,7 +362,7 @@ int main(int argc, char *const *argv)
 	if (ctx->pcap.ast_binding.path) {
 		rc = capture_prepare(&ctx->pcap.ast_binding);
 		if (rc == -1) {
-			mctp_prerr(
+			fprintf(stderr,
 				"Failed to initialise capture for ast binding: %d\n",
 				rc);
 			rc = EXIT_FAILURE;
@@ -376,7 +375,7 @@ int main(int argc, char *const *argv)
 	if (ctx->pcap.raw_binding.path) {
 		rc = capture_prepare(&ctx->pcap.raw_binding);
 		if (rc == -1) {
-			mctp_prerr(
+			fprintf(stderr,
 				"Failed to initialise capture for raw binding: %d\n",
 				rc);
 			rc = EXIT_FAILURE;
@@ -414,7 +413,7 @@ int main(int argc, char *const *argv)
 			int fds_size =
 				mctp_usb_init_pollfd(ctx->astusb, &pollfds);
 			if (fds_size == ctx->n_bindings) {
-				mctp_prinfo("update usb pollfds ...........\n");
+				printf("update usb pollfds ...........\n");
 				// only update usb pollfds
 				for (int i = 1; i <= fds_size; i++) {
 					ctx->pollfds[i] = pollfds[i];
@@ -439,7 +438,7 @@ int main(int argc, char *const *argv)
 		if (ctx->pollfds[0].revents) {
 			rc = tun_read(ctx);
 			if (rc)
-				mctp_prerr("tun_read failed \n");
+				fprintf(stderr, "tun_read failed \n");
 			if (rc)
 				break;
 		}
@@ -455,13 +454,13 @@ int main(int argc, char *const *argv)
 				break;
 			}
 			if (rc) {
-				mctp_prerr("mctp_usb_handle_event fail\n");
+				fprintf(stderr, "mctp_usb_handle_event fail\n");
 				break;
 			}
 		}
 	}
 
-	mctp_prerr("Shouldn't get here. rc: %d\n", rc);
+	fprintf(stderr, "Shouldn't get here. rc: %d\n", rc);
 
 	if (ctx->pcap.ast_binding.path)
 		capture_close(&ctx->pcap.ast_binding);

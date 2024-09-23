@@ -550,7 +550,7 @@ static int mctp_ctrl_sdbus_set_enabled(sd_bus *bus, const char *path,
 	eid_req = mctp_ctrl_get_eid_from_sdbus_path(path);
 	while (entry != NULL) {
 		if (entry->eid == eid_req) {
-			MCTP_CTRL_INFO("EID found!\n");
+			printf("EID found!\n");
 			break;
 		}
 

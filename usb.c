@@ -166,12 +166,12 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 	if (LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED == event) {
 		rc = libusb_get_device_descriptor(dev, &desc);
 		if (LIBUSB_SUCCESS == rc) {
-			mctp_prinfo("Device attached: %04x:%04x\n",
-				    desc.idVendor, desc.idProduct);
+			printf("Device attached: %04x:%04x\n", desc.idVendor,
+			       desc.idProduct);
 		} else {
-			mctp_prinfo("Device attached\n");
-			mctp_prerr("Error getting device descriptor: %s\n",
-				   libusb_strerror((enum libusb_error)rc));
+			printf("Device attached\n");
+			fprintf(stderr, "Error getting device descriptor: %s\n",
+				libusb_strerror((enum libusb_error)rc));
 		}
 		// Iterate through all usb configurations to get mctp info
 		struct libusb_config_descriptor *config;
@@ -213,7 +213,7 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 
 		rc = libusb_open(dev, &dev_handle);
 		if (LIBUSB_SUCCESS != rc) {
-			mctp_prerr("Could not open USB device\n");
+			printf("Could not open USB device\n");
 		}
 		/* Free memory used to store previous FDs */
 		if (usb->usb_poll_fds) {
@@ -244,19 +244,19 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 		if (bus_reg)
 			mctp_binding_set_tx_enabled(base_usb, false);
 		if (LIBUSB_SUCCESS == rc) {
-			mctp_prinfo("Device de-attached: %04x:%04x\n",
-				    desc.idVendor, desc.idProduct);
+			printf("Device de-attached: %04x:%04x\n", desc.idVendor,
+			       desc.idProduct);
 		} else {
-			mctp_prerr("Device de-attached\n");
-			mctp_prerr("Error getting device descriptor: %s\n",
-				   libusb_strerror((enum libusb_error)rc));
+			printf("Device de-attached\n");
+			fprintf(stderr, "Error getting device descriptor: %s\n",
+				libusb_strerror((enum libusb_error)rc));
 		}
 		if (dev_handle) {
 			libusb_close(dev_handle);
 			dev_handle = NULL;
 		}
 	} else {
-		mctp_prerr("Unhandled event %d\n", event);
+		printf("Unhandled event %d\n", event);
 		if (bus_reg)
 			mctp_binding_set_tx_enabled(base_usb, false);
 	}

@@ -15,12 +15,6 @@ option(
     description: '''Enable MCTPoUSB functionality. Also required libmctp dependency during runtime.'''
 )
 option(
-    'enable-journald',
-    type: 'feature',
-    value: 'enabled',
-    description: ''' Enable journald api logging functionality. '''
-)
-option(
     'enable-mockup-endpoint',
     type: 'feature',
     value: 'disabled',
