@@ -539,7 +539,7 @@ mctp_ret_codes_t mctp_get_routing_table_send_request(int sock_fd,
 	(void)eid;
 
 	/* Set destination EID as NULL */
-	dest_eid = MCTP_EID_NULL;
+	dest_eid = eid;
 
 	/* Set private binding */
 	if (MCTP_BINDING_PCIE == bind_id) {
@@ -1394,6 +1394,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 
 		case MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST:
 
+			eid = g_bridge_eid;
 			/* Send the MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST */
 			mctp_ret = mctp_get_routing_table_send_request(
 				ctrl->sock, bind_id, eid, entry_hdl++);

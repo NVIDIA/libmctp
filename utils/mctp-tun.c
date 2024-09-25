@@ -118,6 +118,8 @@ static int mctp_binding_raw_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	iov[1].iov_base = mctp_pktbuf_hdr(pkt);
 	iov[1].iov_len = mctp_pktbuf_size(pkt);
 
+	mctp_trace_rx(iov[1].iov_base, iov[1].iov_len);
+
 	wlen = writev(binding->tun_fd, iov, 2);
 	if (wlen != (ssize_t)(sizeof(tun_pi) + mctp_pktbuf_size(pkt))) {
 		mctp_prerr("tun short write (wrote %zd, expected %zu)", wlen,

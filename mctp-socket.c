@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <net/if.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -116,6 +117,8 @@ mctp_requester_rc_t mctp_client_send_ext(mctp_eid_t dest_eid, int mctp_fd,
 		return MCTP_REQUESTER_SEND_FAIL;
 	}
 
+	unsigned int if_index = if_nametoindex("tun0");
+
 	memset(&addr, 0x0, sizeof(addr));
 	addrlen = sizeof(struct sockaddr_mctp);
 	addr.smctp_base.smctp_family = AF_MCTP;
@@ -127,7 +130,7 @@ mctp_requester_rc_t mctp_client_send_ext(mctp_eid_t dest_eid, int mctp_fd,
 	addrlen = sizeof(struct sockaddr_mctp_ext);
 	addr.smctp_halen = 1;
 	addr.smctp_haddr[0] = 0;
-	addr.smctp_ifindex = 3;
+	addr.smctp_ifindex = if_index;
 
 	int val = 1;
 	rc = setsockopt(mctp_fd, SOL_MCTP, MCTP_OPT_ADDR_EXT, &val,
@@ -172,7 +175,6 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 	socklen_t addrlen;
 	addrlen = sizeof(addr);
 
-	sleep(1);
 	memset(&addr, 0, sizeof(addr));
 
 	addr.smctp_family = AF_MCTP;
@@ -201,8 +203,8 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 		return MCTP_REQUESTER_RECV_FAIL;
 	}
 	*resp_msg_len = bufLen + 1;
-	(*mctp_resp_msg)[0] = 0;
-	*resp_eid = (*mctp_resp_msg)[1];
+	(*mctp_resp_msg)[0] = addr.smctp_type;
+	*resp_eid = addr.smctp_addr.s_addr;
 
 	return MCTP_REQUESTER_SUCCESS;
 }
