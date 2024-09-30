@@ -469,12 +469,13 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 			/* End time */
 			t_end = mctp_millis();
 
-			printf("%s: Successfully received message\n", __func__);
+			MCTP_CTRL_INFO("%s: Successfully received message\n",
+				       __func__);
 			break;
 		}
 	}
 
-	printf("Command Done in [%zu] ms\n", (size_t)(t_end - t_start));
+	MCTP_CTRL_INFO("Command Done in [%zu] ms\n", (size_t)(t_end - t_start));
 
 	return MCTP_CMD_SUCCESS;
 }
@@ -1217,7 +1218,7 @@ static void parse_command_line(int argc, char *const *argv,
 					usage_common();
 					usage_usb();
 				} else
-					printf("Wrong binding\n");
+					MCTP_CTRL_ERR("Wrong binding\n");
 			}
 			free(config_json_file_path);
 			exit(EXIT_SUCCESS);
@@ -1313,7 +1314,7 @@ int main_ctrl(int argc, char *const *argv)
 	sigaddset(&mask, SIGINT);
 
 	if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0) {
-		printf("Failed to signalmask\n");
+		MCTP_CTRL_ERR("Failed to signalmask\n");
 		return -1;
 	}
 

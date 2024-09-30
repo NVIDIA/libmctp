@@ -816,10 +816,10 @@ static int mctp_message_tx_on_bus(struct mctp_bus *bus, mctp_eid_t src,
 	mctp_prdebug("%s: Enqueued %d packets", __func__, i);
 	if (bus->binding->mctp_send_tx_queue) {
 		bus->binding->mctp_send_tx_queue(bus);
-		mctp_prinfo("Sent batch Tx");
+		mctp_prdebug("Sent batch Tx");
 	} else {
 		mctp_send_tx_queue(bus);
-		mctp_prinfo("Sent non-batch Tx");
+		mctp_prdebug("Sent non-batch Tx");
 	}
 
 	return 0;

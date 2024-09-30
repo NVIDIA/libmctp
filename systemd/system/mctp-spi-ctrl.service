@@ -6,9 +6,10 @@ Requires=mctp-spi-demux.service
 [Service]
 Restart=always
 Environment=MCTP_SPI_CTRL_OPTS=null
+Environment=SYSLOG_IDENTIFIER=mctp-spi-ctrl
 EnvironmentFile=-/usr/share/mctp/mctp
 ExecStart=/usr/bin/mctp-spi-ctrl $MCTP_SPI_CTRL_OPTS
 ExecStop=/usr/bin/mctp-vdm-util -c restart_notification -t 0
-
+SyslogIdentifier=mctp-spi-ctrl
 [Install]
 WantedBy=multi-user.target

@@ -5,6 +5,7 @@ Description=MCTP SPI demultiplexer daemon
 Type=notify
 Restart=always
 Environment=DEMUX_SPI_BINDING_OPTS=null
+Environment=SYSLOG_IDENTIFIER=mctp-spi-demux
 EnvironmentFile=-/usr/share/mctp/mctp
 ExecStart=/usr/bin/mctp-demux-daemon $DEMUX_SPI_BINDING_OPTS
 SyslogIdentifier=mctp-spi-demux

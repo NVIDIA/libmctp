@@ -4,6 +4,7 @@ Description=MCTP PCIe control daemon
 [Service]
 Restart=always
 Environment=MCTP_PCIE_CTRL_OPTS=null
+Environment=SYSLOG_IDENTIFIER=mctp-pcie-ctrl
 EnvironmentFile=-/usr/share/mctp/mctp
 ExecStart=/usr/bin/mctp-pcie-ctrl $MCTP_PCIE_CTRL_OPTS
 SyslogIdentifier=mctp-pcie-ctrl

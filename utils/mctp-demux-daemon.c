@@ -133,9 +133,9 @@ uint8_t smbus_static_endpoints_len;
 static void mctp_print_hex(uint8_t *data, size_t length)
 {
 	for (size_t i = 0; i < length; ++i) {
-		printf("%02X ", data[i]);
+		mctp_prdebug("%02X ", data[i]);
 	}
-	printf("\n");
+	mctp_prdebug("\n");
 }
 
 static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
@@ -188,14 +188,15 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 			(void *)&pvt_binding.pcie);
 
 		if (ctx->verbose) {
-			printf("%s: BindID: %d, Target EID: %d, msg len: %zi,\
+			mctp_prdebug(
+				"%s: BindID: %d, Target EID: %d, msg len: %zi,\
 			    Routing:%d remote_id: 0x%x\n",
-			       __func__, bind_id, eid, len,
-			       pvt_binding.pcie.routing,
-			       pvt_binding.pcie.remote_id);
+				__func__, bind_id, eid, len,
+				pvt_binding.pcie.routing,
+				pvt_binding.pcie.remote_id);
 		}
 		if (rc) {
-			warnx("Failed to send message: %d", rc);
+			mctp_prerr("Failed to send message: %d", rc);
 		}
 		break;
 	case MCTP_BINDING_SPI:
@@ -260,13 +261,14 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 			(void *)&pvt_binding.i2c);
 
 		if (ctx->verbose) {
-			printf("%s: SMBUS EID: %d, Bus: %d, src-slave-addr: 0x%x, dest-slave-addr: 0x%x, len: %zu\n",
-			       __func__, eid, pvt_binding.i2c.i2c_bus,
-			       pvt_binding.i2c.src_slave_addr,
-			       pvt_binding.i2c.dest_slave_addr, len);
+			mctp_prdebug(
+				"%s: SMBUS EID: %d, Bus: %d, src-slave-addr: 0x%x, dest-slave-addr: 0x%x, len: %zu\n",
+				__func__, eid, pvt_binding.i2c.i2c_bus,
+				pvt_binding.i2c.src_slave_addr,
+				pvt_binding.i2c.dest_slave_addr, len);
 		}
 		if (rc) {
-			warnx("Failed to send message: %d", rc);
+			mctp_prerr("Failed to send message: %d", rc);
 		}
 		break;
 
@@ -293,13 +295,13 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 			(uint8_t *)msg + MCTP_USB_MSG_OFFSET, len,
 			(void *)&pvt_binding.usb);
 		if (rc) {
-			warnx("Failed to send message: %d", rc);
+			mctp_prerr("Failed to send message: %d", rc);
 		}
 
 		break;
 
 	default:
-		warnx("Invalid/Unsupported binding ID %d", bind_id);
+		mctp_prerr("Invalid/Unsupported binding ID %d", bind_id);
 		mctp_print_hex((uint8_t *)msg, len);
 		break;
 	}
@@ -314,7 +316,7 @@ static void tx_message(struct ctx *ctx, uint8_t tag_owner_and_tag,
 			     (tag_owner_and_tag & LIBMCTP_TAG_OWNER_MASK),
 			     (tag_owner_and_tag & LIBMCTP_TAG_MASK), msg, len);
 	if (rc)
-		warnx("Failed to send message: %d", rc);
+		mctp_prerr("Failed to send message: %d", rc);
 }
 
 static void client_remove_inactive(struct ctx *ctx)
@@ -372,8 +374,8 @@ static void forward_message(struct client *src_client, uint8_t eid,
 	type = *(uint8_t *)msg & 0x7F;
 
 	if (ctx->verbose)
-		fprintf(stderr, "MCTP message received: len %zd, type %d\n",
-			len, type);
+		mctp_prerr("MCTP message received: len %zd, type %d\n", len,
+			   type);
 
 	memset(&msghdr, 0, sizeof(msghdr));
 	msghdr.msg_iov = iov;
@@ -387,8 +389,8 @@ static void forward_message(struct client *src_client, uint8_t eid,
 		struct client *client = &ctx->clients[i];
 
 		if (ctx->verbose)
-			fprintf(stderr, " %i client type: %hhu type: %hhu\n", i,
-				client->type, type);
+			mctp_prerr(" %i client type: %hhu type: %hhu\n", i,
+				   client->type, type);
 
 		if (src_client->eid == ctx->local_eid) {
 			//to mockup
@@ -404,7 +406,7 @@ static void forward_message(struct client *src_client, uint8_t eid,
 			continue;
 
 		if (ctx->verbose)
-			fprintf(stderr, "  forwarding to client %d\n", i);
+			mctp_prerr("  forwarding to client %d\n", i);
 
 		mctp_trace_common(">SOCK RX HDR>", &tag_eid, 2);
 		mctp_trace_common(">SOCK RX>", msg, len);
@@ -440,8 +442,8 @@ static void rx_message(uint8_t eid, bool tag_owner, uint8_t msg_tag, void *data,
 	type = *(uint8_t *)msg & 0x7F;
 
 	if (ctx->verbose)
-		fprintf(stderr, "MCTP message received: len %zd, type %d\n",
-			len, type);
+		mctp_prerr("MCTP message received: len %zd, type %d\n", len,
+			   type);
 
 	memset(&msghdr, 0, sizeof(msghdr));
 	msghdr.msg_iov = iov;
@@ -455,14 +457,14 @@ static void rx_message(uint8_t eid, bool tag_owner, uint8_t msg_tag, void *data,
 		struct client *client = &ctx->clients[i];
 
 		if (ctx->verbose)
-			fprintf(stderr, " %i client type: %hhu type: %hhu\n", i,
-				client->type, type);
+			mctp_prerr(" %i client type: %hhu type: %hhu\n", i,
+				   client->type, type);
 
 		if (client->type != type)
 			continue;
 
 		if (ctx->verbose)
-			fprintf(stderr, "  forwarding to client %d\n", i);
+			mctp_prerr("  forwarding to client %d\n", i);
 
 		mctp_trace_common(">SOCK RX HDR>", &tag_eid, 2);
 		mctp_trace_common(">SOCK RX>", msg, len);
@@ -484,7 +486,7 @@ static int binding_null_init(struct mctp *mctp __unused,
 			     char *const *params __unused)
 {
 	if (n_params != 0) {
-		warnx("null binding doesn't accept parameters");
+		mctp_prerr("null binding doesn't accept parameters");
 		return -1;
 	}
 	return 0;
@@ -499,7 +501,7 @@ static int binding_serial_init(struct mctp *mctp, struct binding *binding,
 	int rc;
 
 	if (n_params != 1) {
-		warnx("serial binding requires device param");
+		mctp_prerr("serial binding requires device param");
 		return -1;
 	}
 
@@ -538,13 +540,13 @@ static int binding_astlpc_init(struct mctp *mctp, struct binding *binding,
 	struct mctp_binding_astlpc *astlpc;
 
 	if (n_params) {
-		warnx("astlpc binding does not accept parameters");
+		mctp_prerr("astlpc binding does not accept parameters");
 		return -1;
 	}
 
 	astlpc = mctp_astlpc_init_fileio();
 	if (!astlpc) {
-		warnx("could not initialise astlpc binding");
+		mctp_prerr("could not initialise astlpc binding");
 		return -1;
 	}
 
@@ -582,13 +584,13 @@ static int binding_astpcie_init(struct mctp *mctp, struct binding *binding,
 	struct mctp_binding_astpcie *astpcie;
 
 	if (n_params) {
-		warnx("astpcie binding does not accept parameters");
+		mctp_prerr("astpcie binding does not accept parameters");
 		return -1;
 	}
 
 	astpcie = mctp_astpcie_init_fileio();
 	if (!astpcie) {
-		warnx("could not initialise astpcie binding");
+		mctp_prerr("could not initialise astpcie binding");
 		return -1;
 	}
 
@@ -628,7 +630,7 @@ static int binding_astpcie_process(struct binding *binding)
 
 static void binding_astspi_usage(void)
 {
-	fprintf(stderr,
+	mctp_prerr(
 		"Usage: astspi\n"
 		"\tgpio=<line num> - GPIO line num to monitor\n"
 		"\tdevice=<dev num> - SPI device to open\n"
@@ -638,7 +640,7 @@ static void binding_astspi_usage(void)
 		"\tsinglemode=<0|1> - enable / disable single mode (default: 0)\n"
 		"\tspi_config_file=<config.json> - SPI json config file\n");
 
-	fprintf(stderr, "Example: astpspi gpio=11 disablecs=1\n");
+	mctp_prerr("Example: astpspi gpio=11 disablecs=1\n");
 }
 
 static void
@@ -787,14 +789,14 @@ static int binding_astspi_process(struct binding *binding)
 
 static void binding_smbus_usage(void)
 {
-	fprintf(stderr,
+	mctp_prerr(
 		"Usage: smbus (use dec or hex value)\n"
 		"\ti2c_bus=<bus num>              - i2c bus to use\n"
 		"\ti2c_config_file=<config.json>  - i2c json config file\n"
 		"\ti2c_dest_addr=<7-bit addr num> - i2c destination slave address to use\n"
 		"\ti2c_src_addr=<7-bit addr num>  - i2c source slave address to use\n");
 
-	fprintf(stderr,
+	mctp_prerr(
 		"Example: smbus i2c_bus=2 i2c_dest_addr=0x30 i2c_src_addr=0x18\n"
 		"     or: smbus i2c_bus=2 i2c_dest_addr=48 i2c_src_addr=24\n");
 }
@@ -1094,7 +1096,7 @@ static int binding_smbus_process(struct binding *binding)
 
 static void binding_usb_usage(void)
 {
-	fprintf(stderr,
+	mctp_prerr(
 		"Usage: usb (use dec or hex value)\n"
 		"\tvendor_id=<vendor id> - usb vendor id to filter\n"
 		"\tproduct_id=<product id> - usb product id to filter\n"
@@ -1105,7 +1107,7 @@ static void binding_usb_usage(void)
 		"\t\t2 - Allow batched packets to be fragmented across USB packets\n"
 		"\t\t3 - Batched mode, like 1 but with 0-padded USB packets\n");
 
-	fprintf(stderr,
+	mctp_prerr(
 		"Example: usb vendor_id=0x0483 product_id=0xffff class_id=0x00\n");
 }
 
@@ -1286,20 +1288,20 @@ static int socket_init(struct ctx *ctx)
 
 	ctx->sock = socket(AF_UNIX, SOCK_SEQPACKET, 0);
 	if (ctx->sock < 0) {
-		warn("can't create socket");
+		mctp_prerr("can't create socket");
 		return -1;
 	}
 
 	rc = bind(ctx->sock, (struct sockaddr *)&addr,
 		  sizeof(addr.sun_family) + namelen);
 	if (rc) {
-		warn("can't bind socket");
+		mctp_prerr("can't bind socket");
 		goto err_close;
 	}
 
 	rc = listen(ctx->sock, 1);
 	if (rc) {
-		warn("can't listen on socket");
+		mctp_prerr("can't listen on socket");
 		goto err_close;
 	}
 	return 0;
@@ -1369,15 +1371,13 @@ static int client_process_recv(struct ctx *ctx, int idx)
 				goto out_close;
 			client->eid = eid;
 			if (ctx->verbose)
-				fprintf(stderr,
-					"client[%d] registered for eid %u\n",
-					idx, eid);
+				mctp_prerr("client[%d] registered for eid %u\n",
+					   idx, eid);
 		}
 #endif
 		if (ctx->verbose)
-			fprintf(stderr,
-				"[%s] client[%d] registered for type %u",
-				__func__, idx, type);
+			mctp_prerr("[%s] client[%d] registered for type %u",
+				   __func__, idx, type);
 
 		mctp_prdebug("[%s] Set client %d type to %u\n", __func__, idx,
 			     type);
@@ -1388,7 +1388,7 @@ static int client_process_recv(struct ctx *ctx, int idx)
 	len = recv(client->sock, NULL, 0, MSG_PEEK | MSG_TRUNC);
 	if (len < 0) {
 		if (errno != ECONNRESET)
-			warn("can't receive (peek) from client");
+			mctp_prerr("can't receive (peek) from client");
 
 		rc = -1;
 		goto out_close;
@@ -1399,7 +1399,7 @@ static int client_process_recv(struct ctx *ctx, int idx)
 
 		tmp = realloc(ctx->buf, len);
 		if (!tmp) {
-			warn("can't allocate for incoming message");
+			mctp_prerr("can't allocate for incoming message");
 			rc = -1;
 			goto out_close;
 		}
@@ -1411,7 +1411,7 @@ static int client_process_recv(struct ctx *ctx, int idx)
 	if (rc < 0) {
 		mctp_prerr("recv(2) failed: %d", rc);
 		if (errno != ECONNRESET)
-			warn("can't receive from client");
+			mctp_prerr("can't receive from client");
 		rc = -1;
 		goto out_close;
 	}
@@ -1442,8 +1442,8 @@ static int client_process_recv(struct ctx *ctx, int idx)
 	eid = *((uint8_t *)ctx->buf + 1);
 
 	if (ctx->verbose)
-		fprintf(stderr, "client[%d] sent message: dest 0x%02x len %d\n",
-			idx, eid, rc - 2);
+		mctp_prerr("client[%d] sent message: dest 0x%02x len %d\n", idx,
+			   eid, rc - 2);
 
 #ifdef MOCKUP_ENDPOINT
 	forward_message(client, eid, *((uint8_t *)ctx->buf), ctx,
@@ -1472,7 +1472,7 @@ static int binding_init(struct ctx *ctx, const char *name, int argc,
 
 	ctx->binding = binding_lookup(name);
 	if (!ctx->binding) {
-		warnx("no such binding '%s'", name);
+		mctp_prerr("no such binding '%s'", name);
 		return -1;
 	}
 
@@ -1514,7 +1514,7 @@ static int run_daemon(struct ctx *ctx)
 	sigaddset(&mask, SIGQUIT);
 
 	if ((rc = sigprocmask(SIG_BLOCK, &mask, NULL)) == -1) {
-		warn("sigprocmask");
+		mctp_prerr("sigprocmask");
 		return rc;
 	}
 
@@ -1530,7 +1530,7 @@ static int run_daemon(struct ctx *ctx)
 	timer.it_interval.tv_nsec = 0;
 
 	if (timerfd_settime(ctx->pollfds[FD_TIMER].fd, 0, &timer, NULL) == -1) {
-		warn("Failed to set time on watchdog timer FD!");
+		mctp_prerr("Failed to set time on watchdog timer FD!");
 		return -1;
 	}
 
@@ -1628,7 +1628,7 @@ static int run_daemon(struct ctx *ctx)
 		rc = poll(ctx->pollfds,
 			  ctx->n_bindings + ctx->n_clients + FD_NR, -1);
 		if (rc < 0) {
-			warn("poll failed");
+			mctp_prerr("poll failed");
 			break;
 		}
 
@@ -1641,14 +1641,16 @@ static int run_daemon(struct ctx *ctx)
 
 			got = read(ctx->pollfds[FD_SIGNAL].fd, &si, sizeof(si));
 			if (got == sizeof(si)) {
-				warnx("Received %s, quitting\n",
-				      strsignal(si.ssi_signo));
+				mctp_prerr("Received %s, quitting\n",
+					   strsignal(si.ssi_signo));
 				rc = 0;
 				break;
 			} else {
-				warnx("Unexpected read result for signalfd: %d\n",
-				      rc);
-				warnx("Quitting on the basis that signalfd became ready\n");
+				mctp_prerr(
+					"Unexpected read result for signalfd: %d\n",
+					rc);
+				mctp_prerr(
+					"Quitting on the basis that signalfd became ready\n");
 				rc = -1;
 				break;
 			}
@@ -1658,7 +1660,7 @@ static int run_daemon(struct ctx *ctx)
 			uint64_t ign = 0;
 			if (sizeof(ign) != read(ctx->pollfds[FD_TIMER].fd, &ign,
 						sizeof(ign))) {
-				warnx("Bad size read from timer FD!");
+				mctp_prerr("Bad size read from timer FD!");
 				/* No need to quit here */
 			}
 			sd_notify(0, "WATCHDOG=1");
@@ -1694,9 +1696,10 @@ static int run_daemon(struct ctx *ctx)
 				if (rc)
 					ctx->clients_changed = true;
 			} else {
-				warnx("%s: Received unsupported event 0x%04x from client %d",
-				      __func__,
-				      ctx->pollfds[fds_number].revents, i);
+				mctp_prerr(
+					"%s: Received unsupported event 0x%04x from client %d",
+					__func__,
+					ctx->pollfds[fds_number].revents, i);
 			}
 		}
 
@@ -1735,20 +1738,20 @@ static const struct option options[] = {
 /* MCTP-DEMUX-DAEMON usage function */
 static void exact_usage(void)
 {
-	fprintf(stderr, "Various command line options mentioned below\n");
-	fprintf(stderr, "\t-v\tVerbose level\n");
-	fprintf(stderr, "\t-e\tTarget Endpoint Id\n\n");
+	mctp_prerr("Various command line options mentioned below\n");
+	mctp_prerr("\t-v\tVerbose level\n");
+	mctp_prerr("\t-e\tTarget Endpoint Id\n\n");
 
-	fprintf(stderr, "SMBus commands\n");
-	fprintf(stderr, "\ti2c_bus\tI2C Bus\n");
-	fprintf(stderr, "\ti2c_dest_addr\tDestination Slave Address (7-bit)\n");
-	fprintf(stderr, "\ti2c_src_addr\tSource Slave Address (7-bit)\n");
-	fprintf(stderr, "Example of use:\n");
-	fprintf(stderr,
+	mctp_prerr("SMBus commands\n");
+	mctp_prerr("\ti2c_bus\tI2C Bus\n");
+	mctp_prerr("\ti2c_dest_addr\tDestination Slave Address (7-bit)\n");
+	mctp_prerr("\ti2c_src_addr\tSource Slave Address (7-bit)\n");
+	mctp_prerr("Example of use:\n");
+	mctp_prerr(
 		"With default parameters (i2c_bus = 2, i2c_dest_addr = 0x30, i2c_src_addr = 0x18):\n");
-	fprintf(stderr, "\tmctp-demux-daemon smbus (--v)\n");
-	fprintf(stderr, "With custom parameters\n");
-	fprintf(stderr,
+	mctp_prerr("\tmctp-demux-daemon smbus (--v)\n");
+	mctp_prerr("With custom parameters\n");
+	mctp_prerr(
 		"\tmctp-demux-daemon smbus i2c_bus=2 i2c_dest_addr=0x30 i2c_src_addr=0x18 (--v)\n");
 }
 
@@ -1756,10 +1759,10 @@ static void usage(const char *progname)
 {
 	unsigned int i;
 
-	fprintf(stderr, "usage: %s <binding> [params]\n", progname);
-	fprintf(stderr, "Available bindings:\n");
+	mctp_prerr("usage: %s <binding> [params]\n", progname);
+	mctp_prerr("Available bindings:\n");
 	for (i = 0; i < ARRAY_SIZE(bindings); i++)
-		fprintf(stderr, "  %s\n", bindings[i].name);
+		mctp_prerr("  %s\n", bindings[i].name);
 }
 
 int main(int argc, char *const *argv)
@@ -1808,28 +1811,28 @@ int main(int argc, char *const *argv)
 			rc = EXIT_SUCCESS;
 			goto initialize_exit;
 		default:
-			fprintf(stderr, "Invalid argument\n");
+			mctp_prerr("Invalid argument\n");
 			rc = EXIT_FAILURE;
 			goto initialize_exit;
 		}
 	}
 
 	if (optind >= argc) {
-		fprintf(stderr, "missing binding argument\n");
+		mctp_prerr("missing binding argument\n");
 		usage(argv[0]);
 		rc = EXIT_FAILURE;
 		goto initialize_exit;
 	}
 
 	if (ctx->pcap.binding.linktype < 0 && ctx->pcap.binding.path) {
-		fprintf(stderr, "missing binding-linktype argument\n");
+		mctp_prerr("missing binding-linktype argument\n");
 		usage(argv[0]);
 		rc = EXIT_FAILURE;
 		goto initialize_exit;
 	}
 
 	if (ctx->pcap.socket.linktype < 0 && ctx->pcap.socket.path) {
-		fprintf(stderr, "missing socket-linktype argument\n");
+		mctp_prerr("missing socket-linktype argument\n");
 		usage(argv[0]);
 		rc = EXIT_FAILURE;
 		goto initialize_exit;
@@ -1840,15 +1843,14 @@ int main(int argc, char *const *argv)
 
 	rc = sd_notifyf(0, "STATUS=Initializing MCTP.\nMAINPID=%d", getpid());
 	if (rc < 0) {
-		fprintf(stderr, "[%s] Could not notify systemd: %d\n", __func__,
-			rc);
+		mctp_prerr("[%s] Could not notify systemd: %d\n", __func__, rc);
 		rc = EXIT_FAILURE;
 		goto initialize_exit;
 	}
 
 	ctx->mctp = mctp_init();
 	if (ctx->mctp == NULL) {
-		fprintf(stderr, "[%s] ctx->mctp is NULL\n", __func__);
+		mctp_prerr("[%s] ctx->mctp is NULL\n", __func__);
 		rc = EXIT_FAILURE;
 		goto initialize_exit;
 	}
@@ -1863,8 +1865,7 @@ int main(int argc, char *const *argv)
 	if (ctx->pcap.binding.path) {
 		rc = capture_prepare(&ctx->pcap.binding);
 		if (rc == -1) {
-			fprintf(stderr, "Failed to initialise capture: %d\n",
-				rc);
+			mctp_prerr("Failed to initialise capture: %d\n", rc);
 			rc = EXIT_FAILURE;
 			goto cleanup_mctp;
 		}
@@ -1876,8 +1877,7 @@ int main(int argc, char *const *argv)
 	if (ctx->pcap.socket.path) {
 		rc = capture_prepare(&ctx->pcap.socket);
 		if (rc == -1) {
-			fprintf(stderr, "Failed to initialise capture: %d\n",
-				rc);
+			mctp_prerr("Failed to initialise capture: %d\n", rc);
 			rc = EXIT_FAILURE;
 			goto cleanup_pcap_binding;
 		}
@@ -1891,7 +1891,7 @@ int main(int argc, char *const *argv)
 
 	mctp_prdebug("Binding init returned: %d.", rc);
 	if (rc) {
-		fprintf(stderr, "Failed to initialise binding: %d\n", rc);
+		mctp_prerr("Failed to initialise binding: %d\n", rc);
 		rc = EXIT_FAILURE;
 		goto cleanup_pcap_binding;
 	}
@@ -1903,7 +1903,7 @@ int main(int argc, char *const *argv)
 	if (rc <= 0) {
 		rc = socket_init(ctx);
 		if (rc) {
-			fprintf(stderr, "Failed to initialse socket: %d\n", rc);
+			mctp_prerr("Failed to initialse socket: %d\n", rc);
 			goto cleanup_binding;
 		}
 	} else {
