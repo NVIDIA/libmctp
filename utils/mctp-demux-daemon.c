@@ -79,6 +79,7 @@ uint8_t i2c_bus_num = MCTP_SMBUS_BUS_NUM;
 uint8_t i2c_bus_num_smq = MCTP_SMBUS_BUS_NUM;
 uint8_t i2c_dest_slave_addr = MCTP_SMBUS_DEST_SLAVE_ADDR;
 uint8_t i2c_src_slave_addr = MCTP_SMBUS_SRC_SLAVE_ADDR;
+uint16_t timeout = 0;
 
 static const mctp_eid_t local_eid_default = 8;
 
@@ -897,7 +898,8 @@ static void parse_smbus_joson_config(char *config_json_file_path,
 	case EID_TYPE_BRIDGE:
 		mctp_prinfo("Use bridge endpoint\n");
 		rc = mctp_json_i2c_get_params_bridge_static_demux(
-			parsed_json, &i2c_bus_num, &i2c_dest_slave_addr, eid);
+			parsed_json, &i2c_bus_num, &i2c_dest_slave_addr, eid,
+			&timeout);
 
 		if (rc == EXIT_FAILURE)
 			binding_smbus_use_default_config();
@@ -914,14 +916,16 @@ static void parse_smbus_joson_config(char *config_json_file_path,
 			       sizeof(struct mctp_static_endpoint_mapper));
 		smbus_static_endpoints_len = MCTP_I2C_MAX_BUSES;
 		rc = mctp_json_i2c_get_params_bridge_static_demux(
-			parsed_json, &i2c_bus_num, &i2c_dest_slave_addr, eid);
+			parsed_json, &i2c_bus_num, &i2c_dest_slave_addr, eid,
+			&timeout);
 		smbus_static_endpoints[0].slave_address = i2c_dest_slave_addr;
 
 		if (rc == EXIT_FAILURE)
 			binding_smbus_use_default_config();
 
 		rc = mctp_json_i2c_get_params_static_demux(
-			parsed_json, &i2c_bus_num, smbus_static_endpoints);
+			parsed_json, &i2c_bus_num, &timeout,
+			smbus_static_endpoints);
 
 		break;
 
@@ -929,8 +933,8 @@ static void parse_smbus_joson_config(char *config_json_file_path,
 		mctp_prinfo("Use pool endpoints\n");
 
 		rc = mctp_json_i2c_get_params_pool_demux(
-			parsed_json, &i2c_bus_num, &smbus_static_endpoints,
-			&smbus_static_endpoints_len);
+			parsed_json, &i2c_bus_num, &timeout,
+			&smbus_static_endpoints, &smbus_static_endpoints_len);
 
 		if (rc == EXIT_FAILURE) {
 			mctp_prerr("Get params for pool failed!");
@@ -1063,7 +1067,7 @@ static int binding_smbus_init(struct mctp *mctp, struct binding *binding,
 
 	smbus = mctp_smbus_init(i2c_bus_num, i2c_bus_num_smq,
 				i2c_dest_slave_addr, i2c_src_slave_addr,
-				smbus_static_endpoints_len,
+				timeout, smbus_static_endpoints_len,
 				smbus_static_endpoints);
 	MCTP_ASSERT_RET(smbus != NULL, -1,
 			"could not initialise smbus binding");

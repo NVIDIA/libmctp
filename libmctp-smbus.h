@@ -40,7 +40,8 @@ struct mctp_static_endpoint_mapper {
 
 struct mctp_binding_smbus *
 mctp_smbus_init(uint8_t bus, uint8_t bus_smq, uint8_t dest_addr,
-		uint8_t src_addr, uint8_t static_endpoints_len,
+		uint8_t src_addr, uint16_t timeout,
+		uint8_t static_endpoints_len,
 		struct mctp_static_endpoint_mapper *static_endpoints);
 
 int mctp_smbus_open_in_bus(struct mctp_binding_smbus *smbus, int in_bus,

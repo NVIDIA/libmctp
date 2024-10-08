@@ -37,12 +37,13 @@ int mctp_json_i2c_get_common_params_mctp_demux(json_object *jo,
 int mctp_json_i2c_get_params_bridge_static_demux(json_object *jo,
 						 uint8_t *bus_num,
 						 uint8_t *dest_slave_addr,
-						 uint8_t *src_eid);
+						 uint8_t *src_eid,
+						 uint16_t *timeout);
 int mctp_json_i2c_get_params_static_demux(
-	json_object *jo, uint8_t *bus_num,
+	json_object *jo, uint8_t *bus_num, uint16_t *timeout,
 	struct mctp_static_endpoint_mapper *endpoints);
 int mctp_json_i2c_get_params_pool_demux(
-	json_object *jo, uint8_t *bus_num,
+	json_object *jo, uint8_t *bus_num, uint16_t *timeout,
 	struct mctp_static_endpoint_mapper **static_endpoints_tab,
 	uint8_t *static_endpoints_len);
 

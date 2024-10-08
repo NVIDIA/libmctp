@@ -50,6 +50,9 @@ struct mctp_binding_smbus {
 	/* src slave address */
 	uint8_t src_slave_addr;
 
+	/* i2c lock timeout*/
+	uint16_t timeout;
+
 	/* static endpoints configuration */
 	struct mctp_static_endpoint_mapper *static_endpoints;
 	uint8_t static_endpoints_len;
@@ -196,7 +199,7 @@ static int get_dest_i2c_addr(struct mctp_binding_smbus *smbus, uint8_t eid)
 static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len,
 			 int dest_eid, int dest_addr)
 {
-	uint16_t hold_timeout = MCTP_SMBUS_I2C_M_HOLD_TIMEOUT_MS; /* ms */
+	uint16_t hold_timeout = smbus->timeout; /* ms */
 	struct i2c_msg msgs[2] = {
 		{
 			.addr = 0, /* 7-bit address */
@@ -651,7 +654,6 @@ int find_and_set_pool_of_endpoints(struct mctp_binding_smbus *smbus)
 	for (i = 0; i < quantity_of_udid; i++) {
 		mctp_prdebug("%d\n", i);
 		smbus->static_endpoints[i].slave_address = slave_address;
-		check_mctp_get_ver_support(smbus, 0, i, inbuf, inbuf_len);
 	}
 
 	return EXIT_SUCCESS;
@@ -878,7 +880,8 @@ static int mctp_smbus_start(struct mctp_binding *b)
 
 struct mctp_binding_smbus *
 mctp_smbus_init(uint8_t bus, uint8_t bus_smq, uint8_t dest_addr,
-		uint8_t src_addr, uint8_t static_endpoints_len,
+		uint8_t src_addr, uint16_t timeout,
+		uint8_t static_endpoints_len,
 		struct mctp_static_endpoint_mapper *static_endpoints)
 {
 	struct mctp_binding_smbus *smbus;
@@ -906,6 +909,11 @@ mctp_smbus_init(uint8_t bus, uint8_t bus_smq, uint8_t dest_addr,
 	smbus->dest_slave_addr[0] = dest_addr;
 	smbus->src_slave_addr = src_addr;
 
+	/* Setting I2C MUX timeout for hold or unload message */
+	if (timeout == 0) {
+		timeout = MCTP_SMBUS_I2C_M_HOLD_TIMEOUT_MS;
+	}
+	smbus->timeout = timeout;
 	/* Override slave addresses and bus numbers if static endpoints are used */
 	smbus->static_endpoints_len = static_endpoints_len;
 	smbus->static_endpoints = static_endpoints;

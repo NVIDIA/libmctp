@@ -332,7 +332,8 @@ int mctp_json_i2c_get_common_params_mctp_demux(json_object *jo,
 int mctp_json_i2c_get_params_bridge_static_demux(json_object *jo,
 						 uint8_t *bus_num,
 						 uint8_t *dest_slave_addr,
-						 uint8_t *src_eid)
+						 uint8_t *src_eid,
+						 uint16_t *timeout)
 {
 	json_object *jo_i2c_struct;
 	json_object *jo_i2c_obj_main;
@@ -347,6 +348,12 @@ int mctp_json_i2c_get_params_bridge_static_demux(json_object *jo,
 	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "src_eid");
 	string_val = json_object_get_string(jo_i2c_obj_main);
 	*src_eid = (uint8_t)parse_num(string_val);
+
+	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "timeout");
+	if (jo_i2c_obj_main) {
+		string_val = json_object_get_string(jo_i2c_obj_main);
+		*timeout = (uint16_t)parse_num(string_val);
+	}
 
 	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "buses");
 	size_t val_conf_i2c = json_object_array_length(jo_i2c_obj_main);
@@ -400,7 +407,7 @@ int mctp_json_i2c_get_params_bridge_static_demux(json_object *jo,
 }
 
 int mctp_json_i2c_get_params_static_demux(
-	json_object *jo, uint8_t *bus_num,
+	json_object *jo, uint8_t *bus_num, uint16_t *timeout,
 	struct mctp_static_endpoint_mapper *endpoints)
 {
 	json_object *jo_i2c_struct;
@@ -412,6 +419,12 @@ int mctp_json_i2c_get_params_static_demux(
 	size_t i, j, k = 0;
 
 	jo_i2c_struct = json_object_object_get(jo, "i2c");
+
+	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "timeout");
+	if (jo_i2c_obj_main) {
+		string_val = json_object_get_string(jo_i2c_obj_main);
+		*timeout = (uint16_t)parse_num(string_val);
+	}
 
 	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "buses");
 	size_t val_conf_i2c = json_object_array_length(jo_i2c_obj_main);
@@ -495,7 +508,7 @@ int mctp_json_i2c_get_params_static_demux(
 }
 
 int mctp_json_i2c_get_params_pool_demux(
-	json_object *jo, uint8_t *bus_num,
+	json_object *jo, uint8_t *bus_num, uint16_t *timeout,
 	struct mctp_static_endpoint_mapper **static_endpoints_tab,
 	uint8_t *static_endpoints_len)
 {
@@ -508,6 +521,12 @@ int mctp_json_i2c_get_params_pool_demux(
 	size_t i, j, k, l;
 
 	jo_i2c_struct = json_object_object_get(jo, "i2c");
+
+	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "timeout");
+	if (jo_i2c_obj_main) {
+		string_val = json_object_get_string(jo_i2c_obj_main);
+		*timeout = (uint16_t)parse_num(string_val);
+	}
 
 	jo_i2c_obj_main = json_object_object_get(jo_i2c_struct, "buses");
 	size_t val_conf_i2c = json_object_array_length(jo_i2c_obj_main);
