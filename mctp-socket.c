@@ -59,9 +59,13 @@ const uint8_t MCTP_MSG_TYPE_HDR = 0;
 #ifdef MCTP_IN_KERNEL
 
 mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
-					 uint8_t msgtype, time_t timeout)
+					 uint8_t msgtype, time_t time_out)
 {
-	(void)timeout;
+	struct timeval timeout;
+
+	/* Set timeout as 5 seconds */
+	timeout.tv_sec = time_out;
+	timeout.tv_usec = MCTP_CTRL_TXRX_TIMEOUT_MICRO_SECS;
 	(void)path;
 	(void)msgtype;
 
@@ -69,6 +73,12 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 	if (*fd < 0) {
 		MCTP_ASSERT_RET(*fd != -1, MCTP_REQUESTER_OPEN_FAIL,
 				"open socket failed, errno=%d\n", errno);
+	}
+
+	/* Register socket operations timeouts */
+	if (setsockopt(*fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
+		       sizeof(timeout)) < 0) {
+		MCTP_ERR("socket[%d] setsockopt failed\n", *fd);
 	}
 
 	return MCTP_REQUESTER_SUCCESS;
