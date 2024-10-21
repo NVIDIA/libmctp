@@ -1708,6 +1708,14 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
 		if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed to received message %d\n",
 				      __func__, mctp_ret);
+
+			if ((mode != MCTP_GET_EP_UUID_RESPONSE) &&
+			    (mode != MCTP_GET_MSG_TYPE_RESPONSE)) {
+				MCTP_CTRL_ERR(
+					"%s: Unexpected failure %d, mode[%d]\n",
+					__func__, mctp_ret, mode);
+				return MCTP_RET_DISCOVERY_FAILED;
+			}
 		}
 
 		switch (mode) {
