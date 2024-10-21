@@ -68,6 +68,10 @@ void mctp_print_resp_msg(struct mctp_ctrl_resp *ep_discovery_resp,
 		MCTP_CTRL_TRACE(
 			"-----------------------------------------------\n");
 	}
+	if (!ep_discovery_resp) {
+		MCTP_CTRL_TRACE("INVALID EP DISCOVERY RESP \n");
+		return;
+	}
 
 	MCTP_CTRL_TRACE("MCTP-RESP-HDR >> \n");
 	MCTP_CTRL_TRACE("\tmsg_type \t: 0x%x\n",
