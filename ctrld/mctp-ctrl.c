@@ -100,7 +100,6 @@ int g_disc_timer_fd = -1;
 static sd_bus *g_sdbus = NULL;
 
 static uint8_t chosen_eid_type = EID_TYPE_BRIDGE;
-int command_line_mode = 0;
 
 extern void mctp_routing_entry_delete_all(void);
 extern void mctp_uuid_delete_all(void);
@@ -695,7 +694,6 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 				  mctp_ctrl_t *mctp_ctrl)
 {
 	int rc, fd;
-	command_line_mode = 1;
 
 	MCTP_CTRL_INFO("%s: Run mode: Commandline mode\n", __func__);
 	mctp_set_log_stdio(cmdline->verbose ? MCTP_LOG_DEBUG :

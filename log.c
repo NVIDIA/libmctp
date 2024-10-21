@@ -10,7 +10,6 @@
 
 #include <syslog.h>
 
-int command_line_mode = 0;
 enum {
 	MCTP_LOG_NONE,
 	MCTP_LOG_STDIO,
@@ -21,9 +20,9 @@ enum {
 static int log_stdio_level;
 static void (*log_custom_fn)(int, const char *, va_list);
 
-#define MAX_TRACE_BYTES	   5120
-#define TRACE_FORMAT	   "%02X "
-#define TRACE_FORMAT_SIZE  3
+#define MAX_TRACE_BYTES	  5120
+#define TRACE_FORMAT	  "%02X "
+#define TRACE_FORMAT_SIZE 3
 #define FORMATTED_MSG_SIZE 4096
 
 static bool trace_enable;
@@ -65,50 +64,34 @@ void mctp_prlog(int level, const char *fmt, ...)
 	case MCTP_LOG_NONE:
 		break;
 	case MCTP_LOG_STDIO:
-		if (command_line_mode) {
-			if (level <= log_stdio_level) {
-				struct timespec ts;
-				clock_gettime(CLOCK_REALTIME, &ts);
-				fprintf(stderr, "%llu-%llu ",
-					(unsigned long long)ts.tv_sec,
-					ts.tv_nsec / 1000000ULL);
-
-				vfprintf(stderr, fmt, ap);
-				fputs("\n", stderr);
-				fflush(stderr);
-			}
-		} else {
 #ifdef MCTP_LOG_TO_JOURNAL
-			{
-				if (level <= log_stdio_level) {
-					char formatted_message
-						[FORMATTED_MSG_SIZE];
-					vsnprintf(formatted_message,
-						  sizeof(formatted_message),
-						  fmt, ap);
-					sd_journal_send(
-						"PRIORITY=%d", syslog_level,
-						"SYSLOG_IDENTIFIER=%s",
-						syslog_identifier, "MESSAGE=%s",
-						formatted_message, NULL);
-				}
-			}
-#else
-			{
-				if (level <= log_stdio_level) {
-					struct timespec ts;
-					clock_gettime(CLOCK_REALTIME, &ts);
-					fprintf(stderr, "%llu-%llu ",
-						(unsigned long long)ts.tv_sec,
-						ts.tv_nsec / 1000000ULL);
-					vfprintf(stderr, fmt, ap);
-					fputs("\n", stderr);
-					fflush(stderr);
-				}
-			}
-#endif
+	{
+		if (level <= log_stdio_level) {
+			char formatted_message[FORMATTED_MSG_SIZE];
+			vsnprintf(formatted_message, sizeof(formatted_message),
+				  fmt, ap);
+			sd_journal_send("PRIORITY=%d", syslog_level,
+					"SYSLOG_IDENTIFIER=%s",
+					syslog_identifier, "MESSAGE=%s",
+					formatted_message, NULL);
 		}
-		break;
+	}
+#else
+	{
+		if (level <= log_stdio_level) {
+			struct timespec ts;
+			clock_gettime(CLOCK_REALTIME, &ts);
+			fprintf(stderr, "%llu-%llu ",
+				(unsigned long long)ts.tv_sec,
+				ts.tv_nsec / 1000000ULL);
+
+			vfprintf(stderr, fmt, ap);
+			fputs("\n", stderr);
+			fflush(stderr);
+		}
+	}
+#endif
+	break;
 	case MCTP_LOG_SYSLOG:
 		vsyslog(syslog_level, fmt, ap);
 		break;
