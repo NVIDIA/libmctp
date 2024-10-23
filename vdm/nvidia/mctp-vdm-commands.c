@@ -1184,6 +1184,13 @@ int query_boot_status_json(int fd, uint8_t tid)
 	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
 				       (uint8_t **)&resp, &resp_len, false);
 
+	if (rc != MCTP_REQUESTER_SUCCESS) {
+		fprintf(stderr, "%s: fail to recv [rc: %d] response\n",
+			__func__, rc);
+		free(resp);
+		return rc;
+	}
+
 	struct json_object *json_obj = json_object_new_object();
 	struct json_object *query_boot_status_response =
 		json_object_new_object();
@@ -1231,9 +1238,6 @@ int query_boot_status_json(int fd, uint8_t tid)
 
 	/* free memory */
 	free(resp);
-
-	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
-			"%s: fail to recv [rc: %d] response\n", __func__, rc);
 
 	return 0;
 }
@@ -1438,6 +1442,13 @@ int background_copy_json(int fd, uint8_t tid, uint8_t code)
 	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
 				       (uint8_t **)&resp, &resp_len, false);
 
+	if (rc != MCTP_REQUESTER_SUCCESS) {
+		fprintf(stderr, "%s: fail to recv [rc: %d] response\n",
+			__func__, rc);
+		free(resp);
+		return rc;
+	}
+
 	struct json_object *json_obj = json_object_new_object();
 	struct json_object *background_copy_response = json_object_new_object();
 
@@ -1471,8 +1482,6 @@ int background_copy_json(int fd, uint8_t tid, uint8_t code)
 	/* free memory */
 	free(resp);
 
-	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
-			"%s: fail to recv [rc: %d] response\n", __func__, rc);
 	return 0;
 }
 
@@ -1816,6 +1825,13 @@ int in_band_json(int fd, uint8_t tid, uint8_t code)
 	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
 				       (uint8_t **)&resp, &resp_len, false);
 
+	if (rc != MCTP_REQUESTER_SUCCESS) {
+		fprintf(stderr, "%s: fail to recv [rc: %d] response\n",
+			__func__, rc);
+		free(resp);
+		return rc;
+	}
+
 	struct json_object *json_obj = json_object_new_object();
 	struct json_object *in_band_response = json_object_new_object();
 
@@ -1836,8 +1852,6 @@ int in_band_json(int fd, uint8_t tid, uint8_t code)
 	/* free memory */
 	free(resp);
 
-	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
-			"%s: fail to recv [rc: %d] response\n", __func__, rc);
 	return 0;
 }
 
