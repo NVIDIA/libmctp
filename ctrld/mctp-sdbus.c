@@ -673,6 +673,7 @@ static int mctp_ctrl_handle_socket(mctp_ctrl_t *mctp_ctrl,
 		MCTP_CTRL_ERR(
 			"%s: Rx socket hang up or closed, closing the loop\n",
 			__func__);
+		return -1;
 	} else if (context->fds[MCTP_CTRL_SOCKET_FD].revents & POLLIN) {
 		MCTP_CTRL_DEBUG("%s: Rx socket event [0x%x]...\n", __func__,
 				context->fds[MCTP_CTRL_SOCKET_FD].revents);
