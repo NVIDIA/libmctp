@@ -223,7 +223,11 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 		rc = mctp_message_pvt_bind_tx(
 			ctx->mctp, eid, MCTP_MESSAGE_TO_SRC, 0,
 			(uint8_t *)msg + MCTP_SPI_MSG_OFFSET, len, NULL);
-
+		if (ctx->verbose) {
+			mctp_prdebug(
+				"%s: rc returned from mctp message pvt bind tx: %d",
+				__func__, rc);
+		}
 		break;
 	case MCTP_BINDING_SMBUS:
 		if (len <= min_packet_smbus) {
@@ -375,8 +379,8 @@ static void forward_message(struct client *src_client, uint8_t eid,
 	type = *(uint8_t *)msg & 0x7F;
 
 	if (ctx->verbose)
-		mctp_prerr("MCTP message received: len %zd, type %d\n", len,
-			   type);
+		mctp_prinfo("%s: MCTP message received: len %zd, type %d\n",
+			    __func__, len, type);
 
 	memset(&msghdr, 0, sizeof(msghdr));
 	msghdr.msg_iov = iov;
@@ -416,6 +420,10 @@ static void forward_message(struct client *src_client, uint8_t eid,
 		/* EAGAIN shouldn't close socket. Otherwise,spi-ctrl daemon will fail 
 		 * to communicate with demux due to socket close.
 		 */
+		if (ctx->verbose) {
+			mctp_prdebug("%s: rc value returned from sendmsg: %d",
+				     __func__, rc);
+		}
 		if (errno != EAGAIN && rc != (ssize_t)(len + 2)) {
 			client->active = false;
 			ctx->clients_changed = true;
@@ -443,8 +451,8 @@ static void rx_message(uint8_t eid, bool tag_owner, uint8_t msg_tag, void *data,
 	type = *(uint8_t *)msg & 0x7F;
 
 	if (ctx->verbose)
-		mctp_prerr("MCTP message received: len %zd, type %d\n", len,
-			   type);
+		mctp_prinfo("MCTP message received: len %zd, type %d\n", len,
+			    type);
 
 	memset(&msghdr, 0, sizeof(msghdr));
 	msghdr.msg_iov = iov;
@@ -512,9 +520,11 @@ static int binding_serial_init(struct mctp *mctp, struct binding *binding,
 	MCTP_ASSERT_RET(serial != NULL, -1, "serial is NULL");
 
 	rc = mctp_serial_open_path(serial, path);
-	if (rc)
+	if (rc) {
+		mctp_prerr("[%s] Failed to open serial path: %s (rc=%d)\n",
+			   __func__, path, rc);
 		return -1;
-
+	}
 	mctp_register_bus(mctp, mctp_binding_serial_core(serial), eid);
 
 	binding->data = serial;
@@ -901,8 +911,10 @@ static void parse_smbus_joson_config(char *config_json_file_path,
 			parsed_json, &i2c_bus_num, &i2c_dest_slave_addr, eid,
 			&timeout);
 
-		if (rc == EXIT_FAILURE)
+		if (rc == EXIT_FAILURE) {
+			mctp_prerr("%s: Failed to get params", __func__);
 			binding_smbus_use_default_config();
+		}
 
 		break;
 
@@ -937,7 +949,7 @@ static void parse_smbus_joson_config(char *config_json_file_path,
 			&smbus_static_endpoints, &smbus_static_endpoints_len);
 
 		if (rc == EXIT_FAILURE) {
-			mctp_prerr("Get params for pool failed!");
+			mctp_prerr("%s: Get params for pool failed!", __func__);
 			binding_smbus_use_default_config();
 		}
 
@@ -1100,7 +1112,7 @@ static int binding_smbus_process(struct binding *binding)
 
 static void binding_usb_usage(void)
 {
-	mctp_prerr(
+	mctp_prinfo(
 		"Usage: usb (use dec or hex value)\n"
 		"\tvendor_id=<vendor id> - usb vendor id to filter\n"
 		"\tproduct_id=<product id> - usb product id to filter\n"
@@ -1111,7 +1123,7 @@ static void binding_usb_usage(void)
 		"\t\t2 - Allow batched packets to be fragmented across USB packets\n"
 		"\t\t3 - Batched mode, like 1 but with 0-padded USB packets\n");
 
-	mctp_prerr(
+	mctp_prinfo(
 		"Example: usb vendor_id=0x0483 product_id=0xffff class_id=0x00\n");
 }
 
@@ -1195,6 +1207,7 @@ static int binding_usb_process(struct binding *binding)
 	rc = mctp_usb_handle_event(binding->data);
 	if (rc == MCTP_USB_FD_CHANGE) {
 		binding->bindings_changed = true;
+		mctp_prinfo("%s: bindings changed", __func__);
 	}
 	return rc;
 }
@@ -1321,13 +1334,20 @@ static int socket_process(struct ctx *ctx)
 	int fd;
 
 	fd = accept4(ctx->sock, NULL, 0, SOCK_NONBLOCK);
-	if (fd < 0)
+	if (fd < 0) {
+		mctp_prerr("%s: Failed to accept new client connection: %s",
+			   __func__, strerror(errno));
 		return -1;
-
+	}
 	ctx->n_clients++;
 	ctx->clients =
 		realloc(ctx->clients, ctx->n_clients * sizeof(struct client));
-
+	if (!ctx->clients) {
+		mctp_prerr(
+			"%s: Failed to allocate memory for new client.Error: %s",
+			__func__, strerror(errno));
+		return -1;
+	}
 	client = &ctx->clients[ctx->n_clients - 1];
 	memset(client, 0, sizeof(*client));
 	client->active = true;
@@ -1365,14 +1385,22 @@ static int client_process_recv(struct ctx *ctx, int idx)
 			/* this signifies an emulation client which has it's own separate eid */
 			sleep(1);
 			rc = read(client->sock, &type, 1);
-			if (rc <= 0)
+			if (rc <= 0) {
+				mctp_prerr(
+					"%s: Read syscall failed with rc %d (errno = %d, %s)",
+					__func__ rc, errno, strerror(errno));
 				goto out_close;
+			}
 			client->type = type;
 
 			uint8_t eid = 0;
 			rc = read(client->sock, &eid, 1);
-			if (rc <= 0)
+			if (rc <= 0) {
+				mctp_prerr(
+					"%s: Read syscall failed with rc %d (errno = %d, %s)",
+					__func__, rc, errno, strerror(errno));
 				goto out_close;
+			}
 			client->eid = eid;
 			if (ctx->verbose)
 				mctp_prerr("client[%d] registered for eid %u\n",
@@ -1676,8 +1704,12 @@ static int run_daemon(struct ctx *ctx)
 				if (ctx->binding->process)
 					rc = ctx->binding->process(
 						ctx->binding);
-				if (rc)
+				if (rc) {
+					mctp_prdebug(
+						"%s: ctx binding process returned %d",
+						__func__, rc);
 					break;
+				}
 			}
 		}
 		//Question: Where are we resetting revents?
@@ -1843,6 +1875,7 @@ int main(int argc, char *const *argv)
 	}
 
 	mctp_set_log_stdio(ctx->verbose ? MCTP_LOG_DEBUG : MCTP_LOG_WARNING);
+	mctp_prinfo("%s: Verbose Enabled: %d", __func__, ctx->verbose);
 	mctp_set_tracing_enabled(true);
 
 	rc = sd_notifyf(0, "STATUS=Initializing MCTP.\nMAINPID=%d", getpid());
@@ -1919,6 +1952,7 @@ int main(int argc, char *const *argv)
 	ctx->buf = malloc(ctx->buf_size);
 
 	rc = run_daemon(ctx);
+	mctp_prinfo("%s: Daemon Stopping %d", __func__, rc);
 
 	if (ctx->buf != NULL) {
 		free(ctx->buf);

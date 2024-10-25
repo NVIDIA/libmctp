@@ -251,8 +251,9 @@ void *mctp_spi_keepalive_event(void *arg)
 				  MCTP_MESSAGE_TYPE_VDIANA,
 				  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
 	if (rc != MCTP_REQUESTER_SUCCESS) {
-		MCTP_CTRL_ERR("[%s] Failed to open socket, errno = %d\n",
-			      __func__, errno);
+		MCTP_CTRL_ERR(
+			"[%s] Failed to open socket, errno = %d, rc = %d\n",
+			__func__, errno, rc);
 		return 0;
 	}
 
@@ -267,8 +268,8 @@ void *mctp_spi_keepalive_event(void *arg)
 		      EVT_CRITICAL, "Reset the baseboard");
 
 		MCTP_CTRL_ERR(
-			"[%s] Failed sending 'Boot complete v2' message\n",
-			__func__);
+			"[%s] Failed sending 'Boot complete v2' message, rc = %d\n",
+			__func__, rc);
 
 		goto exit_mctp_spi_keepalive_event;
 	} else {
@@ -293,8 +294,9 @@ void *mctp_spi_keepalive_event(void *arg)
 		doLog(ctrl->bus, "ERoT SPI", "Enable HeartBeat failed",
 		      EVT_CRITICAL, "Reset the baseboard");
 
-		MCTP_CTRL_ERR("[%s] Failed MCTP_SPI_HEARTBEAT_ENABLE\n",
-			      __func__);
+		MCTP_CTRL_ERR(
+			"[%s] Failed MCTP_SPI_HEARTBEAT_ENABLE, rc = %d\n",
+			__func__, rc);
 
 		goto exit_mctp_spi_keepalive_event;
 	}

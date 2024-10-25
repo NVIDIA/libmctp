@@ -65,6 +65,10 @@ int mctp_astpcie_get_eid_info_ioctl(struct mctp_binding_astpcie *astpcie,
 	if (!rc) {
 		uintptr_t ptr = (uintptr_t)get_eid_info.ptr;
 		memcpy(eid_info, (void *)ptr, get_eid_info.count);
+	} else {
+		mctp_prerr(
+			"%s: Failed to get EID info (ioctl failed), error: %s",
+			__func__, strerror(errno));
 	}
 
 	return rc;
@@ -101,9 +105,13 @@ static int mctp_astpcie_get_bdf_ioctl(struct mctp_binding_astpcie *astpcie)
 #endif
 
 	rc = ioctl(astpcie->fd, ASPEED_MCTP_IOCTL_GET_BDF, &bdf);
-	if (!rc)
+	if (!rc) {
 		astpcie->bdf = bdf.bdf;
-
+	} else {
+		mctp_prerr(
+			"%s: Failed to get EID info (ioctl failed), error: %s",
+			__func__, strerror(errno));
+	}
 	/* Force set Requester ID */
 	astpcie->bdf = 0x0001;
 
@@ -207,13 +215,17 @@ static int mctp_astpcie_start(struct mctp_binding *b)
 		return -errno;
 
 	rc = mctp_astpcie_get_bdf_ioctl(astpcie);
-	if (rc)
+	if (rc) {
+		mctp_prerr("%s: Failed to get BDF from ioctl (rc=%d)", __func__,
+			   rc);
 		goto out_close;
-
+	}
 	rc = mctp_astpcie_get_medium_id_ioctl(astpcie);
-	if (rc)
+	if (rc) {
+		mctp_prerr("%s: Failed to get Medium ID from ioctl (rc=%d)",
+			   __func__, rc);
 		goto out_close;
-
+	}
 	mctp_binding_set_tx_enabled(b, true);
 
 	return 0;
@@ -265,7 +277,7 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 		(uint8_t *)malloc(PCIE_VDM_HDR_SIZE + mctp_hdr_len);
 	if (!pcie_mctp_hdr_data) {
 		mctp_prerr("malloc failed, errno = %d", errno);
-		return 0;
+		return -1;
 	}
 
 	/* Update the Global BDF from pvt binding */
@@ -304,7 +316,7 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 #ifdef MOCKUP_ENDPOINT
 	if (astpcie->fd <= 0) {
 		free(pcie_mctp_hdr_data);
-		return 0;
+		return -1;
 	}
 #endif
 

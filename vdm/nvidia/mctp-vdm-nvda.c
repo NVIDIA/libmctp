@@ -216,7 +216,10 @@ static int cb_dbus_properity(sd_bus_message *m, uint8_t eid)
 		MCTP_ASSERT_RET(rc >= 0, -1,
 				"sd_bus_message_read_basic fail rc=%d\n", rc);
 	} else {
-		sd_bus_message_skip(m, NULL);
+		rc = sd_bus_message_skip(m, NULL);
+		MCTP_ASSERT_RET(rc >= 0, -1,
+				"%s: sd_bus_message_skip fail rc=%d\n",
+				__func__, rc);
 	}
 
 	rc = sd_bus_message_exit_container(m);
@@ -236,7 +239,10 @@ static int cb_dbus_interfaces(sd_bus_message *m, uint8_t eid)
 
 	if (strcmp(iface, "xyz.openbmc_project.Common.UnixSocket") != 0 &&
 	    strcmp(iface, "xyz.openbmc_project.Object.Enable") != 0) {
-		sd_bus_message_skip(m, NULL);
+		rc = sd_bus_message_skip(m, NULL);
+		MCTP_ASSERT_RET(rc >= 0, -1,
+				"%s: sd_bus_message_skip fail rc=%d\n",
+				__func__, rc);
 		return 0;
 	}
 
@@ -269,7 +275,10 @@ static int cb_dbus_paths(sd_bus_message *m, uint8_t eid)
 	/* Compare object paths to match the one by eid */
 	snprintf(path, sizeof(path), "/xyz/openbmc_project/mctp/0/%d", eid);
 	if (strcmp(path, obj_path) != 0) {
-		sd_bus_message_skip(m, NULL);
+		rc = sd_bus_message_skip(m, NULL);
+		MCTP_ASSERT_RET(rc >= 0, -1,
+				"%s: sd_bus_message_skip fail rc=%d\n",
+				__func__, rc);
 		return 0;
 	}
 
@@ -405,7 +414,10 @@ int get_destination_by_path(sd_bus *bus, const uint8_t eid, char *service_name)
 		}
 
 		/* skip array as we only need to the destination */
-		sd_bus_message_skip(msg, NULL);
+		rc = sd_bus_message_skip(msg, NULL);
+		MCTP_ASSERT_RET(rc >= 0, -1,
+				"%s: sd_bus_message_skip fail rc=%d\n",
+				__func__, rc);
 
 		rc = sd_bus_message_exit_container(msg);
 		MCTP_ASSERT_RET(rc >= 0, -1,
