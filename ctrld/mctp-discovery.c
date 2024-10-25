@@ -688,11 +688,11 @@ int mctp_get_routing_table_get_response(mctp_ctrl_t *ctrl, mctp_eid_t eid,
 					routing_table_entry.starting_eid);
 
 				snprintf(
-					arg, sizeof(arg),
+					arg, sizeof(arg) - 1,
 					"Endpoint Identifer %d with no valid transport medium type",
 					routing_table_entry.starting_eid);
 				doLog(ctrl->bus,
-				      "PCIe Device Enumeration Service", arg,
+				      "MCTP Device Enumeration Service", arg,
 				      EVT_CRITICAL, "Contact NVIDIA");
 			}
 		}
@@ -1008,7 +1008,7 @@ static mctp_ret_codes_t mctp_discover_response(mctp_ctrl_t *ctrl,
 {
 	int sock = ctrl->sock;
 	mctp_requester_rc_t mctp_ret;
-	char *device_name = "PCIe Device Enumeration Service";
+	char *device_name = "MCTP Device Enumeration Service";
 
 	/* Ignore request commands */
 	switch (mode) {
@@ -1090,6 +1090,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 	int timeout = 0;
 	mctp_routing_table_t *routing_entry = NULL;
 	mctp_binding_ids_t bind_id = MCTP_BINDING_PCIE;
+	char arg[REDFISH_ARG_LEN] = { 0 };
 
 	MCTP_CTRL_INFO("%s: Starting discovery with mode: %d\n", __func__,
 		       start_mode);
@@ -1173,9 +1174,9 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 				ctrl->sock, bind_id);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				doLog(ctrl->bus,
-				      "PCIe Device Enumeration Service",
-				      "Failed to discover", EVT_CRITICAL,
-				      "Reset the baseboard");
+				      "MCTP Device Enumeration Service",
+				      "Failed to prepare for endpoint discovery",
+				      EVT_CRITICAL, "Reset the baseboard");
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST\n",
 					__func__);
@@ -1198,6 +1199,10 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			mctp_resp_msg = NULL;
 
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+				doLog(ctrl->bus,
+				      "MCTP Device Enumeration Service",
+				      "Failed to process the prepare endpoint discovery ",
+				      EVT_CRITICAL, "Reset the baseboard");
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_PREPARE_FOR_EP_DISCOVERY_RESPONSE\n",
 					__func__);
@@ -1215,9 +1220,9 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 								  bind_id);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				doLog(ctrl->bus,
-				      "PCIe Device Enumeration Service",
-				      "Failed to discover", EVT_CRITICAL,
-				      "Reset the baseboard");
+				      "MCTP Device Enumeration Service",
+				      "Failed endpoint discovery request",
+				      EVT_CRITICAL, "Reset the baseboard");
 
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_EP_DISCOVERY_REQUEST\n",
@@ -1240,6 +1245,10 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			mctp_resp_msg = NULL;
 
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+				doLog(ctrl->bus,
+				      "MCTP Device Enumeration Service",
+				      "Failed to process the MCTP endpoint discovery msg",
+				      EVT_CRITICAL, "Reset the baseboard");
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_EP_DISCOVERY_RESPONSE\n",
 					__func__);
@@ -1263,10 +1272,13 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_SET_EP_REQUEST\n",
 					__func__);
+				snprintf(
+					arg, sizeof(arg) - 1,
+					"Failed to set endpoint ID with eid: %d and ret_value %d",
+					eid, mctp_ret);
 				doLog(ctrl->bus,
-				      "PCIe Device Enumeration Service",
-				      "Failed to discover", EVT_CRITICAL,
-				      "Reset the baseboard");
+				      "MCTP Device Enumeration Service", arg,
+				      EVT_CRITICAL, "Reset the baseboard");
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
@@ -1306,10 +1318,18 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 				MCTP_CTRL_ERR(
 					"%s: Timedout[%d] MCTP_EP_DISCOVERY_RESPONSE\n",
 					__func__, timeout);
+				doLog(ctrl->bus,
+				      "MCTP Device Enumeration Service",
+				      "Timedout waiting for MCTP discovery response",
+				      EVT_CRITICAL, "Reset the baseboard");
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+				doLog(ctrl->bus,
+				      "MCTP Device Enumeration Service",
+				      "Failed MCTP endpoint discovery response",
+				      EVT_CRITICAL, "Reset the baseboard");
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_EP_DISCOVERY_RESPONSE\n",
 					__func__);
@@ -1343,9 +1363,9 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 					"%s: Failed MCTP_SET_EP_REQUEST\n",
 					__func__);
 				doLog(ctrl->bus,
-				      "PCIe Device Enumeration Service",
-				      "Failed to discover", EVT_CRITICAL,
-				      "Reset the baseboard");
+				      "MCTP Device Enumeration Service",
+				      "Failed to allocate endpoint",
+				      EVT_CRITICAL, "Reset the baseboard");
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
@@ -1365,6 +1385,10 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			mctp_resp_msg = NULL;
 
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+				doLog(ctrl->bus,
+				      "MCTP Device Enumeration Service",
+				      "Failed to process the allocate endpoint id response",
+				      EVT_CRITICAL, "Reset the baseboard");
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_ALLOCATE_EP_ID_RESPONSE\n",
 					__func__);
@@ -1403,9 +1427,9 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 					"%s: Failed MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST\n",
 					__func__);
 				doLog(ctrl->bus,
-				      "PCIe Device Enumeration Service",
-				      "No valid routing table", EVT_CRITICAL,
-				      "Reset the baseboard");
+				      "MCTP Device Enumeration Service",
+				      "Failed getting routing table entries request",
+				      EVT_CRITICAL, "Reset the baseboard");
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
@@ -1449,9 +1473,9 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 					__func__, timeout);
 
 				doLog(ctrl->bus,
-				      "PCIe Device Enumeration Service",
-				      "No valid routing table", EVT_CRITICAL,
-				      "Reset the baseboard");
+				      "MCTP Device Enumeration Service",
+				      "Timedout getting routing table entries response",
+				      EVT_CRITICAL, "Reset the baseboard");
 
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
@@ -1460,6 +1484,10 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			timeout = 0;
 
 			if (MCTP_RET_DISCOVERY_FAILED == mctp_ret) {
+				doLog(ctrl->bus,
+				      "MCTP Device Enumeration Service",
+				      "Failed getting routing table entries response",
+				      EVT_CRITICAL, "Reset the baseboard");
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE\n",
 					__func__);
@@ -1512,7 +1540,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 						"%s: Failed MCTP_GET_EP_UUID_REQUEST\n",
 						__func__);
 					doLog(ctrl->bus,
-					      "PCIe Device Enumeration Service",
+					      "MCTP Device Enumeration Service",
 					      "Failed to get unique identifier for endpoint",
 					      EVT_CRITICAL,
 					      "Reset the baseboard");
@@ -1610,7 +1638,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 						"%s: Failed MCTP_GET_MSG_TYPE_REQUEST\n",
 						__func__);
 					doLog(ctrl->bus,
-					      "PCIe Device Enumeration Service",
+					      "MCTP Device Enumeration Service",
 					      "Failed to get supported message types for endpoint",
 					      EVT_CRITICAL,
 					      "Reset the baseboard");
@@ -1699,6 +1727,7 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
 	size_t resp_msg_len;
 	int timeout = 0;
 	mctp_binding_ids_t bind_id = MCTP_BINDING_SPI;
+	char arg[REDFISH_ARG_LEN] = { 0 };
 
 	/* Implement SPI UUID and MSG_TYPE commamnds*/
 	do {
@@ -1734,8 +1763,8 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
 					__func__);
 				doLog(ctrl->bus,
 				      "SPI Device Enumeration Service",
-				      "Failed to discover", EVT_CRITICAL,
-				      "Reset the baseboard");
+				      "Failed to set endpoint request",
+				      EVT_CRITICAL, "Reset the baseboard");
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
@@ -1769,10 +1798,18 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
 				MCTP_CTRL_ERR(
 					"%s: Timedout[%d] MCTP_EP_DISCOVERY_RESPONSE\n",
 					__func__, timeout);
+				doLog(ctrl->bus,
+				      "MCTP Device Enumeration Service",
+				      "Timedout trying to set EID",
+				      EVT_CRITICAL, "Reset the baseboard");
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+				doLog(ctrl->bus,
+				      "MCTP Device Enumeration Service",
+				      "Failed to process the request for set endpoint id",
+				      EVT_CRITICAL, "Reset the baseboard");
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_EP_DISCOVERY_RESPONSE\n",
 					__func__);
@@ -1793,6 +1830,13 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
 			mctp_ret = mctp_get_endpoint_uuid_send_request(
 				ctrl->sock, bind_id, eid);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+				snprintf(
+					arg, sizeof(arg) - 1,
+					"Failed to get endpoint ID with eid: %d and ret_value %d",
+					eid, mctp_ret);
+				doLog(ctrl->bus,
+				      "MCTP Device Enumeration Service", arg,
+				      EVT_CRITICAL, "Reset the baseboard");
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_GET_EP_UUID_REQUEST\n",
 					__func__);
@@ -1838,6 +1882,10 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
 			mctp_ret = mctp_get_msg_type_request(ctrl->sock,
 							     bind_id, eid);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
+				doLog(ctrl->bus,
+				      "MCTP Device Enumeration Service",
+				      "Failed to send get message type",
+				      EVT_CRITICAL, "Reset the baseboard");
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_GET_MSG_TYPE_REQUEST\n",
 					__func__);
