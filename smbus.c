@@ -40,7 +40,7 @@ struct mctp_binding_smbus {
 	uint8_t rxbuf[1024];
 	struct mctp_pktbuf *rx_pkt;
 	/* temporary transmit buffer */
-	uint8_t txbuf[256];
+	uint8_t *txbuf_ptr;
 
 	/* bus number */
 	uint8_t bus_num[MCTP_I2C_MAX_BUSES];
@@ -101,6 +101,8 @@ struct mctp_binding_smbus {
 #define SMBUS_COMMAND_CODE_SIZE 1
 #define SMBUS_LENGTH_FIELD_SIZE 1
 #define SMBUS_ADDR_OFFSET_SLAVE 0x1000
+#define SMBUS_HDR_LENGTH	3
+#define SMBUS_PAD_LENGTH	1
 
 struct mctp_smbus_header_tx {
 	uint8_t command_code;
@@ -239,7 +241,7 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len,
 			.addr = 0, /* 7-bit address */
 			.flags = 0,
 			.len = len,
-			.buf = (__uint8_t *)smbus->txbuf,
+			.buf = (__uint8_t *)smbus->txbuf_ptr,
 		},
 		{
 			.addr = 0,
@@ -254,10 +256,10 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len,
 	struct timespec start, end;
 	int secs, nsecs;
 
-	struct mctp_hdr *hdr =
-		(void *)(smbus->txbuf + sizeof(struct mctp_smbus_header_tx));
+	struct mctp_hdr *hdr = (void *)(smbus->txbuf_ptr +
+					sizeof(struct mctp_smbus_header_tx));
 
-	mctp_trace_tx(smbus->txbuf, len);
+	mctp_trace_tx(smbus->txbuf_ptr, len);
 
 	if (hdr->flags_seq_tag & MCTP_HDR_FLAG_EOM) {
 		mctp_prdebug("Mux will be grabbed.\n");
@@ -356,21 +358,22 @@ static int mctp_binding_smbus_tx(struct mctp_binding *b,
 
 	/* the length field in the header excludes smbus framing
 	 * and escape sequences */
-	hdr = (struct mctp_smbus_header_tx *)smbus->txbuf;
+	hdr = (struct mctp_smbus_header_tx *)((uint8_t *)pkt->data);
+	memset(hdr, 0, SMBUS_HDR_LENGTH);
 	hdr->command_code = MCTP_COMMAND_CODE;
 	hdr->byte_count = (uint8_t)pkt_length + 1;
 	/* 8 bit address */
 	hdr->source_slave_address = (smbus->src_slave_addr << 1) | 0x01;
 
-	buf_ptr = (uint8_t *)smbus->txbuf + sizeof(*hdr);
-	memcpy(buf_ptr, &pkt->data[pkt->start], pkt_length);
+	buf_ptr = (uint8_t *)hdr + sizeof(*hdr);
+	smbus->txbuf_ptr = (uint8_t *)hdr;
 
 	struct mctp_hdr *mctp_hdr = (struct mctp_hdr *)(buf_ptr);
 	int dest_eid = mctp_hdr->dest;
 	/* For SetEndpoint control command, fetch the EID from the data packet */
 	if (dest_eid == 0) {
 		uint8_t *mctp_body =
-			(uint8_t *)(smbus->txbuf +
+			(uint8_t *)(smbus->txbuf_ptr +
 				    sizeof(struct mctp_smbus_header_tx) +
 				    sizeof(struct mctp_hdr));
 		if (mctp_body[0] == 0x00 && mctp_body[2] == 0x01) {
@@ -394,7 +397,8 @@ static int mctp_binding_smbus_tx(struct mctp_binding *b,
 	}
 
 	buf_ptr = buf_ptr + pkt_length;
-	*buf_ptr = calculate_pec_byte(smbus->txbuf, sizeof(*hdr) + pkt_length,
+	*buf_ptr = calculate_pec_byte(smbus->txbuf_ptr,
+				      sizeof(*hdr) + pkt_length,
 				      (uint8_t)dest_addr, 0);
 
 	//MCTP packet length of [ header, data, pec byte ]
@@ -1010,8 +1014,8 @@ mctp_smbus_init(uint8_t bus, uint8_t bus_smq, uint8_t dest_addr,
 	smbus->binding.mctp_send_tx_queue = NULL;
 
 	smbus->binding.pkt_size = MCTP_PACKET_SIZE(MCTP_BTU);
-	smbus->binding.pkt_header = 0;
-	smbus->binding.pkt_trailer = 0;
+	smbus->binding.pkt_header = SMBUS_HDR_LENGTH;
+	smbus->binding.pkt_trailer = SMBUS_PAD_LENGTH;
 	smbus->binding.pkt_priv_size = sizeof(struct mctp_smbus_pkt_private);
 
 	/* Setting the default bus number */

@@ -76,7 +76,7 @@ struct mctp_pktbuf *mctp_pktbuf_alloc(struct mctp_binding *binding, size_t len)
 	size = binding->pkt_size + binding->pkt_header + binding->pkt_trailer;
 
 	/* todo: pools */
-	buf = __mctp_alloc(sizeof(*buf) + size);
+	buf = __mctp_alloc_pool(sizeof(*buf) + size);
 
 	buf->size = size;
 	buf->start = binding->pkt_header;
@@ -99,7 +99,7 @@ void mctp_pktbuf_free(struct mctp_pktbuf *pkt)
 {
 	if (pkt->msg_binding_private)
 		__mctp_free(pkt->msg_binding_private);
-	__mctp_free(pkt);
+	__mctp_free_pool(pkt);
 }
 
 struct mctp_hdr *mctp_pktbuf_hdr(struct mctp_pktbuf *pkt)
@@ -882,6 +882,7 @@ int mctp_packet_raw_tx(struct mctp_binding *binding, void *pkt, size_t pkt_len)
 	bus->tx_queue_tail = pkt;
 
 	mctp_send_tx_queue(bus);
+	mctp_pktbuf_free(pktbuf);
 
 	return 0;
 }

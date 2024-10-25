@@ -64,6 +64,7 @@ struct mctp_pcie_hdr {
 #define VENDOR_ID_DMTF_VDM  0xb41a
 
 #define PCIE_VDM_HDR_SIZE      12
+#define PCIE_VDM_PAD_SIZE      3
 #define PCIE_HDR_ROUTING_SHIFT 0
 #define PCIE_HDR_ROUTING_MASK  0x7
 
