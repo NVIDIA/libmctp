@@ -1100,7 +1100,7 @@ static int binding_smbus_process(struct binding *binding)
 {
 	int rc;
 
-	rc = mctp_smbus_poll(binding->data, MCTP_SMBUS_POLL_TIMEOUT);
+	rc = mctp_smbus_poll(binding->data);
 	if (rc & POLLPRI) {
 		rc = mctp_smbus_read(binding->data);
 		MCTP_ASSERT_RET(rc == 0, rc, "mctp_smbus_read failed: %d", rc);

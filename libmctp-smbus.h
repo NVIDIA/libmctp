@@ -10,7 +10,7 @@ extern "C" {
 #include "libmctp.h"
 #include <poll.h>
 
-#define MCTP_SMBUS_POLL_TIMEOUT		 1000
+#define MCTP_SMBUS_HOLD_TIMEOUT		 1000 * 10
 #define MCTP_I2C_BUS_NUM_DEFAULT	 2
 #define MCTP_I2C_DEST_SLAVE_ADDR_DEFAULT 0x30
 #define MCTP_I2C_SRC_SLAVE_ADDR_DEFAULT	 0x18
@@ -64,7 +64,7 @@ int check_device_supports_mctp(struct mctp_binding_smbus *smbus);
 int find_and_set_pool_of_endpoints(struct mctp_binding_smbus *smbus);
 
 /* SMBUS binding API's */
-int mctp_smbus_poll(struct mctp_binding_smbus *smbus, int timeout);
+int mctp_smbus_poll(struct mctp_binding_smbus *smbus);
 struct mctp_binding *mctp_binding_smbus_core(struct mctp_binding_smbus *smbus);
 
 int mctp_smbus_init_pollfd(struct mctp_binding_smbus *smbus,
