@@ -778,6 +778,17 @@ static const sd_bus_vtable mctp_ctrl_service_ready_vtable[] = {
 	SD_BUS_VTABLE_END
 };
 
+static void mctp_update_suffix_name(char *sock_name, char from, char to)
+{
+	if (!sock_name)
+		return;
+	for (size_t i = 0; i < strlen(sock_name); i++) {
+		if (sock_name[i] == from) {
+			sock_name[i] = to;
+		}
+	}
+}
+
 static int mctp_mark_service_ready(mctp_sdbus_context_t *context)
 {
 	int r = 0;
@@ -793,6 +804,16 @@ static int mctp_mark_service_ready(mctp_sdbus_context_t *context)
 		snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_OBJ_PATH_SIZE,
 			 "%s/%s%d", MCTP_CTRL_OBJ_NAME, mctp_medium_type,
 			 context->cmdline->spi.dev_num);
+	} else if (MCTP_BINDING_USB == context->cmdline->binding_type) {
+		char obj_name_suffix[MCTP_USB_PORT_PATH_MAX_LEN];
+
+		snprintf(obj_name_suffix, sizeof(obj_name_suffix), "%s",
+			 context->cmdline->usb.port_path);
+		/* Convert port path - to _ for object name*/
+		mctp_update_suffix_name(obj_name_suffix, '-', '_');
+		snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_NMAE_SIZE,
+			 "%s/%s%d_%s", MCTP_CTRL_OBJ_NAME, mctp_medium_type,
+			 context->cmdline->usb.bus_id, obj_name_suffix);
 	} else {
 		snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_OBJ_PATH_SIZE,
 			 "%s/%s", MCTP_CTRL_OBJ_NAME, mctp_medium_type);
@@ -998,6 +1019,15 @@ mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
 				 "%s.%s", MCTP_CTRL_DBUS_NAME,
 				 mctp_medium_type);
 		}
+	} else if (MCTP_BINDING_USB == cmdline->binding_type) {
+		char service_name_suffix[MCTP_USB_PORT_PATH_MAX_LEN];
+		/* Convert port path - to _ for service name*/
+		snprintf(service_name_suffix, sizeof(service_name_suffix), "%s",
+			 cmdline->usb.port_path);
+		mctp_update_suffix_name(service_name_suffix, '-', '_');
+		snprintf(mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE,
+			 "%s.%s%d_%s", MCTP_CTRL_DBUS_NAME, mctp_medium_type,
+			 cmdline->usb.bus_id, service_name_suffix);
 	} else {
 		snprintf(mctp_ctrl_busname, MCTP_CTRL_SDBUS_NMAE_SIZE, "%s.%s",
 			 MCTP_CTRL_DBUS_NAME, mctp_medium_type);

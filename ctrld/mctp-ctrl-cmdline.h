@@ -31,6 +31,12 @@
 
 #define UUID_STR_LEN 36
 
+/* Spec limitation for chain of hub depthness */
+#define MCTP_USB_PORT_PATH_MAX_DEPTH 7
+
+/*for port numbers separated by . and null termination */
+#define MCTP_USB_PORT_PATH_MAX_LEN (3 * MCTP_USB_PORT_PATH_MAX_DEPTH)
+
 /* Command line options for various operations */
 typedef enum mctp_cmdline_ops {
 	MCTP_CMDLINE_OP_READ_DATA,
@@ -121,6 +127,8 @@ struct mctp_cmdline_usb {
 	uint8_t bridge_eid;
 	uint8_t bridge_pool_start;
 	bool remove_duplicates;
+	uint8_t bus_id;
+	char port_path[MCTP_USB_PORT_PATH_MAX_LEN];
 };
 
 /* Command line structure */

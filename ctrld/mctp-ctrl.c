@@ -85,6 +85,10 @@ extern const uint8_t MCTP_MSG_TYPE_HDR;
 extern const uint8_t MCTP_CTRL_MSG_TYPE;
 
 char *mctp_sock_path = NULL;
+
+/* 21 character for portpath + 14 for prefix sock name + 
+end padding to avoid overflow*/
+char usb_sock_path[2 * MCTP_USB_PORT_PATH_MAX_LEN] = MCTP_SOCK_PATH_USB;
 const char *mctp_medium_type;
 
 // Table with destination EIDs
@@ -226,12 +230,15 @@ static const struct option g_options[] = {
 	{ "cmd_mode", required_argument, 0, 'x' },
 	{ "mctp-iana-vdm", required_argument, 0, 'i' },
 
+	/* USB specific options */
+	{ "port_path", required_argument, 0, 'w' },
+
 	{ "help", optional_argument, 0, 'h' },
 	{ 0 },
 };
 
 static const char *const short_options =
-	"v:c:e:m:t:d:s:r:b:f:n:u:i:j:p:q:x:y:z:h::";
+	"v:c:e:m:t:d:s:r:b:f:n:u:i:j:p:q:x:y:z:w:h::";
 
 static void usage(void)
 {
@@ -322,6 +329,7 @@ static void usage_usb(void)
 		"\t-i\t usb own eid\n"
 		"\t-p\t usb bridge eid\n"
 		"\t-x\t usb bridge pool start eid\n"
+		"\t-w\t port path of device <busid>-<port1>.<port2> eg 1-2.3 \n"
 		"\t-c\t option to remove duplicate EID entries from the routing table\n"
 		"\t-z\t option to ignore certain EID entries from the routing table"
 		" supplied as a space separated list in decimal\n"
@@ -711,7 +719,10 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 		}
 	} else if (cmdline->binding_type == MCTP_BINDING_USB) {
 		MCTP_CTRL_DEBUG("%s: Setting up USB socket\n", __func__);
-		mctp_sock_path = MCTP_SOCK_PATH_USB;
+		int len = strlen(&usb_sock_path[1]);
+		snprintf(usb_sock_path + len + 1, sizeof(usb_sock_path) - len,
+			 "-%d-%s", cmdline->usb.bus_id, cmdline->usb.port_path);
+		mctp_sock_path = usb_sock_path;
 	} else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 		MCTP_CTRL_DEBUG("%s: Setting up SPI socket\n", __func__);
 		mctp_sock_path = MCTP_SOCK_PATH_SPI;
@@ -730,7 +741,8 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
 	}
 	if (rc != MCTP_REQUESTER_SUCCESS) {
-		MCTP_CTRL_ERR("[%s] Failed to open mctp socket\n", __func__);
+		MCTP_CTRL_ERR("[%s] Failed to open mctp socket %s\n", __func__,
+			      &mctp_sock_path[1]);
 
 		close(g_signal_fd);
 		return EXIT_FAILURE;
@@ -794,9 +806,11 @@ static int open_mctp_sock(const mctp_cmdline_args_t *cmdline,
 					  MCTP_CTRL_TXRX_TIMEOUT_5SECS);
 	} else if (cmdline->binding_type == MCTP_BINDING_USB) {
 		MCTP_CTRL_INFO("%s: Binding type: USB\n", __func__);
-		mctp_sock_path = MCTP_SOCK_PATH_USB;
+		snprintf(usb_sock_path + strlen(&usb_sock_path[1]) + 1,
+			 sizeof(usb_sock_path) - strlen(&usb_sock_path[1]),
+			 "-%d-%s", cmdline->usb.bus_id, cmdline->usb.port_path);
+		mctp_sock_path = usb_sock_path;
 		mctp_medium_type = "USB";
-
 		/* Open the user socket file-descriptor */
 		rc = mctp_usr_socket_init(&fd, mctp_sock_path,
 					  MCTP_CTRL_MSG_TYPE,
@@ -1207,6 +1221,43 @@ static void parse_command_line(int argc, char *const *argv,
 				bridge_pool = (uint8_t)atoi(optarg);
 			} else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 				command_mode = atoi(optarg);
+			}
+			break;
+		case 'w':
+			if (cmdline->binding_type == MCTP_BINDING_USB) {
+				//get busid from port path which is separated via -
+				char recv_usb_path[2 *
+						   MCTP_USB_PORT_PATH_MAX_LEN];
+				strncpy(recv_usb_path, optarg,
+					2 * MCTP_USB_PORT_PATH_MAX_LEN);
+				char *hyphen_pos = strchr(recv_usb_path, '-');
+				if (hyphen_pos) {
+					char *start = recv_usb_path;
+					*hyphen_pos = '\0';
+					cmdline->usb.bus_id = atoi(start);
+				} else {
+					MCTP_CTRL_INFO(
+						"%s: No Bus id in port path: %s\n",
+						__func__, optarg);
+					exit(EXIT_FAILURE);
+				}
+				strncpy(cmdline->usb.port_path, hyphen_pos + 1,
+					sizeof(cmdline->usb.port_path));
+
+				// Convert port_path .  to -
+				if (strlen(cmdline->usb.port_path) == 0) {
+					MCTP_CTRL_INFO(
+						"%s: No port hierarchy in port path: %s\n",
+						__func__,
+						cmdline->usb.port_path);
+					exit(EXIT_FAILURE);
+				}
+				for (size_t i = 0;
+				     i < strlen(cmdline->usb.port_path); i++) {
+					if (cmdline->usb.port_path[i] == '.') {
+						cmdline->usb.port_path[i] = '-';
+					}
+				}
 			}
 			break;
 		case 'h':

@@ -80,6 +80,9 @@ struct mctp_binding_usb {
 	uint16_t tx_failed_cntr;
 	uint16_t tx_cntr;
 	MctpUsbBatchMode mode;
+	/* device address data*/
+	uint8_t bus_no;
+	char *port_path;
 };
 
 int mctp_usb_handle_event(struct mctp_binding_usb *usb)
@@ -157,6 +160,18 @@ out:
 			__func__, libusb_error_name(ret), ret);
 	}
 }
+void mctp_usb_get_port_path(uint8_t *port_numbers, int num, char *port_path)
+{
+	/*max 2 digit port number + 1 for - + 1 for null + 1 to avoid compiler warnging*/
+	int buffer_size = 5;
+	snprintf(port_path, buffer_size, "%d", port_numbers[0]);
+	for (int i = 1; i < num; i++) {
+		snprintf(port_path + strlen(port_path), buffer_size, "-%d",
+			 port_numbers[i]);
+	}
+	mctp_prerr("%s:port path for arrived device= %s\n", __func__,
+		   port_path);
+}
 
 int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 			      struct libusb_device *dev,
@@ -186,6 +201,38 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 				   __func__,
 				   libusb_strerror((enum libusb_error)rc));
 		}
+		/* Proceed only when the argumemnt port path matches 
+			with current device port path*/
+		{
+			uint8_t bus_number = libusb_get_bus_number(dev);
+			if (bus_number == usb->bus_no) {
+				uint8_t port_numbers
+					[MCTP_USB_PORT_PATH_MAX_DEPTH + 1];
+				char port_path[MCTP_USB_PORT_PATH_MAX_LEN];
+				int num = libusb_get_port_numbers(
+					dev, port_numbers,
+					sizeof(port_numbers));
+				mctp_usb_get_port_path(port_numbers, num,
+						       port_path);
+
+				if (strncmp(port_path, usb->port_path,
+					    MCTP_USB_PORT_PATH_MAX_LEN) != 0) {
+					//Ignore the device
+					mctp_prinfo(
+						"%s:port path mismatch ignore device "
+						"received= %s\n",
+						__func__, usb->port_path);
+					return 0;
+				}
+			} else {
+				//Ignore the device
+				mctp_prinfo(
+					"%s:Bus id mismatch ignore device\n",
+					__func__);
+				return 0;
+			}
+		}
+
 		// Iterate through all usb configurations to get mctp info
 		struct libusb_config_descriptor *config;
 		for (uint8_t i = 0; i < desc.bNumConfigurations; i++) {
@@ -250,7 +297,8 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 					  mctp_usb_rx_transfer_callback, usb,
 					  0);
 		if (libusb_submit_transfer(rx_xtr) < 0) {
-			mctp_prerr("Rx: Error libusb_submit_transfer\n");
+			mctp_prerr("Rx: Error libusb_submit_transfer %s\n",
+				   libusb_error_name(rc));
 			libusb_free_transfer(rx_xtr);
 		}
 
@@ -563,7 +611,8 @@ struct mctp_binding *mctp_binding_usb_core(struct mctp_binding_usb *usb)
 }
 
 struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
-				       uint16_t class_id, MctpUsbBatchMode mode)
+				       uint16_t class_id, MctpUsbBatchMode mode,
+				       uint8_t bus_id, char *port_path)
 {
 	(void)class_id;
 	struct mctp_binding_usb *usb;
@@ -577,6 +626,8 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 
 	usb->binding.name = "usb";
 	usb->binding.version = 1;
+	usb->bus_no = bus_id;
+	usb->port_path = port_path;
 
 	mctp_prinfo("Starting USB binding with mode: %d\n", mode);
 

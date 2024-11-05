@@ -73,6 +73,8 @@
 	MCTP_BIND_INFO_OFFSET + sizeof(struct mctp_usb_pkt_private)
 #define MCTP_USB_MSG_OFFSET MCTP_USB_EID_OFFSET + (sizeof(uint8_t))
 
+#define MCTP_USB_SOCKET_PREFIX "\0mctp-usb-mux"
+
 #include <systemd/sd-daemon.h>
 
 uint8_t i2c_bus_num = MCTP_SMBUS_BUS_NUM;
@@ -80,6 +82,10 @@ uint8_t i2c_bus_num_smq = MCTP_SMBUS_BUS_NUM;
 uint8_t i2c_dest_slave_addr = MCTP_SMBUS_DEST_SLAVE_ADDR;
 uint8_t i2c_src_slave_addr = MCTP_SMBUS_SRC_SLAVE_ADDR;
 uint16_t timeout = 0;
+
+/* 21 character for portpath + 14 for prefix sock name + 
+end padding to avoid overflow*/
+char usb_sockname[2 * MCTP_USB_PORT_PATH_MAX_LEN] = MCTP_USB_SOCKET_PREFIX;
 
 static const mctp_eid_t local_eid_default = 8;
 
@@ -1117,14 +1123,17 @@ static void binding_usb_usage(void)
 		"\tvendor_id=<vendor id> - usb vendor id to filter\n"
 		"\tproduct_id=<product id> - usb product id to filter\n"
 		"\tclass_id=<class id> - usb class id to filter\n"
-		"\tmode=<class id> - USB packetization mode.\n"
+		"\tport_path=<port path> - USB dev port path \n"
+		"\t\t\t\t as <bus_id>-<port1>.<port2>.<port3>\n"
+		"\tmode=<mode> - USB packetization mode.\n"
 		"\t\t0 - One MCTP packet per transfer\n"
 		"\t\t1 - Batch MCTP packets (upto a maximum of 512 bytes)\n"
 		"\t\t2 - Allow batched packets to be fragmented across USB packets\n"
-		"\t\t3 - Batched mode, like 1 but with 0-padded USB packets\n");
+		"\t\t3 - Batched mode, like 1 but with 0-padded USB packets \n");
 
 	mctp_prinfo(
-		"Example: usb vendor_id=0x0483 product_id=0xffff class_id=0x00\n");
+		"Example: usb vendor_id=0x0483 product_id=0xffff class_id=0x00\n" 
+		"\t\t\t\t port_path=1-2.3.4\n");
 }
 
 static int binding_usb_init(struct mctp *mctp, struct binding *binding,
@@ -1136,6 +1145,8 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 	uint16_t product_id;
 	uint16_t class_id;
 	uint16_t mode = 0;
+	uint8_t bus_id = -1;
+	char port_path[MCTP_USB_PORT_PATH_MAX_LEN];
 	struct {
 		char *prefix;
 		void *target;
@@ -1144,6 +1155,7 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 		{ "product_id=", &product_id },
 		{ "class_id=", &class_id },
 		{ "mode=", &mode },
+		{ "port_path=", &port_path },
 		{ NULL, NULL },
 	};
 	binding->bindings_changed = false;
@@ -1161,8 +1173,42 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 					char *arg = strstr(params[ii], "=") +
 						    1; // Get string after "="
 
-					/* Check if a value is given in 'hex' or 'dec' */
-					if (strncmp(arg, "0x", 2) == 0)
+					if(strncmp(params[ii],"port_path=", len) == 0)
+					{
+						/* get busid from port path which is separated via - */
+						char recv_usb_path[2*MCTP_USB_PORT_PATH_MAX_LEN];
+						strncpy(recv_usb_path, arg, 2*MCTP_USB_PORT_PATH_MAX_LEN);
+						char *hyphen_pos = strchr(arg, '-');
+						if(hyphen_pos) {
+							char* start = recv_usb_path;
+							*hyphen_pos = '\0';
+							bus_id = atoi(start);
+						}
+						else {
+							mctp_prinfo("%s: No Bus id in port path: %s\n",
+							__func__, arg);
+							exit(EXIT_FAILURE);
+						}
+
+						strncpy(port_path, hyphen_pos + 1, sizeof(port_path));
+						// Convert port_path . to -
+						if(strlen(port_path) == 0)
+						{
+							mctp_prinfo("%s: No port hierarchy in"
+							" port path: %s\n", __func__, port_path);
+							exit(EXIT_FAILURE);
+						}
+						for(size_t i=0; i<strlen(port_path); i++)
+						{
+							if(port_path[i] == '.') {
+								port_path[i] = '-';
+							}
+						}
+						parsed = true;
+						break;
+					}
+					/* Check if a value is given in 'hex' or 'dec' */	
+					else if (strncmp(arg, "0x", 2) == 0)
 						val = strtoul(arg, NULL, 16);
 					else
 						val = (int)strtoimax(arg, NULL,
@@ -1183,7 +1229,13 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 		mctp_prinfo("Using default config .. no params\n");
 	}
 
-	usb = mctp_usb_init(vendor_id, product_id, class_id, mode);
+	//update socket name based on bus_id, port_id
+	snprintf(usb_sockname + strlen(&usb_sockname[1]) + 1,
+			sizeof(usb_sockname)-strlen(&usb_sockname[1]), "-%d-%s", bus_id,
+			port_path);
+	binding->sockname = usb_sockname;
+	usb = mctp_usb_init(vendor_id, product_id, class_id, mode,
+						bus_id, port_path);
 
 	MCTP_ASSERT_RET(usb != NULL, -1, "could not initialise usb binding");
 	mctp_prinfo("registering bus");
@@ -1267,7 +1319,7 @@ struct binding bindings[] = {
 		.destroy = NULL,
 		.init_pollfd = binding_usb_init_pollfd,
 		.process = binding_usb_process,
-		.sockname = "\0mctp-usb-mux",
+		.sockname = NULL,
 	}
 #endif
 };

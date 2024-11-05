@@ -56,8 +56,8 @@ struct mctp_binding_usb;
 int mctp_usb_handle_event(struct mctp_binding_usb *usb);
 
 struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
-				       uint16_t class_id,
-				       MctpUsbBatchMode mode);
+				       uint16_t class_id, MctpUsbBatchMode mode,
+				       uint8_t bus_id, char *port_path);
 
 int mctp_usb_init_pollfd(struct mctp_binding_usb *usb, struct pollfd **pollfds);
 
