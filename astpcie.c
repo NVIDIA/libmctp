@@ -260,10 +260,8 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	struct mctp_pcie_hdr hdr[PCIE_VDM_HDR_SIZE];
 	uint16_t payload_len_dw = mctp_astpcie_tx_get_payload_size_dw(pkt);
 	uint8_t pad = mctp_astpcie_tx_get_pad_len(pkt);
+	uint8_t *pcie_mctp_hdr_data = pkt->data;
 	ssize_t write_len, len;
-	int mctp_hdr_len = ((payload_len_dw * sizeof(uint32_t)) +
-			    (sizeof(struct mctp_hdr)));
-	uint8_t *pcie_mctp_hdr_data;
 
 	/* Do a sanity check before proceeding */
 	if (payload_len_dw > 16) {
@@ -272,24 +270,9 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 		return -1;
 	}
 
-	/* Allocate memory for PCIe-header, MCTP header and payload */
-	pcie_mctp_hdr_data =
-		(uint8_t *)malloc(PCIE_VDM_HDR_SIZE + mctp_hdr_len);
-	if (!pcie_mctp_hdr_data) {
-		mctp_prerr("malloc failed, errno = %d", errno);
-		return -1;
-	}
-
 	/* Update the Global BDF from pvt binding */
 	if ((pkt_prv) && (g_mctp_pkt_prv_default.remote_id == 0))
 		g_mctp_pkt_prv_default.remote_id = pkt_prv->remote_id;
-
-	/* Reset the buffer */
-	memset(pcie_mctp_hdr_data, 0, (PCIE_VDM_HDR_SIZE + mctp_hdr_len));
-
-	/* Copy MCTP header and data from core buffer */
-	memcpy((pcie_mctp_hdr_data + PCIE_VDM_HDR_SIZE),
-	       (unsigned char *)pkt->data, mctp_hdr_len - pad);
 
 	/* Copy PCIe header template */
 	memcpy(hdr, &mctp_pcie_hdr_template_be, sizeof(*hdr));
@@ -323,12 +306,8 @@ static int mctp_astpcie_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	write_len = write(astpcie->fd, pcie_mctp_hdr_data, len);
 	if (write_len < 0) {
 		mctp_prerr("TX error");
-		free(pcie_mctp_hdr_data);
 		return -1;
 	}
-
-	/* Free up the MCTP header */
-	free(pcie_mctp_hdr_data);
 
 	return 0;
 }
@@ -477,8 +456,8 @@ struct mctp_binding_astpcie *mctp_astpcie_init_fileio(void)
 	astpcie->binding.tx = mctp_astpcie_tx;
 	astpcie->binding.start = mctp_astpcie_start;
 	astpcie->binding.pkt_size = MCTP_PACKET_SIZE(MCTP_BTU);
-	astpcie->binding.pkt_header = 0;
-	astpcie->binding.pkt_trailer = 0;
+	astpcie->binding.pkt_header = PCIE_VDM_HDR_SIZE;
+	astpcie->binding.pkt_trailer = PCIE_VDM_PAD_SIZE;
 	astpcie->binding.pkt_priv_size =
 		sizeof(struct mctp_astpcie_pkt_private);
 

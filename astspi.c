@@ -85,6 +85,7 @@
 
 #define ERR_SPI_RX	   -1
 #define ERR_SPI_RX_NO_DATA -2
+#define SPI_HDR_LENGTH	   4
 
 struct mctp_binding_spi {
 	struct mctp_binding binding;
@@ -102,7 +103,7 @@ struct mctp_binding_spi {
 
 	/* temporary transmit buffer */
 	uint32_t _magic3;
-	uint8_t txbuf[SPI_TX_BUFF_SIZE];
+	uint8_t *txbuf_ptr;
 	uint32_t _magic4;
 
 	SpbAp nvda_spb_ap;
@@ -317,10 +318,10 @@ static int mctp_spi_tx(struct mctp_binding_spi *spi, const uint8_t len,
 	MCTP_ASSERT_RET(len <= SPI_TX_BUFF_SIZE, -1, "spb_ap_send length: %id",
 			len);
 
-	mctp_trace_tx(spi->txbuf, len);
+	mctp_trace_tx(spi->txbuf_ptr, len);
 	mctp_prdebug("spb_ap_send");
 
-	status = spb_ap_send(&spi->nvda_spb_ap, len, spi->txbuf);
+	status = spb_ap_send(&spi->nvda_spb_ap, len, spi->txbuf_ptr);
 	MCTP_ASSERT_RET(status == SPB_AP_OK, -1, "spb_ap_send failed: %d",
 			status);
 
@@ -330,7 +331,7 @@ static int mctp_spi_tx(struct mctp_binding_spi *spi, const uint8_t len,
 static int mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 {
 	struct mctp_binding_spi *spi = binding_to_spi(b);
-	struct mctp_spi_header *spi_hdr_tx = (void *)spi->txbuf;
+	struct mctp_spi_header *spi_hdr_tx;
 	struct mctp_astspi_pkt_private *pkt_pvt =
 		(struct mctp_astspi_pkt_private *)pkt->msg_binding_private;
 	const size_t pkt_length = mctp_pktbuf_size(pkt);
@@ -344,17 +345,17 @@ static int mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	 * The length field in the header excludes spi framing
 	 * and escape sequences.
 	 */
-
+	spi_hdr_tx = (struct mctp_spi_header *)((uint8_t *)pkt->data);
+	memset(spi_hdr_tx, 0, SPI_HDR_LENGTH);
 	spi_hdr_tx->command_code = MCTP_COMMAND_CODE;
 	spi_hdr_tx->byte_count = pkt_length;
 
 	spi_message_len = tx_buf_len + pkt_length;
-	MCTP_ASSERT_RET(spi_message_len <= sizeof(spi->txbuf), -1,
+	MCTP_ASSERT_RET(spi_message_len <= SPI_TX_BUFF_SIZE, -1,
 			"tx message length exceeds max spi message length");
 
-	memcpy(spi->txbuf + tx_buf_len, &pkt->data[pkt->start], pkt_length);
+	spi->txbuf_ptr = (uint8_t *)spi_hdr_tx;
 	tx_buf_len += pkt_length;
-
 	ret = mctp_spi_tx(spi, spi_message_len, pkt_pvt);
 	mctp_spi_verify_magics(spi);
 
@@ -562,6 +563,7 @@ mctp_spi_bind_init(struct mctp_astspi_device_conf *conf)
 	spi->nvda_spb_ap.on_mode_change = ast_spi_on_mode_change;
 	spi->nvda_spb_ap.spi_xfer = mctp_spi_xfer;
 	spi->nvda_spb_ap.gpio_fd = spi->gpio_fd;
+	spi->binding.pkt_header = SPI_HDR_LENGTH;
 
 	mctp_prinfo("Performing SPB AP init...");
 	do {

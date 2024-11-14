@@ -67,6 +67,7 @@ struct mctp_binding_usb {
 	libusb_device_handle *dev_handle;
 	/* temporary transmit buffer */
 	uint8_t txbuf[USB_BUF_MAX_XFR];
+	uint8_t *txbuf_ptr;
 	/* receive buffer */
 	uint8_t rxbuf[USB_MAX_PKT];
 	struct mctp_pktbuf *rx_pkt;
@@ -307,10 +308,15 @@ void mctp_usb_tx_transfer_callback(struct libusb_transfer *xfr)
 static int mctp_usb_tx(struct mctp_binding_usb *usb, size_t len)
 {
 	struct libusb_transfer *tx_xfr = libusb_alloc_transfer(0);
+	void *data_tx;
 
-	mctp_trace_tx(usb->txbuf, len);
-
-	void *data_tx = (void *)usb->txbuf;
+	if (usb->txbuf_ptr == NULL) {
+		mctp_trace_tx(usb->txbuf, len);
+		data_tx = (void *)usb->txbuf;
+	} else {
+		mctp_trace_tx(usb->txbuf_ptr, len);
+		data_tx = (void *)usb->txbuf_ptr;
+	}
 
 	if (!usb->dev_handle) {
 		return -1;
@@ -517,12 +523,9 @@ static int mctp_binding_usb_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 
 	int rv;
 
-	unsigned char *buf_ptr;
-
 	/* the length field in the header excludes usb framing
 	 * and escape sequences */
-	buf_ptr = (unsigned char *)usb->txbuf;
-	memcpy(buf_ptr, &pkt->data, usb_message_len);
+	usb->txbuf_ptr = pkt->data;
 
 	rv = mctp_usb_tx(usb, usb_message_len);
 	MCTP_ASSERT_RET(rv >= 0, -1, "mctp_usb_tx failed: %d", rv);
@@ -570,6 +573,7 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 	libusb_init(&usb->ctx);
 	usb->dev_handle = NULL;
 	usb->bindingfds_change = false;
+	usb->txbuf_ptr = NULL;
 
 	usb->binding.name = "usb";
 	usb->binding.version = 1;
