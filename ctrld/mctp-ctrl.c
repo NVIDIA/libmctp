@@ -201,6 +201,9 @@ static void mctp_ctrl_clean_up(void)
 
 	/* Delete Msg type entries */
 	mctp_msg_types_delete_all();
+
+	/* Terminating the thread*/
+	mctp_ctrl_sdbus_stop();
 }
 
 static const struct option g_options[] = {
