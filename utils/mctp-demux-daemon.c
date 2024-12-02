@@ -1178,7 +1178,7 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 						/* get busid from port path which is separated via - */
 						char recv_usb_path[2*MCTP_USB_PORT_PATH_MAX_LEN];
 						strncpy(recv_usb_path, arg, 2*MCTP_USB_PORT_PATH_MAX_LEN);
-						char *hyphen_pos = strchr(arg, '-');
+						char *hyphen_pos = strchr(recv_usb_path, '-');
 						if(hyphen_pos) {
 							char* start = recv_usb_path;
 							*hyphen_pos = '\0';
