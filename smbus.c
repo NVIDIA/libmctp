@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/timerfd.h>
+#include <sys/queue.h>
 
 #include <assert.h>
 #include <errno.h>
@@ -13,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #define pr_fmt(x) "smbus: " x
 
@@ -54,17 +56,39 @@ struct mctp_binding_smbus {
 	/* i2c lock timeout*/
 	uint16_t timeout;
 
-	/* who locks the bus */
-	uint16_t locked_eid;
-
-	/* receive timeout timer  */
-	int recv_timerfd;
-
 	/* static endpoints configuration */
 	struct mctp_static_endpoint_mapper *static_endpoints;
 	uint8_t static_endpoints_len;
 };
 
+// tx thread for blocking I2C syscall
+pthread_t tx_thread;
+// the conditional wait for the request
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+// the conditional wait for the response
+pthread_cond_t cond_resp = PTHREAD_COND_INITIALIZER;
+// the mutex for conditional wait
+pthread_mutex_t thread_mutex = PTHREAD_MUTEX_INITIALIZER;
+/* the flag to terminate thread */
+bool terminate_tx_thread = false;
+// tx queue list
+struct qentry {
+	TAILQ_ENTRY(qentry) entries;
+	void *data;
+};
+TAILQ_HEAD(listhead, qentry);
+struct listhead head;
+// internal mctp packet structure for tx thread
+struct smbus_tx_thread_info {
+	/* dest eid */
+	uint8_t eid;
+	int fd;
+	uint8_t *buf;
+	uint16_t len;
+	bool mux_grab;
+	int addr;
+	uint16_t timeout;
+};
 /* I2C M HOLD is a custom flag to hold I2C mux 
 	with specific I2C dest address */
 #ifndef I2C_M_HOLD
@@ -73,8 +97,8 @@ struct mctp_binding_smbus {
 
 #define MCTP_SMBUS_I2C_M_HOLD_TIMEOUT_MS 800
 #define MCTP_SMBUS_I2C_TX_RETRIES_MAX                                          \
-	1000 /* 1000 retries with a 20us sleep, so a total of 20ms at worst*/
-#define MCTP_SMBUS_I2C_TX_RETRIES_US 20 /* 20 us * 1000 = 20ms*/
+	10 /* 10 retries with a 20ms sleep, so a total of 20ms at worst*/
+#define MCTP_SMBUS_I2C_TX_RETRIES_US 2000 /* 2ms * 10 = 20ms*/
 
 #ifndef container_of
 #define container_of(ptr, type, member)                                        \
@@ -196,29 +220,165 @@ static int get_dest_i2c_addr(struct mctp_binding_smbus *smbus, uint8_t eid)
 	return smbus->dest_slave_addr[0];
 }
 
-static int set_timer(int fd, uint16_t timeout)
+static void *smbus_tx_thread(void *arg __attribute__((unused)))
 {
-	struct itimerspec timer;
+	/* timeout 10s is used to recover the lock if crash */
+	uint16_t hold_timeout = MCTP_SMBUS_HOLD_TIMEOUT;
 
-	memset(&timer, 0, sizeof(timer));
-	timer.it_value.tv_nsec = timeout * 1000000;
+	int retry = MCTP_SMBUS_I2C_TX_RETRIES_MAX;
+	int rc;
+	int secs, nsecs;
+	struct timespec start, end, tm;
+	struct qentry *entry;
+	struct smbus_tx_thread_info *info;
+	uint8_t *buf;
+	uint16_t len;
+	uint8_t dest_eid;
 
-	if (timerfd_settime(fd, 0, &timer, NULL) == -1) {
-		mctp_prerr("%s: Failed to set recv_timeout timer! errno: %d\n",
-			   __func__, errno);
-		return -1;
+	// detach the thread
+	pthread_detach(pthread_self());
+
+	while (true) {
+		pthread_mutex_lock(&thread_mutex);
+		if (TAILQ_EMPTY(&head)) {
+			pthread_cond_wait(&cond, &thread_mutex);
+		}
+
+		if (terminate_tx_thread) {
+			break;
+		}
+
+		entry = TAILQ_FIRST(&head);
+		info = (struct smbus_tx_thread_info *)entry->data;
+		buf = info->buf;
+		len = info->len;
+		dest_eid = info->eid;
+
+		struct i2c_msg msgs[2] = {
+			{
+				.addr = 0, /* 7-bit address */
+				.flags = 0,
+				.len = len,
+				.buf = (__uint8_t *)buf,
+			},
+			{
+				.addr = 0,
+				.flags = I2C_M_HOLD,
+				.len = sizeof(hold_timeout),
+				.buf = (uint8_t *)&hold_timeout,
+			},
+		};
+		struct i2c_rdwr_ioctl_data msgrdwr = { msgs, 1 };
+
+		if (info->mux_grab) {
+			msgrdwr.nmsgs = 2;
+		}
+
+		mctp_trace_tx(buf, len);
+
+		msgs[0].addr = info->addr;
+		if (clock_gettime(CLOCK_MONOTONIC, &start) == -1) {
+			mctp_prerr("fail to do clock_gettime");
+		}
+
+		do {
+			/* blocking i2c transaction */
+			rc = ioctl(info->fd, I2C_RDWR, &msgrdwr);
+			if (rc < 0) {
+				if ((errno == EAGAIN || errno == EPROTO ||
+				     errno == ETIMEDOUT || errno == ENXIO ||
+				     errno == EIO || errno == EBUSY)) {
+					if (retry % 200 == 0) {
+						/* Only trace every 200 retries*/
+						MCTP_ERR(
+							"[%d]Invalid ioctl ret val: %d (%s)",
+							dest_eid, errno,
+							strerror(errno));
+					}
+					usleep(MCTP_SMBUS_I2C_TX_RETRIES_US);
+				} else {
+					/* unknown error */
+					MCTP_ERR(
+						"[%d]Invalid ioctl ret val: %d (%s)",
+						dest_eid, errno,
+						strerror(errno));
+					break;
+				}
+			}
+		} while ((rc < 0) && (retry--));
+
+		// free tx buffer
+		free(buf);
+
+		if (clock_gettime(CLOCK_MONOTONIC, &end) == -1) {
+			mctp_prerr("fail to do clock_gettime");
+		}
+		secs = end.tv_sec - start.tv_sec;
+		nsecs = end.tv_nsec - start.tv_nsec;
+		// adjust time
+		if (nsecs < 0) {
+			secs--;
+			nsecs += 1000000000;
+		}
+		/* acquired the lock and sent the transcation */
+		if (info->mux_grab && (rc >= 0)) {
+			mctp_prinfo("[%d]Mux grabbed time: %d.%03d timeout %d",
+				    dest_eid, secs, (nsecs + 500000) / 1000000,
+				    info->timeout);
+
+			clock_gettime(CLOCK_MONOTONIC, &tm);
+
+			uint64_t t = tm.tv_sec * (uint64_t)1000000000L +
+				     tm.tv_nsec + info->timeout * 1000000L;
+			tm.tv_sec = t / 1000000000L;
+			tm.tv_nsec = t % 1000000000L;
+
+			rc = pthread_cond_timedwait(&cond_resp, &thread_mutex,
+						    &tm);
+			if (rc != 0) {
+				if (rc != ETIMEDOUT) {
+					mctp_prerr(
+						"fail to pthread_cond_timedwait %d",
+						rc);
+				}
+				mctp_prerr("%s: [%d] - resp timeout ", __func__,
+					   dest_eid);
+
+				uint16_t hold_timeout = 0; /* ms */
+				struct i2c_msg msg = {
+					.addr = 0,
+					.flags = I2C_M_HOLD,
+					.len = sizeof(hold_timeout),
+					.buf = (uint8_t *)&hold_timeout,
+				};
+				struct i2c_rdwr_ioctl_data msgrdwr = { &msg,
+								       1 };
+
+				mctp_prinfo("Closing mux for EID: %d\n",
+					    dest_eid);
+
+				rc = ioctl(info->fd, I2C_RDWR, &msgrdwr);
+				if (rc < 0) {
+					mctp_prerr("failed to unlock bus");
+				}
+			}
+		}
+		// free tx info
+		free(info);
+
+		TAILQ_REMOVE(&head, entry, entries);
+		pthread_mutex_unlock(&thread_mutex);
 	}
-	return 0;
-}
 
-static int stop_timer(struct mctp_binding_smbus *smbus)
-{
-	return set_timer(smbus->recv_timerfd, 0);
-}
-
-static int schedule_timer(struct mctp_binding_smbus *smbus)
-{
-	return set_timer(smbus->recv_timerfd, smbus->timeout);
+	// clean up tx queue
+	while (!TAILQ_EMPTY(&head)) {
+		entry = TAILQ_FIRST(&head);
+		info = (struct smbus_tx_thread_info *)entry->data;
+		free(info->buf);
+		free(info);
+		TAILQ_REMOVE(&head, entry, entries);
+	}
+	pthread_exit(NULL);
 }
 
 int mctp_smbus_close_mux(struct mctp_binding_smbus *smbus, uint8_t eid);
@@ -234,112 +394,47 @@ int mctp_smbus_close_mux(struct mctp_binding_smbus *smbus, uint8_t eid);
 static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len,
 			 int dest_eid, int dest_addr)
 {
-	/* timeout 10s is used to recover the lock if crash */
-	uint16_t hold_timeout = MCTP_SMBUS_HOLD_TIMEOUT;
-	struct i2c_msg msgs[2] = {
-		{
-			.addr = 0, /* 7-bit address */
-			.flags = 0,
-			.len = len,
-			.buf = (__uint8_t *)smbus->txbuf_ptr,
-		},
-		{
-			.addr = 0,
-			.flags = I2C_M_HOLD,
-			.len = sizeof(hold_timeout),
-			.buf = (uint8_t *)&hold_timeout,
-		},
-	};
-	struct i2c_rdwr_ioctl_data msgrdwr = { msgs, 1 };
-	int rc;
-	int retry = MCTP_SMBUS_I2C_TX_RETRIES_MAX;
-	struct timespec start, end;
-	int secs, nsecs;
+	uint8_t *buf = malloc(len);
+	if (buf == NULL) {
+		MCTP_ERR("failed to malloc buffer");
+	}
+	memcpy(buf, smbus->txbuf_ptr, len);
+
+	struct smbus_tx_thread_info *info =
+		(struct smbus_tx_thread_info *)malloc(
+			sizeof(struct smbus_tx_thread_info));
 
 	struct mctp_hdr *hdr = (void *)(smbus->txbuf_ptr +
 					sizeof(struct mctp_smbus_header_tx));
 
-	mctp_trace_tx(smbus->txbuf_ptr, len);
-
+	info->mux_grab = false;
 	if (hdr->flags_seq_tag & MCTP_HDR_FLAG_EOM) {
-		mctp_prdebug("Mux will be grabbed.\n");
-		msgrdwr.nmsgs = 2;
+		info->mux_grab = true;
 	}
 
 	int out_fd = get_out_fd(smbus, dest_eid);
-
-	mctp_prdebug("Tx Out FD: %d\n", out_fd);
+	mctp_prdebug("Tx Out FD: %d \n", out_fd);
 
 	if (out_fd < 0) {
 		MCTP_ERR("The dest eid is not supported on any SMBUS");
 		return 0;
 	}
+	pthread_mutex_lock(&thread_mutex);
+	info->eid = dest_eid;
+	info->fd = out_fd;
+	info->buf = buf;
+	info->len = len;
+	info->timeout = smbus->timeout;
+	info->addr = dest_addr;
 
-	msgs[0].addr = dest_addr;
+	struct qentry *node = malloc(sizeof(struct qentry));
+	node->data = info;
 
-	mctp_prdebug("Tx Out Addr: 0x%02x\n", msgs[0].addr);
+	pthread_cond_signal(&cond);
+	// add the buffer to tx queue
+	TAILQ_INSERT_TAIL(&head, node, entries);
+	pthread_mutex_unlock(&thread_mutex);
 
-	if (clock_gettime(CLOCK_MONOTONIC, &start) == -1) {
-		mctp_prerr("fail to do clock_gettime");
-	}
-
-	do {
-		rc = ioctl(out_fd, I2C_RDWR, &msgrdwr);
-		if (rc < 0) {
-			if ((errno == EAGAIN || errno == EPROTO ||
-			     errno == ETIMEDOUT || errno == ENXIO ||
-			     errno == EIO || errno == EBUSY)) {
-				if (retry % 200 == 0) {
-					/* Only trace every 200 retries*/
-					MCTP_ERR(
-						"[%d]Invalid ioctl ret val: %d (%s)",
-						dest_eid, errno,
-						strerror(errno));
-					if (errno == EIO) {
-						if (mctp_smbus_poll(smbus) &
-						    POLLPRI) {
-							mctp_prinfo(
-								"receive the response");
-							mctp_smbus_read(smbus);
-						}
-					}
-				}
-
-				if (errno != EIO && msgrdwr.nmsgs == 2) {
-					/* lock has been acquired and unlock */
-					mctp_smbus_close_mux(smbus, dest_eid);
-				}
-				usleep(MCTP_SMBUS_I2C_TX_RETRIES_US); //20us
-			} else {
-				/* unknown error */
-				MCTP_ERR("[%d]Invalid ioctl ret val: %d (%s)",
-					 dest_eid, errno, strerror(errno));
-				break;
-			}
-		}
-	} while ((rc < 0) && (retry--));
-
-	if (clock_gettime(CLOCK_MONOTONIC, &end) == -1) {
-		mctp_prerr("fail to do clock_gettime");
-	}
-	secs = end.tv_sec - start.tv_sec;
-	nsecs = end.tv_nsec - start.tv_nsec;
-	// adjust time
-	if (nsecs < 0) {
-		secs--;
-		nsecs += 1000000000;
-	}
-	/* acquired the lock and sent the transcation */
-	if (msgrdwr.nmsgs == 2 && (rc >= 0)) {
-		mctp_prdebug("[%d]Mux grabbed time: %d.%03d", dest_eid, secs,
-			     (nsecs + 500000) / 1000000);
-
-		/* schedule the timer for the coming message */
-		schedule_timer(smbus);
-
-		/* record which eid is occupying the bus for timeout handler */
-		smbus->locked_eid = dest_eid;
-	}
 	return 0;
 }
 
@@ -526,6 +621,7 @@ int mctp_smbus_close_mux(struct mctp_binding_smbus *smbus, uint8_t eid)
 	MCTP_ASSERT_RET(rc >= 0, rc, "Invalid ioctl ret val: %d (%s)", errno,
 			strerror(errno));
 
+	pthread_cond_signal(&cond_resp);
 	return rc;
 }
 
@@ -534,36 +630,19 @@ int mctp_smbus_close_mux(struct mctp_binding_smbus *smbus, uint8_t eid)
  */
 int mctp_smbus_poll(struct mctp_binding_smbus *smbus)
 {
-	struct pollfd fds[2];
+	struct pollfd fds[1];
 	int rc;
 	const uint8_t n = sizeof(fds) / sizeof(struct pollfd);
 
 	fds[0].fd = smbus->in_fd;
 	fds[0].events = POLLPRI;
 
-	fds[1].fd = smbus->recv_timerfd;
-	fds[1].events = POLLIN;
 	rc = poll(fds, n, smbus->timeout);
 
 	if (rc > 0) {
 		if (fds[0].revents & POLLPRI) {
 			// the response is received.
 			return fds[0].revents;
-		}
-		if (fds[1].revents & POLLIN) {
-			uint64_t ign = 0;
-			int ret;
-			ret = read(smbus->recv_timerfd, &ign, sizeof(ign));
-			if (ret < 0) {
-				mctp_prerr("%s: failed to read timerfd",
-					   __func__);
-			}
-			// unlock the bus after the timeout.
-			mctp_prerr("%s: [%d] - resp timeout", __func__,
-				   smbus->locked_eid);
-			mctp_smbus_close_mux(smbus, smbus->locked_eid);
-
-			return fds[1].revents;
 		}
 	}
 
@@ -875,7 +954,6 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 	if (eom) {
 		mctp_prinfo("Mux released\n");
 
-		stop_timer(smbus);
 		mctp_smbus_close_mux(smbus, mctp_hdr->src);
 	}
 
@@ -898,13 +976,10 @@ struct mctp_binding *mctp_binding_smbus_core(struct mctp_binding_smbus *smbus)
 int mctp_smbus_init_pollfd(struct mctp_binding_smbus *smbus,
 			   struct pollfd **pollfd)
 {
-	const uint8_t fds_num = 2;
+	const uint8_t fds_num = 1;
 	*pollfd = __mctp_alloc(fds_num * sizeof(struct pollfd));
 	(*pollfd)->fd = smbus->in_fd;
 	(*pollfd)->events = POLLPRI;
-
-	(*pollfd + 1)->fd = smbus->recv_timerfd;
-	(*pollfd + 1)->events = POLLIN;
 
 	return fds_num;
 }
@@ -1031,11 +1106,6 @@ mctp_smbus_init(uint8_t bus, uint8_t bus_smq, uint8_t dest_addr,
 	}
 	smbus->timeout = timeout;
 
-	smbus->recv_timerfd = timerfd_create(CLOCK_MONOTONIC, 0);
-	if (smbus->recv_timerfd) {
-		mctp_prdebug("%s: recv_timerfd failed to create", __func__);
-	}
-
 	/* Override slave addresses and bus numbers if static endpoints are used */
 	smbus->static_endpoints_len = static_endpoints_len;
 	smbus->static_endpoints = static_endpoints;
@@ -1047,11 +1117,22 @@ mctp_smbus_init(uint8_t bus, uint8_t bus_smq, uint8_t dest_addr,
 	smbus->binding.start = mctp_smbus_start;
 	smbus->binding.tx = mctp_binding_smbus_tx;
 
+	TAILQ_INIT(&head);
+	pthread_condattr_t condattr;
+	pthread_condattr_init(&condattr);
+	pthread_condattr_setclock(&condattr, CLOCK_MONOTONIC);
+	pthread_cond_init(&cond_resp, &condattr);
+
+	if (pthread_create(&tx_thread, NULL, smbus_tx_thread, NULL) != 0) {
+		MCTP_ERR("failed to pthread_create\n");
+	}
 	return smbus;
 }
 
 void mctp_smbus_free(struct mctp_binding_smbus *smbus)
 {
-	close(smbus->recv_timerfd);
+	terminate_tx_thread = true;
+	pthread_cond_destroy(&cond);
+	pthread_cond_destroy(&cond_resp);
 	__mctp_free(smbus);
 }
