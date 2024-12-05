@@ -239,13 +239,13 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 	pthread_detach(pthread_self());
 
 	while (true) {
+		if (terminate_tx_thread) {
+			break;
+		}
+
 		pthread_mutex_lock(&thread_mutex);
 		if (TAILQ_EMPTY(&head)) {
 			pthread_cond_wait(&cond, &thread_mutex);
-		}
-
-		if (terminate_tx_thread) {
-			break;
 		}
 
 		entry = TAILQ_FIRST(&head);
@@ -253,6 +253,7 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 		buf = info->buf;
 		len = info->len;
 		dest_eid = info->eid;
+		pthread_mutex_unlock(&thread_mutex);
 
 		struct i2c_msg msgs[2] = {
 			{
@@ -333,6 +334,7 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 			tm.tv_sec = t / 1000000000L;
 			tm.tv_nsec = t % 1000000000L;
 
+			pthread_mutex_lock(&thread_mutex);
 			rc = pthread_cond_timedwait(&cond_resp, &thread_mutex,
 						    &tm);
 			if (rc != 0) {
@@ -362,10 +364,12 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 					mctp_prerr("failed to unlock bus");
 				}
 			}
+			pthread_mutex_unlock(&thread_mutex);
 		}
 		// free tx info
 		free(info);
 
+		pthread_mutex_lock(&thread_mutex);
 		TAILQ_REMOVE(&head, entry, entries);
 		pthread_mutex_unlock(&thread_mutex);
 	}
