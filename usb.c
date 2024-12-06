@@ -89,8 +89,7 @@ struct mctp_binding_usb {
 
 int mctp_usb_handle_event(struct mctp_binding_usb *usb)
 {
-	struct timeval t;
-	memset(&t, 0, sizeof(t));
+	struct timeval t = { 0 };
 	int ret = MCTP_USB_NO_ERROR;
 
 	ret = libusb_handle_events_timeout_completed(usb->ctx, &t, NULL);
@@ -351,6 +350,11 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 		if (bus_reg)
 			mctp_binding_set_tx_enabled(base_usb, false);
 	} /* Free memory used to store previous FDs */
+	if (usb->usb_poll_fds) {
+		libusb_free_pollfds(usb->usb_poll_fds);
+	}
+	usb->dev_handle = dev_handle;
+	/* Free memory used to store previous FDs */
 	if (usb->usb_poll_fds) {
 		libusb_free_pollfds(usb->usb_poll_fds);
 	}

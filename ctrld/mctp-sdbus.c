@@ -22,12 +22,12 @@
 #include <string.h>
 #include <signal.h>
 #include <errno.h>
+#include <sys/poll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <stddef.h>
-#include <assert.h>
 #include <systemd/sd-bus.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -41,13 +41,19 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "dbus_log_event.h"
+#include "libmctp-alloc.h"
 #include "libmctp-cmds.h"
+#include "libmctp-log.h"
 #include "mctp-ctrl-cmds.h"
 #include "mctp-ctrl-log.h"
+#include "mctp-ctrl.h"
 #include "mctp-sdbus.h"
 #include "mctp-discovery-common.h"
 #include "mctp-discovery-i2c.h"
 #include "mctp-discovery.h"
+
+#include "mctp-ctrl-usb.h"
 
 extern mctp_routing_table_t *g_routing_table_entries;
 
@@ -854,8 +860,8 @@ static int mctp_mark_service_ready(mctp_sdbus_context_t *context)
 	return r;
 }
 
-static int mctp_sdbus_refresh_endpoints(const mctp_cmdline_args_t *cmdline,
-					mctp_sdbus_context_t *context)
+int mctp_sdbus_refresh_endpoints(const mctp_cmdline_args_t *cmdline,
+				 mctp_sdbus_context_t *context)
 {
 	int r = 0;
 	char mctp_ctrl_objpath[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE];
@@ -1037,6 +1043,12 @@ mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
 	}
 	context->bus = bus;
 	context->cmdline = cmdline;
+	context->fds = calloc(MCTP_CTRL_TOTAL_FDS, sizeof(struct pollfd));
+	if (context->fds == NULL) {
+		MCTP_CTRL_ERR("Failed to allocate pollfd\n");
+		return NULL;
+	}
+	context->nfds = MCTP_CTRL_TOTAL_FDS;
 
 	/* Add sd-bus object manager */
 	r = sd_bus_add_object_manager(context->bus, NULL, MCTP_CTRL_OBJ_NAME);
@@ -1195,8 +1207,7 @@ int mctp_ctrl_sdbus_dispatch(mctp_ctrl_t *mctp_ctrl,
 {
 	int polled, r;
 
-	polled =
-		poll(context->fds, MCTP_CTRL_TOTAL_FDS, MCTP_CTRL_POLL_TIMEOUT);
+	polled = poll(context->fds, context->nfds, MCTP_CTRL_POLL_TIMEOUT);
 
 	/* polling timeout */
 	if (polled == 0)
@@ -1230,6 +1241,15 @@ int mctp_ctrl_sdbus_dispatch(mctp_ctrl_t *mctp_ctrl,
 		return -1;
 	}
 
+	if (mctp_ctrl_get_binding_type(mctp_ctrl) != MCTP_BINDING_USB)
+		return SDBUS_PROCESS_EVENT;
+
+	r = mctp_ctrl_usb_handle_event(mctp_ctrl, context);
+	if (r < 0) {
+		MCTP_CTRL_ERR("Error handling libusb Hotplug event: %d\n", r);
+		return -1;
+	}
+
 	return SDBUS_PROCESS_EVENT;
 }
 
@@ -1251,6 +1271,13 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 #endif
 {
 	int r = 0;
+
+	if (-1 == g_disc_timer_fd) {
+		MCTP_CTRL_INFO(
+			"%s: Creating discovery timer for the first time\n",
+			__func__);
+		g_disc_timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+	}
 
 	r = mctp_ctrl_sdbus_host_endpoints(cmdline, context);
 	if (r != 0) {
@@ -1279,14 +1306,23 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 		context->monitor = *monfd;
 	}
 #endif
+
+	if (mctp_ctrl_get_binding_type(mctp_ctrl) == MCTP_BINDING_USB) {
+		mctp_ctrl_usb_t *usb =
+			mctp_ctrl_usb_hotplug_init(mctp_ctrl, context);
+		MCTP_ASSERT(usb != NULL, -1,
+			    "Could not initialise usb binding");
+		mctp_ctrl->pvt_binding_data = usb;
+		if (!mctp_ctrl_usb_init_pollfd(usb))
+			return -1;
+	}
+
 	MCTP_CTRL_DEBUG("%s: Entering polling loop\n", __func__);
 
 	while (mctp_ctrl_running) {
 		r = mctp_ctrl_sdbus_dispatch(mctp_ctrl, context);
-
-		if ((r < 0) || (r == SDBUS_SIGTERM)) {
+		if ((r < 0) || (r == SDBUS_SIGTERM))
 			break;
-		}
 	}
 
 	free(context);

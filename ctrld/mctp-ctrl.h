@@ -128,6 +128,12 @@ mctp_requester_rc_t mctp_client_recv(mctp_eid_t eid, int mctp_fd,
 
 int main_ctrl(int argc, char *const *argv);
 
+static inline mctp_binding_ids_t
+mctp_ctrl_get_binding_type(mctp_ctrl_t *mctp_ctrl)
+{
+	return mctp_ctrl->cmdline->binding_type;
+}
+
 #ifdef __cplusplus
 }
 #endif

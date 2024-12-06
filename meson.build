@@ -41,8 +41,6 @@ deps = [json_c]
 # Add USB functionality to SRC 
 if get_option('enable-usb').enabled()
     sources += 'usb.c'
-    summary('enable-usb','-DENABLE_USB', section : 'Enabled Features')
-    add_project_arguments('-DENABLE_USB', language: ['c', 'cpp'])
     usb_lib = declare_dependency(dependencies: [comp.find_library('usb-1.0')])
     deps += [usb_lib]
 

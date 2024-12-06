@@ -17,6 +17,7 @@
 /* SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later */
 
 #include <bits/time.h>
+#include <ctype.h>
 #define _GNU_SOURCE
 
 #include <assert.h>
@@ -68,6 +69,8 @@
 #ifdef MCTP_IN_KERNEL
 #include "mctp-netlink.h"
 #endif
+#ifdef ENABLE_USB
+#include "mctp-ctrl-usb.h"
 
 /* MCTP Tx/Rx waittime in milli-seconds */
 #define MCTP_CTRL_WAIT_SECONDS (1 * 1000)
@@ -216,8 +219,17 @@ static const fsdyn_ep_ops_t fmon_emulation_fops = {
 };
 #endif
 
-static void mctp_ctrl_clean_up(void)
+static void mctp_ctrl_clean_up(mctp_ctrl_t *mctp_ctrl)
 {
+	mctp_binding_ids_t binding_type = mctp_ctrl_get_binding_type(mctp_ctrl);
+
+	switch (binding_type) {
+	case MCTP_BINDING_USB:
+		mctp_ctrl_usb_hotplug_exit(mctp_ctrl->pvt_binding_data);
+		break;
+	default:
+		break;
+	};
 	/* Make sure opened threads are closed */
 	if (g_keepalive_thread != 0) {
 		pthread_kill(g_keepalive_thread, SIGUSR2);
@@ -287,7 +299,7 @@ static const struct option g_options[] = {
 };
 
 static const char *const short_options =
-	"v:c:e:m:t:d:s:r:b:f:n:u:i:j:p:q:x:y:z:w:h::";
+	"v:c:e:m:t:d:s:r:b:f:n:u:i:j:p:q:x:y:z:w:k:l:h::";
 
 static void usage(void)
 {
@@ -382,6 +394,8 @@ static void usage_usb(void)
 		"\t-c\t option to remove duplicate EID entries from the routing table\n"
 		"\t-z\t option to ignore certain EID entries from the routing table"
 		" supplied as a space separated list in decimal\n"
+		"\t-k\t vendor ID of USB device in hex (0x)\n"
+		"\t-l\t product ID of USB device in hex (0x)\n"
 		"To send MCTP message for USB binding type\n"
 		"Eg: Prepare for Endpoint Discovery\n");
 }
@@ -919,7 +933,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 				// discovery failure is allowed when mocking up EID
 				return EXIT_SUCCESS;
 			}
-			mctp_ctrl_clean_up();
+			mctp_ctrl_clean_up(mctp_ctrl);
 #endif
 			return EXIT_FAILURE;
 		}
@@ -992,7 +1006,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 			MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST);
 		if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
 			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
-			mctp_ctrl_clean_up();
+			mctp_ctrl_clean_up(mctp_ctrl);
 			return EXIT_FAILURE;
 		}
 	}
@@ -1248,6 +1262,7 @@ static void parse_command_line(int argc, char *const *argv,
 		case 'w':
 			if (cmdline->binding_type == MCTP_BINDING_USB) {
 				//get busid from port path which is separated via -
+				size_t port_path_len;
 				char recv_usb_path[2 *
 						   MCTP_USB_PORT_PATH_MAX_LEN];
 				strncpy(recv_usb_path, optarg,
@@ -1267,15 +1282,15 @@ static void parse_command_line(int argc, char *const *argv,
 					sizeof(cmdline->usb.port_path));
 
 				// Convert port_path .  to -
-				if (strlen(cmdline->usb.port_path) == 0) {
+				port_path_len = strlen(cmdline->usb.port_path);
+				if (port_path_len == 0) {
 					MCTP_CTRL_INFO(
 						"%s: No port hierarchy in port path: %s\n",
 						__func__,
 						cmdline->usb.port_path);
 					exit(EXIT_FAILURE);
 				}
-				for (size_t i = 0;
-				     i < strlen(cmdline->usb.port_path); i++) {
+				for (size_t i = 0; i < port_path_len; i++) {
 					if (cmdline->usb.port_path[i] == '.') {
 						cmdline->usb.port_path[i] = '-';
 					}
@@ -1382,6 +1397,10 @@ static void parse_command_line(int argc, char *const *argv,
 			exit(EXIT_FAILURE);
 		}
 #endif
+		mctp_ctrl->pvt_binding_data =
+			(void *)mctp_ctrl_usb_hotplug_init(mctp_ctrl);
+		MCTP_ASSERT(mctp_ctrl->pvt_binding_data != NULL, -1,
+			    "Could not initialise usb binding");
 		break;
 	default:
 		break;
@@ -1401,8 +1420,8 @@ int main_ctrl(int argc, char *const *argv)
 {
 	int rc;
 	sigset_t mask;
-	mctp_ctrl_t *mctp_ctrl, _mctp_ctrl;
-	mctp_cmdline_args_t cmdline;
+	mctp_ctrl_t *mctp_ctrl, _mctp_ctrl = { 0 };
+	mctp_cmdline_args_t cmdline = { 0 };
 	int ret_val = EXIT_SUCCESS;
 #ifdef MOCKUP_ENDPOINT
 	fsdyn_ep_context_ptr filemon;
@@ -1413,8 +1432,6 @@ int main_ctrl(int argc, char *const *argv)
 	mctp_ctrl->type = MCTP_MSG_TYPE_HDR;
 	mctp_ctrl->perform_rediscovery = false;
 
-	/* Initialize the cmdline structure */
-	memset(&cmdline, 0, sizeof(cmdline));
 	mctp_ctrl->cmdline = &cmdline;
 
 	/* Update the cmdline sturcture with default values */
@@ -1535,7 +1552,7 @@ int main_ctrl(int argc, char *const *argv)
 		}
 	}
 
-	mctp_ctrl_clean_up();
+	mctp_ctrl_clean_up(mctp_ctrl);
 
 #ifdef MOCKUP_ENDPOINT
 	/* Disable monitoring service */
