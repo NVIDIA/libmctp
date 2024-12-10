@@ -82,7 +82,7 @@ struct mctp_binding_usb {
 	MctpUsbBatchMode mode;
 	/* device address data*/
 	uint8_t bus_no;
-	char *port_path;
+	char port_path[MCTP_USB_PORT_PATH_MAX_LEN];
 };
 
 int mctp_usb_handle_event(struct mctp_binding_usb *usb)
@@ -169,8 +169,8 @@ void mctp_usb_get_port_path(uint8_t *port_numbers, int num, char *port_path)
 		snprintf(port_path + strlen(port_path), buffer_size, "-%d",
 			 port_numbers[i]);
 	}
-	mctp_prerr("%s:port path for arrived device= %s\n", __func__,
-		   port_path);
+	mctp_prinfo("%s:port path for arrived device= %s\n", __func__,
+		    port_path);
 }
 
 int mctp_usb_hotplug_callback(struct libusb_context *ctx,
@@ -619,6 +619,7 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 	libusb_hotplug_callback_handle callback_handle;
 	int rc;
 	usb = __mctp_alloc(sizeof(*usb));
+	memset(usb->port_path, '\0', sizeof(usb->port_path));
 	libusb_init(&usb->ctx);
 	usb->dev_handle = NULL;
 	usb->bindingfds_change = false;
@@ -627,7 +628,7 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 	usb->binding.name = "usb";
 	usb->binding.version = 1;
 	usb->bus_no = bus_id;
-	usb->port_path = port_path;
+	strncpy(usb->port_path, port_path, sizeof(usb->port_path) - 1);
 
 	mctp_prinfo("Starting USB binding with mode: %d\n", mode);
 
