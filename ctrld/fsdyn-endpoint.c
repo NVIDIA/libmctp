@@ -75,10 +75,13 @@ static int uuid_from_str(const char *input, guid_t *uuid)
 		if (!isxdigit(*cp))
 			return -1;
 	}
-	uuid->canonical.data0 = strtoul(input, NULL, 16);
-	uuid->canonical.data1 = strtoul(input + uuid_sep_low_pos + 1, NULL, 16);
-	uuid->canonical.data2 = strtoul(input + uuid_sep_mid_pos + 1, NULL, 16);
-	uuid->canonical.data3 = strtoul(input + uuid_sep_seq_pos + 1, NULL, 16);
+	uuid->canonical.data0 = htobe32(strtoul(input, NULL, 16));
+	uuid->canonical.data1 =
+		htobe16(strtoul(input + uuid_sep_low_pos + 1, NULL, 16));
+	uuid->canonical.data2 =
+		htobe16(strtoul(input + uuid_sep_mid_pos + 1, NULL, 16));
+	uuid->canonical.data3 =
+		htobe16(strtoul(input + uuid_sep_seq_pos + 1, NULL, 16));
 	cp = input + uuid_sep_node_pos + 1;
 	buf[2] = 0;
 	for (i = 0; i < uuid_node_num_parts; i++) {
