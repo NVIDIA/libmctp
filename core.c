@@ -321,8 +321,10 @@ int mctp_set_rx_all(struct mctp *mctp, mctp_rx_fn fn, void *data)
 static struct mctp_bus *find_bus_for_eid(struct mctp *mctp, mctp_eid_t dest
 					 __attribute__((unused)))
 {
-	if (mctp->n_busses == 0)
+	if (mctp->n_busses == 0) {
+		mctp_prerr("%s: No bus found for EID %d", __func__, dest);
 		return NULL;
+	}
 
 	/* for now, just use the first bus. For full routing support,
 	 * we will need a table of neighbours */
@@ -534,8 +536,13 @@ void mctp_bus_rx(struct mctp_binding *binding, struct mctp_pktbuf *pkt)
 	assert(bus);
 
 	/* Drop packet if it was smaller than mctp hdr size */
-	if (mctp_pktbuf_size(pkt) <= sizeof(struct mctp_hdr))
+	if (mctp_pktbuf_size(pkt) <= sizeof(struct mctp_hdr)) {
+		mctp_prerr(
+			"%s: Packet size %zu is smaller than mctp hdr size %zu",
+			__func__, mctp_pktbuf_size(pkt),
+			sizeof(struct mctp_hdr));
 		goto out;
+	}
 
 	if (mctp->capture)
 		mctp->capture(pkt, mctp->capture_data);
@@ -544,8 +551,12 @@ void mctp_bus_rx(struct mctp_binding *binding, struct mctp_pktbuf *pkt)
 
 	/* small optimisation: don't bother reassembly if we're going to
 	 * drop the packet in mctp_rx anyway */
-	if (mctp->route_policy == ROUTE_ENDPOINT && hdr->dest != bus->eid)
+	if (mctp->route_policy == ROUTE_ENDPOINT && hdr->dest != bus->eid) {
+		mctp_prerr(
+			"%s: Dropping Packet since route policy is for endpoint with destination %d and eid %d",
+			__func__, hdr->dest, bus->eid);
 		goto out;
+	}
 
 	flags = hdr->flags_seq_tag & (MCTP_HDR_FLAG_SOM | MCTP_HDR_FLAG_EOM);
 	tag = (hdr->flags_seq_tag >> MCTP_HDR_TAG_SHIFT) & MCTP_HDR_TAG_MASK;
@@ -568,6 +579,9 @@ void mctp_bus_rx(struct mctp_binding *binding, struct mctp_pktbuf *pkt)
 		 * already present, drop it. */
 		ctx = mctp_msg_ctx_lookup(mctp, hdr->src, hdr->dest, tag);
 		if (ctx) {
+			mctp_prerr(
+				"%s: Context is already present, reseting it for src %d dest %d & tag %d",
+				__func__, hdr->src, hdr->dest, tag);
 			mctp_msg_ctx_reset(ctx);
 		} else {
 			ctx = mctp_msg_ctx_create(mctp, hdr->src, hdr->dest,
@@ -575,7 +589,9 @@ void mctp_bus_rx(struct mctp_binding *binding, struct mctp_pktbuf *pkt)
 			/* If context creation fails due to exhaution of contexts we
 			* can support, drop the packet */
 			if (!ctx) {
-				mctp_prdebug("Context buffers exhausted.");
+				mctp_prerr(
+					"%s: Context buffers exhausted for src %d dest %d tag %d.",
+					__func__, hdr->src, hdr->dest, tag);
 				goto out;
 			}
 		}
@@ -586,6 +602,9 @@ void mctp_bus_rx(struct mctp_binding *binding, struct mctp_pktbuf *pkt)
 
 		rc = mctp_msg_ctx_add_pkt(ctx, pkt, mctp->max_message_size);
 		if (rc) {
+			mctp_prerr(
+				"%s: Dropping the packet with rc %d for src %d dest %d & tag %d",
+				__func__, rc, hdr->src, hdr->dest, tag);
 			mctp_msg_ctx_drop(ctx);
 		} else {
 			ctx->last_seq = seq;
@@ -595,15 +614,19 @@ void mctp_bus_rx(struct mctp_binding *binding, struct mctp_pktbuf *pkt)
 
 	case MCTP_HDR_FLAG_EOM:
 		ctx = mctp_msg_ctx_lookup(mctp, hdr->src, hdr->dest, tag);
-		if (!ctx)
+		if (!ctx) {
+			mctp_prerr(
+				"%s: Context not found in lookup for src %d dest %d & tag %d",
+				__func__, hdr->src, hdr->dest, tag);
 			goto out;
+		}
 
 		exp_seq = (ctx->last_seq + 1) % 4;
 
 		if (exp_seq != seq) {
-			mctp_prdebug(
-				"Sequence number %d does not match expected %d",
-				seq, exp_seq);
+			mctp_prerr(
+				"Sequence number %d does not match expected %d for src %d dest %d & tag %d",
+				seq, exp_seq, hdr->src, hdr->dest, tag);
 			mctp_msg_ctx_drop(ctx);
 			goto out;
 		}
@@ -611,9 +634,11 @@ void mctp_bus_rx(struct mctp_binding *binding, struct mctp_pktbuf *pkt)
 		len = mctp_pktbuf_size(pkt);
 
 		if (len > ctx->fragment_size) {
-			mctp_prdebug("Unexpected fragment size. Expected"
-				     " less than %zu, received = %zu",
-				     ctx->fragment_size, len);
+			mctp_prerr(
+				"Unexpected fragment size. Expected"
+				" less than %zu, received = %zu for src %d dest %d & tag %d",
+				ctx->fragment_size, len, hdr->src, hdr->dest,
+				tag);
 			mctp_msg_ctx_drop(ctx);
 			goto out;
 		}
@@ -629,14 +654,18 @@ void mctp_bus_rx(struct mctp_binding *binding, struct mctp_pktbuf *pkt)
 	case 0:
 		/* Neither SOM nor EOM */
 		ctx = mctp_msg_ctx_lookup(mctp, hdr->src, hdr->dest, tag);
-		if (!ctx)
+		if (!ctx) {
+			mctp_prerr(
+				"%s: The context is neither SOM nor EOM for src %d dest %d & tag %d",
+				__func__, hdr->src, hdr->dest, tag);
 			goto out;
+		}
 
 		exp_seq = (ctx->last_seq + 1) % 4;
 		if (exp_seq != seq) {
-			mctp_prdebug(
-				"Sequence number %d does not match expected %d",
-				seq, exp_seq);
+			mctp_prerr(
+				"Sequence number %d does not match expected %d for src %d dest %d & tag %d",
+				seq, exp_seq, hdr->src, hdr->dest, tag);
 			mctp_msg_ctx_drop(ctx);
 			goto out;
 		}
@@ -644,15 +673,19 @@ void mctp_bus_rx(struct mctp_binding *binding, struct mctp_pktbuf *pkt)
 		len = mctp_pktbuf_size(pkt);
 
 		if (len != ctx->fragment_size) {
-			mctp_prdebug("Unexpected fragment size. Expected = %zu "
-				     "received = %zu",
-				     ctx->fragment_size, len);
+			mctp_prerr("Unexpected fragment size. Expected = %zu "
+				   "received = %zu for src %d dest %d",
+				   ctx->fragment_size, len, hdr->src,
+				   hdr->dest);
 			mctp_msg_ctx_drop(ctx);
 			goto out;
 		}
 
 		rc = mctp_msg_ctx_add_pkt(ctx, pkt, mctp->max_message_size);
 		if (rc) {
+			mctp_prerr(
+				"%s: Dropping the context with rc %d for src %d dest %d",
+				__func__, rc, hdr->src, hdr->dest);
 			mctp_msg_ctx_drop(ctx);
 			goto out;
 		}
@@ -668,8 +701,10 @@ static int mctp_packet_tx(struct mctp_bus *bus, struct mctp_pktbuf *pkt)
 {
 	struct mctp *mctp = bus->binding->mctp;
 
-	if (bus->state != mctp_bus_state_tx_enabled)
+	if (bus->state != mctp_bus_state_tx_enabled) {
+		mctp_prerr("%s: Invalid bus state %d", __func__, bus->state);
 		return -1;
+	}
 
 	if (mctp->capture)
 		mctp->capture(pkt, mctp->capture_data);
@@ -838,8 +873,10 @@ int mctp_message_tx(struct mctp *mctp, mctp_eid_t eid, bool tag_owner,
 	}
 
 	bus = find_bus_for_eid(mctp, eid);
-	if (!bus)
+	if (!bus) {
+		mctp_prerr("%s: Bus not found for eid %d", __func__, eid);
 		return 0;
+	}
 
 	return mctp_message_tx_on_bus(bus, bus->eid, eid, tag_owner, msg_tag,
 				      msg, msg_len, NULL);
@@ -859,8 +896,10 @@ int mctp_message_pvt_bind_tx(struct mctp *mctp, mctp_eid_t eid, bool tag_owner,
 	}
 
 	bus = find_bus_for_eid(mctp, eid);
-	if (!bus)
+	if (!bus) {
+		mctp_prerr("%s: Bus not found for eid %d", __func__, eid);
 		return 0;
+	}
 	return mctp_message_tx_on_bus(bus, bus->eid, eid, tag_owner, msg_tag,
 				      msg, msg_len, msg_binding_private);
 }
