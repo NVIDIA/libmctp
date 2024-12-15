@@ -618,83 +618,39 @@ int mctp_event_monitor(mctp_ctrl_t *mctp_evt)
 	return MCTP_REQUESTER_SUCCESS;
 }
 
-/* Sanity check for PCIe Endpoint IDs */
-static int mctp_eids_sanity_check(uint8_t pci_own_eid, uint8_t pci_bridge_eid,
-				  uint8_t pci_bridge_pool_start)
+static int mctp_eids_sanity_check(mctp_eid_t own_eid, mctp_eid_t bridge_eid,
+				  mctp_eid_t bridge_pool_start)
 {
 	int rc = -1;
 
-	/* Check for PCIe own EID */
-	if ((pci_own_eid == MCTP_INVALID_EID_0) ||
-	    (pci_own_eid == MCTP_INVALID_EID_FF)) {
-		MCTP_CTRL_ERR("%s: Invalid pci_own_eid: 0x%x\n", __func__,
-			      pci_own_eid);
+	/* Check for own EID */
+	if ((own_eid == MCTP_INVALID_EID_0) ||
+	    (own_eid == MCTP_INVALID_EID_FF)) {
+		MCTP_CTRL_ERR("%s: Invalid own_eid: 0x%x\n", __func__, own_eid);
 		return rc;
 	}
 
-	/* Check for PCIe bridge EID */
-	if ((pci_bridge_eid == MCTP_INVALID_EID_0) ||
-	    (pci_bridge_eid == MCTP_INVALID_EID_FF)) {
-		MCTP_CTRL_ERR("%s: Invalid pci_bridge_eid: 0x%x\n", __func__,
-			      pci_bridge_eid);
+	/* Check for bridge EID */
+	if ((bridge_eid == MCTP_INVALID_EID_0) ||
+	    (bridge_eid == MCTP_INVALID_EID_FF)) {
+		MCTP_CTRL_ERR("%s: Invalid bridge_eid: 0x%x\n", __func__,
+			      bridge_eid);
 		return rc;
 	}
 
-	/* Check for PCIe bridge pool start EID */
-	if ((pci_bridge_pool_start == MCTP_INVALID_EID_0) ||
-	    (pci_bridge_pool_start == MCTP_INVALID_EID_FF)) {
-		MCTP_CTRL_ERR("%s: Invalid pci_bridge_pool_start: 0x%x\n",
-			      __func__, pci_bridge_pool_start);
+	/* Check for bridge pool start EID */
+	if ((bridge_pool_start == MCTP_INVALID_EID_0) ||
+	    (bridge_pool_start == MCTP_INVALID_EID_FF)) {
+		MCTP_CTRL_ERR("%s: Invalid bridge_pool_start: 0x%x\n", __func__,
+			      bridge_pool_start);
 		return rc;
 	}
 
 	/* Also check for duplicate EID's if any */
-	if ((pci_own_eid == pci_bridge_eid) ||
-	    (pci_own_eid == pci_bridge_pool_start) ||
-	    (pci_bridge_eid == pci_bridge_pool_start)) {
-		MCTP_CTRL_ERR("%s: Duplicate EID's found\n", __func__);
-		return rc;
-	}
-
-	return 0;
-}
-
-/* Sanity check for SMBus Endpoint IDs */
-static int mctp_i2c_eids_sanity_check(uint8_t i2c_own_eid,
-				      uint8_t i2c_bridge_eid,
-				      uint8_t i2c_bridge_pool_start)
-{
-	int rc = -1;
-
-	/* Check for SMBus own EID */
-	if ((i2c_own_eid == MCTP_INVALID_EID_0) ||
-	    (i2c_own_eid == MCTP_INVALID_EID_FF)) {
-		MCTP_CTRL_ERR("%s: Invalid i2c_own_eid: 0x%x\n", __func__,
-			      i2c_own_eid);
-		return rc;
-	}
-
-	/* Check for SMBus bridge EID */
-	if ((i2c_bridge_eid == MCTP_INVALID_EID_0) ||
-	    (i2c_bridge_eid == MCTP_INVALID_EID_FF)) {
-		MCTP_CTRL_ERR("%s: Invalid i2c_bridge_eid: 0x%x\n", __func__,
-			      i2c_bridge_eid);
-		return rc;
-	}
-
-	/* Check for SMBus bridge pool start EID */
-	if ((i2c_bridge_pool_start == MCTP_INVALID_EID_0) ||
-	    (i2c_bridge_pool_start == MCTP_INVALID_EID_FF)) {
-		MCTP_CTRL_ERR("%s: Invalid i2c_bridge_pool_start: 0x%x\n",
-			      __func__, i2c_bridge_pool_start);
-		return rc;
-	}
-
-	/* Also check for duplicate EID's if any */
-	if ((i2c_own_eid == i2c_bridge_eid) ||
-	    (i2c_own_eid == i2c_bridge_pool_start) ||
-	    (i2c_bridge_eid == i2c_bridge_pool_start)) {
-		MCTP_CTRL_ERR("%s: Duplicate EID's found\n", __func__);
+	if ((own_eid == bridge_eid) || (own_eid == bridge_pool_start) ||
+	    (bridge_eid == bridge_pool_start)) {
+		MCTP_CTRL_ERR("%s: Duplicate EID's found, %u %u %u\n", __func__,
+			      own_eid, bridge_eid, bridge_pool_start);
 		return rc;
 	}
 
@@ -912,7 +868,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 		switch (chosen_eid_type) {
 		case EID_TYPE_BRIDGE:
 			/* Make sure all SMBus EID options are available from commandline */
-			rc = mctp_i2c_eids_sanity_check(
+			rc = mctp_eids_sanity_check(
 				cmdline->i2c.own_eid, cmdline->i2c.bridge_eid,
 				cmdline->i2c.bridge_pool_start);
 			if (rc < 0) {
@@ -970,7 +926,7 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 			return EXIT_FAILURE;
 		}
 
-		/* Discover endpoints via USB*/
+		/* Discover endpoints via USB */
 		MCTP_CTRL_INFO("%s: Start MCTP-over-USB Discovery\n", __func__);
 		mctp_err_ret = mctp_discover_endpoints(
 			cmdline, mctp_ctrl,
@@ -1080,6 +1036,12 @@ static void parse_spi_json_config(char *config_json_file_path,
 	json_object_put(parsed_json);
 }
 
+static int parse_usb_json_config(mctp_cmdline_args_t *cmdline,
+				 const char *json_file_path)
+{
+	return mctp_json_usb_get_params_ctrl(cmdline, json_file_path);
+}
+
 static void parse_command_line(int argc, char *const *argv,
 			       mctp_cmdline_args_t *cmdline,
 			       mctp_ctrl_t *mctp_ctrl)
@@ -1177,10 +1139,7 @@ static void parse_command_line(int argc, char *const *argv,
 			break;
 		case 'f':
 			if (config_json_file_path == NULL) {
-				config_json_file_path =
-					malloc(strlen(optarg) + 1);
-				memcpy(config_json_file_path, optarg,
-				       (strlen(optarg) + 1));
+				config_json_file_path = strdup(optarg);
 				cmdline->use_json = true;
 			}
 			break;
@@ -1326,6 +1285,10 @@ static void parse_command_line(int argc, char *const *argv,
 		cmdline->usb.bridge_pool_start = bridge_pool;
 		cmdline->usb.own_eid = own_eid;
 		cmdline->usb.remove_duplicates = remove_duplicates;
+		/* overwrite value from json file */
+		if (parse_usb_json_config(cmdline, config_json_file_path) ==
+		    EXIT_FAILURE)
+			exit(EXIT_FAILURE);
 		break;
 	default:
 		break;

@@ -19,6 +19,7 @@
 
 #include "libmctp-astspi.h"
 #include "libmctp-smbus.h"
+#include "libmctp-usb.h"
 
 #define MCTP_WRITE_DATA_BUFF_SIZE 1024
 #define MCTP_READ_DATA_BUFF_SIZE  1024
@@ -30,12 +31,6 @@
 #define MCTP_CTRL_DELAY_DEFAULT 10
 
 #define UUID_STR_LEN 36
-
-/* Spec limitation for chain of hub depthness */
-#define MCTP_USB_PORT_PATH_MAX_DEPTH 7
-
-/*for port numbers separated by . and null termination */
-#define MCTP_USB_PORT_PATH_MAX_LEN (3 * MCTP_USB_PORT_PATH_MAX_DEPTH)
 
 /* Command line options for various operations */
 typedef enum mctp_cmdline_ops {

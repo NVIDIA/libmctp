@@ -26,12 +26,21 @@ extern "C" {
 #include "libmctp.h"
 #include <poll.h>
 
+/* Spec limitation for chain of hub depthness */
+#define MCTP_USB_PORT_PATH_MAX_DEPTH 7
+
+/* For port numbers separated by . and null termination */
+#define MCTP_USB_PORT_PATH_MAX_LEN (3 * MCTP_USB_PORT_PATH_MAX_DEPTH)
+
 /* Maximum possible single transfer in MCTP_USB_BATCH_FRAG and
    MCTP_USB_BATCH_ZPAD */
 #define USB_BUF_MAX_XFR 5120
 
 /* Maximum USB packet size for MCTP_USB_BATCH_REG */
 #define USB_MAX_PKT 512
+
+#define DEFAULT_FPGA_VENDOR_ID	0x0955
+#define DEFAULT_FPGA_PRODUCT_ID 0xFFFF
 
 enum { MCTP_USB_NO_ERROR = 0, MCTP_USB_FD_CHANGE };
 
@@ -42,6 +51,14 @@ typedef enum {
 	MCTP_USB_BATCH_ZPAD = 3
 } MctpUsbBatchMode;
 
+typedef struct mctp_usb_dev_cfg {
+	uint16_t vendor_id;
+	uint16_t product_id;
+	uint16_t class_id;
+	MctpUsbBatchMode mode;
+	uint8_t bus_id;
+	char port_path[MCTP_USB_PORT_PATH_MAX_LEN];
+} mctp_usb_dev_cfg_t;
 struct mctp_usb_pkt_private {
 	/*
 	 * We are unsure if we really need this.
@@ -55,9 +72,7 @@ struct mctp_binding_usb;
 
 int mctp_usb_handle_event(struct mctp_binding_usb *usb);
 
-struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
-				       uint16_t class_id, MctpUsbBatchMode mode,
-				       uint8_t bus_id, char *port_path);
+struct mctp_binding_usb *mctp_usb_init(mctp_usb_dev_cfg_t *cfg);
 
 int mctp_usb_init_pollfd(struct mctp_binding_usb *usb, struct pollfd **pollfds);
 

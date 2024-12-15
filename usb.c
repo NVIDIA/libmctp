@@ -609,14 +609,11 @@ struct mctp_binding *mctp_binding_usb_core(struct mctp_binding_usb *usb)
 {
 	return &usb->binding;
 }
-
-struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
-				       uint16_t class_id, MctpUsbBatchMode mode,
-				       uint8_t bus_id, char *port_path)
+struct mctp_binding_usb *mctp_usb_init(mctp_usb_dev_cfg_t *cfg)
 {
-	(void)class_id;
 	struct mctp_binding_usb *usb;
 	libusb_hotplug_callback_handle callback_handle;
+	MctpUsbBatchMode mode = cfg->mode;
 	int rc;
 	usb = __mctp_alloc(sizeof(*usb));
 	memset(usb->port_path, '\0', sizeof(usb->port_path));
@@ -627,8 +624,8 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 
 	usb->binding.name = "usb";
 	usb->binding.version = 1;
-	usb->bus_no = bus_id;
-	strncpy(usb->port_path, port_path, sizeof(usb->port_path) - 1);
+	usb->bus_no = cfg->bus_id;
+	strncpy(usb->port_path, cfg->port_path, sizeof(usb->port_path) - 1);
 
 	mctp_prinfo("Starting USB binding with mode: %d\n", mode);
 
@@ -655,7 +652,7 @@ struct mctp_binding_usb *mctp_usb_init(uint16_t vendor_id, uint16_t product_id,
 		NULL,
 		LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED |
 			LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT,
-		LIBUSB_HOTPLUG_ENUMERATE, vendor_id, product_id,
+		LIBUSB_HOTPLUG_ENUMERATE, cfg->vendor_id, cfg->product_id,
 		LIBUSB_HOTPLUG_MATCH_ANY, mctp_usb_hotplug_callback, usb,
 		&callback_handle);
 	if (LIBUSB_SUCCESS != rc) {

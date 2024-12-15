@@ -67,3 +67,8 @@ int mctp_json_spi_get_common_params_mctp_demux(
 	struct mctp_astspi_device_conf *config);
 void mctp_json_spi_get_params_ctrl(json_object *jo, char **sockname,
 				   mctp_cmdline_args_t *cmdline);
+
+int mctp_json_usb_get_params_ctrl(mctp_cmdline_args_t *cmdline,
+				  const char *json_file_path);
+int mctp_json_usb_get_params_demux(mctp_usb_dev_cfg_t *cfg,
+				   const char *json_file_path);

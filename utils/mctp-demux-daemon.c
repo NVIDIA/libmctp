@@ -1131,31 +1131,38 @@ static void binding_usb_usage(void)
 		"\t\t2 - Allow batched packets to be fragmented across USB packets\n"
 		"\t\t3 - Batched mode, like 1 but with 0-padded USB packets \n");
 
-	mctp_prinfo(
-		"Example: usb vendor_id=0x0483 product_id=0xffff class_id=0x00\n" 
-		"\t\t\t\t port_path=1-2.3.4\n");
+	mctp_prinfo("Example: usb port_path=1-2.3.4\n");
 }
 
+static int parse_usb_json_config(mctp_usb_dev_cfg_t *cfg,
+				 const char *json_file_path)
+{
+	return mctp_json_usb_get_params_demux(cfg, json_file_path);
+}
 static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 			    mctp_eid_t eid, int n_params,
 			    char *const *params __attribute__((unused)))
 {
 	struct mctp_binding_usb *usb;
-	uint16_t vendor_id;
-	uint16_t product_id;
-	uint16_t class_id;
-	uint16_t mode = 0;
-	uint8_t bus_id = -1;
-	char port_path[MCTP_USB_PORT_PATH_MAX_LEN];
+	const char *json_file_path = NULL;
+	mctp_usb_dev_cfg_t cfg = {
+		.bus_id = -1,
+		.mode = MCTP_USB_BATCH_NONE,
+		.vendor_id = DEFAULT_FPGA_VENDOR_ID,
+		.product_id = DEFAULT_FPGA_PRODUCT_ID,
+		.port_path = { 0 },
+	};
+	char *port_path = cfg.port_path;
 	struct {
 		char *prefix;
 		void *target;
 	} options[] = {
-		{ "vendor_id=", &vendor_id },
-		{ "product_id=", &product_id },
-		{ "class_id=", &class_id },
-		{ "mode=", &mode },
-		{ "port_path=", &port_path },
+		{ "vendor_id=", &cfg.vendor_id },
+		{ "product_id=", &cfg.product_id },
+		{ "class_id=", &cfg.class_id },
+		{ "mode=", &cfg.mode },
+		{ "port_path=", &cfg.port_path },
+		{ "json_file=", NULL },
 		{ NULL, NULL },
 	};
 	binding->bindings_changed = false;
@@ -1173,41 +1180,62 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 					char *arg = strstr(params[ii], "=") +
 						    1; // Get string after "="
 
-					if(strncmp(params[ii],"port_path=", len) == 0)
-					{
+					if (strncmp(params[ii],
+						    "port_path=", len) == 0) {
 						/* get busid from port path which is separated via - */
-						char recv_usb_path[2*MCTP_USB_PORT_PATH_MAX_LEN];
-						strncpy(recv_usb_path, arg, 2*MCTP_USB_PORT_PATH_MAX_LEN);
-						char *hyphen_pos = strchr(recv_usb_path, '-');
-						if(hyphen_pos) {
-							char* start = recv_usb_path;
-							*hyphen_pos = '\0';
-							bus_id = atoi(start);
-						}
-						else {
-							mctp_prinfo("%s: No Bus id in port path: %s\n",
-							__func__, arg);
+						char recv_usb_path
+							[2 *
+							 MCTP_USB_PORT_PATH_MAX_LEN];
+						strncpy(recv_usb_path, arg,
+							2 * MCTP_USB_PORT_PATH_MAX_LEN);
+						char *hyphen_pos = strchr(
+							recv_usb_path, '-');
+						if (hyphen_pos) {
+							char *start =
+								recv_usb_path;
+							cfg.bus_id =
+								atoi(start);
+						} else {
+							mctp_prinfo(
+								"%s: No Bus id in port path: %s\n",
+								__func__, arg);
 							exit(EXIT_FAILURE);
 						}
 
-						strncpy(port_path, hyphen_pos + 1, sizeof(port_path));
+						strncpy(port_path,
+							hyphen_pos + 1,
+							sizeof(cfg.port_path));
 						// Convert port_path . to -
-						if(strlen(port_path) == 0)
-						{
-							mctp_prinfo("%s: No port hierarchy in"
-							" port path: %s\n", __func__, port_path);
+						if (strlen(port_path) == 0) {
+							mctp_prinfo(
+								"%s: No port hierarchy in"
+								" port path: %s\n",
+								__func__,
+								port_path);
 							exit(EXIT_FAILURE);
 						}
-						for(size_t i=0; i<strlen(port_path); i++)
-						{
-							if(port_path[i] == '.') {
-								port_path[i] = '-';
+						for (size_t i = 0;
+						     i < strlen(port_path);
+						     i++) {
+							if (port_path[i] ==
+							    '.') {
+								port_path[i] =
+									'-';
 							}
 						}
 						parsed = true;
 						break;
+					} else if (strncmp(params[ii],
+							   "json_file=", len) ==
+						   0) {
+						if (json_file_path != NULL)
+							continue;
+						/* Reuse the string instance, no need to strdup and free */
+						json_file_path = arg;
+						parsed = true;
+						break;
 					}
-					/* Check if a value is given in 'hex' or 'dec' */	
+					/* Check if a value is given in 'hex' or 'dec' */
 					else if (strncmp(arg, "0x", 2) == 0)
 						val = strtoul(arg, NULL, 16);
 					else
@@ -1228,14 +1256,15 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 	} else {
 		mctp_prinfo("Using default config .. no params\n");
 	}
+	if (parse_usb_json_config(&cfg, json_file_path) == EXIT_FAILURE)
+		exit(EXIT_FAILURE);
 
 	//update socket name based on bus_id, port_id
 	snprintf(usb_sockname + strlen(&usb_sockname[1]) + 1,
-			sizeof(usb_sockname)-strlen(&usb_sockname[1]), "-%d-%s", bus_id,
-			port_path);
+		 sizeof(usb_sockname) - strlen(&usb_sockname[1]), "-%d-%s",
+		 cfg.bus_id, port_path);
 	binding->sockname = usb_sockname;
-	usb = mctp_usb_init(vendor_id, product_id, class_id, mode,
-						bus_id, port_path);
+	usb = mctp_usb_init(&cfg);
 
 	MCTP_ASSERT_RET(usb != NULL, -1, "could not initialise usb binding");
 	mctp_prinfo("registering bus");

@@ -17,10 +17,12 @@
 /* */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <json-c/json.h>
 #include <errno.h>
 
+#include "ctrld/mctp-ctrl-cmdline.h"
 #include "mctp-json.h"
 #include "libmctp-log.h"
 #include "libmctp-smbus.h"
@@ -1043,4 +1045,156 @@ void mctp_json_spi_get_params_ctrl(json_object *jo, char **sockname,
 		val_str = json_object_get_string(j_tmp);
 		memcpy(cmdline->uuid_str, val_str, strlen(val_str));
 	}
+}
+
+/**
+ * @brief Get paramiters from json_file_path for mctp-ctrl
+ *        using USB.
+ *
+ * @param[in] cmdline - struct for config setting with will be updated after
+ * parsing json file.
+ * @param[in] json_file_path - JSON file path
+ */
+int mctp_json_usb_get_params_ctrl(mctp_cmdline_args_t *cmdline,
+				  const char *json_file_path)
+{
+	json_object *json = NULL, *obj = NULL, *attr = NULL;
+	char bus_port_path[MCTP_USB_PORT_PATH_MAX_LEN] = { 0 };
+	struct mctp_cmdline_usb *usb = &cmdline->usb;
+	int rc;
+
+	/* No need to parse from json file */
+	if (!json_file_path)
+		return EXIT_SUCCESS;
+
+	rc = mctp_json_get_tokener_parse(&json, json_file_path);
+	if (rc == EXIT_FAILURE) {
+		MCTP_ERR("Failed to get Json tokener\n");
+		return EXIT_FAILURE;
+	}
+
+	obj = json_object_object_get(json, "usb");
+	if (obj == NULL) {
+		MCTP_ERR("Failed to get usb object\n");
+		rc = EXIT_FAILURE;
+		goto exit;
+	}
+
+	/* Format the string as "<bus_id>-<port_path>" */
+	rc = snprintf(bus_port_path, sizeof(bus_port_path), "%d-%s",
+		      usb->bus_id, usb->port_path);
+
+	if (rc < 0 || (size_t)rc >= sizeof(bus_port_path)) {
+		fprintf(stderr,
+			"Buffer size is too small to hold the combined string\n");
+		rc = EXIT_FAILURE;
+		goto exit;
+	}
+	rc = EXIT_SUCCESS;
+
+	obj = json_object_object_get(obj, bus_port_path);
+	if (obj == NULL) {
+		MCTP_ERR("Failed to get usb port path object:%s\n",
+			 bus_port_path);
+		rc = EXIT_FAILURE;
+		goto exit;
+	}
+
+	attr = json_object_object_get(obj, "own_eid");
+	if (attr == NULL) {
+		MCTP_ERR("Failed to get own_eid\n");
+		rc = EXIT_FAILURE;
+		goto exit;
+	}
+	usb->own_eid = json_object_get_int(attr);
+
+	attr = json_object_object_get(obj, "bridge_eid");
+	if (attr == NULL) {
+		MCTP_ERR("Failed to get bridge_eid\n");
+		rc = EXIT_FAILURE;
+		goto exit;
+	}
+	usb->bridge_eid = json_object_get_int(attr);
+
+	attr = json_object_object_get(obj, "bridge_pool_start");
+	if (attr == NULL) {
+		MCTP_ERR("Failed to get bridge_pool_start\n");
+		rc = EXIT_FAILURE;
+		goto exit;
+	}
+	usb->bridge_pool_start = json_object_get_int(attr);
+
+exit:
+	json_object_put(json);
+	return rc;
+}
+
+/**
+ * @brief Get paramiters from cfg->json_file_path for mctp-demux-daemon
+ *        using USB.
+ */
+int mctp_json_usb_get_params_demux(mctp_usb_dev_cfg_t *cfg,
+				   const char *json_file_path)
+{
+	json_object *json, *obj, *attr;
+	char bus_port_path[MCTP_USB_PORT_PATH_MAX_LEN] = { 0 };
+	int rc;
+
+	/* No need to parse from json file */
+	if (!json_file_path)
+		return EXIT_SUCCESS;
+
+	rc = mctp_json_get_tokener_parse(&json, json_file_path);
+	if (rc == EXIT_FAILURE) {
+		MCTP_ERR("Failed to get Json tokener\n");
+		return EXIT_FAILURE;
+	}
+
+	obj = json_object_object_get(json, "usb");
+	if (obj == NULL) {
+		MCTP_ERR("Failed to get usb object\n");
+		rc = EXIT_FAILURE;
+		goto exit;
+	}
+
+	// Format the string as "<bus_id>-<port_path>"
+	rc = snprintf(bus_port_path, sizeof(bus_port_path), "%d-%s",
+		      cfg->bus_id, cfg->port_path);
+
+	// Check if the result fits in the buffer
+	if (rc < 0 || (size_t)rc >= sizeof(bus_port_path)) {
+		fprintf(stderr,
+			"Buffer size is too small to hold the combined string\n");
+		rc = EXIT_FAILURE;
+		goto exit;
+	}
+	rc = EXIT_SUCCESS;
+
+	obj = json_object_object_get(obj, bus_port_path);
+	if (obj == NULL) {
+		MCTP_ERR("Failed to get usb port path object:%s\n",
+			 bus_port_path);
+		rc = EXIT_FAILURE;
+		goto exit;
+	}
+
+	attr = json_object_object_get(obj, "vendor_id");
+	if (attr == NULL) {
+		MCTP_ERR("Failed to get vendor_id\n");
+		rc = EXIT_FAILURE;
+		goto exit;
+	}
+	cfg->vendor_id = strtol(json_object_get_string(attr), NULL, 16);
+
+	attr = json_object_object_get(obj, "product_id");
+	if (attr == NULL) {
+		MCTP_ERR("Failed to get product_id\n");
+		rc = EXIT_FAILURE;
+		goto exit;
+	}
+	cfg->product_id = strtol((json_object_get_string(attr)), NULL, 16);
+
+exit:
+	json_object_put(json);
+	return rc;
 }
