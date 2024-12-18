@@ -224,6 +224,8 @@ bool mctp_encode_vendor_cmd_downloadlog(struct mctp_vendor_cmd_downloadlog *cmd,
 					uint8_t session);
 bool mctp_encode_vendor_cmd_background_copy(
 	struct mctp_vendor_cmd_background_copy *cmd);
+bool mctp_encode_vendor_cmd_background_copy_v2(
+	struct mctp_vendor_cmd_background_copy *cmd);
 bool mctp_encode_vendor_cmd_dbg_token_inst(
 	struct mctp_vendor_cmd_dbg_token_inst *cmd);
 bool mctp_encode_vendor_cmd_dbg_token_erase(
