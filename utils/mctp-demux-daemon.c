@@ -1120,9 +1120,6 @@ static void binding_usb_usage(void)
 {
 	mctp_prinfo(
 		"Usage: usb (use dec or hex value)\n"
-		"\tvendor_id=<vendor id> - usb vendor id to filter\n"
-		"\tproduct_id=<product id> - usb product id to filter\n"
-		"\tclass_id=<class id> - usb class id to filter\n"
 		"\tport_path=<port path> - USB dev port path \n"
 		"\t\t\t\t as <bus_id>-<port1>.<port2>.<port3>\n"
 		"\tmode=<mode> - USB packetization mode.\n"
@@ -1148,8 +1145,6 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 	mctp_usb_dev_cfg_t cfg = {
 		.bus_id = -1,
 		.mode = MCTP_USB_BATCH_NONE,
-		.vendor_id = DEFAULT_FPGA_VENDOR_ID,
-		.product_id = DEFAULT_FPGA_PRODUCT_ID,
 		.port_path = { 0 },
 	};
 	char *port_path = cfg.port_path;
@@ -1157,9 +1152,6 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 		char *prefix;
 		void *target;
 	} options[] = {
-		{ "vendor_id=", &cfg.vendor_id },
-		{ "product_id=", &cfg.product_id },
-		{ "class_id=", &cfg.class_id },
 		{ "mode=", &cfg.mode },
 		{ "port_path=", &cfg.port_path },
 		{ "json_file=", NULL },

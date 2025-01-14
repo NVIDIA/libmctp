@@ -1136,7 +1136,7 @@ exit:
 int mctp_json_usb_get_params_demux(mctp_usb_dev_cfg_t *cfg,
 				   const char *json_file_path)
 {
-	json_object *json, *obj, *attr;
+	json_object *json, *obj;
 	char bus_port_path[MCTP_USB_PORT_PATH_MAX_LEN] = { 0 };
 	int rc;
 
@@ -1177,22 +1177,6 @@ int mctp_json_usb_get_params_demux(mctp_usb_dev_cfg_t *cfg,
 		rc = EXIT_FAILURE;
 		goto exit;
 	}
-
-	attr = json_object_object_get(obj, "vendor_id");
-	if (attr == NULL) {
-		MCTP_ERR("Failed to get vendor_id\n");
-		rc = EXIT_FAILURE;
-		goto exit;
-	}
-	cfg->vendor_id = strtol(json_object_get_string(attr), NULL, 16);
-
-	attr = json_object_object_get(obj, "product_id");
-	if (attr == NULL) {
-		MCTP_ERR("Failed to get product_id\n");
-		rc = EXIT_FAILURE;
-		goto exit;
-	}
-	cfg->product_id = strtol((json_object_get_string(attr)), NULL, 16);
 
 exit:
 	json_object_put(json);

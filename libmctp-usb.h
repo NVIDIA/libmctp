@@ -39,9 +39,6 @@ extern "C" {
 /* Maximum USB packet size for MCTP_USB_BATCH_REG */
 #define USB_MAX_PKT 512
 
-#define DEFAULT_FPGA_VENDOR_ID	0x0955
-#define DEFAULT_FPGA_PRODUCT_ID 0xFFFF
-
 enum { MCTP_USB_NO_ERROR = 0, MCTP_USB_FD_CHANGE };
 
 typedef enum {
@@ -52,9 +49,6 @@ typedef enum {
 } MctpUsbBatchMode;
 
 typedef struct mctp_usb_dev_cfg {
-	uint16_t vendor_id;
-	uint16_t product_id;
-	uint16_t class_id;
 	MctpUsbBatchMode mode;
 	uint8_t bus_id;
 	char port_path[MCTP_USB_PORT_PATH_MAX_LEN];

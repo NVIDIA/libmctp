@@ -652,9 +652,9 @@ struct mctp_binding_usb *mctp_usb_init(mctp_usb_dev_cfg_t *cfg)
 		NULL,
 		LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED |
 			LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT,
-		LIBUSB_HOTPLUG_ENUMERATE, cfg->vendor_id, cfg->product_id,
-		LIBUSB_HOTPLUG_MATCH_ANY, mctp_usb_hotplug_callback, usb,
-		&callback_handle);
+		LIBUSB_HOTPLUG_ENUMERATE, LIBUSB_HOTPLUG_MATCH_ANY,
+		LIBUSB_HOTPLUG_MATCH_ANY, LIBUSB_HOTPLUG_MATCH_ANY,
+		mctp_usb_hotplug_callback, usb, &callback_handle);
 	if (LIBUSB_SUCCESS != rc) {
 		mctp_prerr(
 			"%s: Error creating a hotplug callback with value %d\n",
