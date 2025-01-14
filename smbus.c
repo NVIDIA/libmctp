@@ -397,13 +397,18 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len,
 	uint8_t *buf = malloc(len);
 	if (buf == NULL) {
 		MCTP_ERR("failed to malloc buffer");
+		return -1;
 	}
 	memcpy(buf, smbus->txbuf_ptr, len);
 
 	struct smbus_tx_thread_info *info =
 		(struct smbus_tx_thread_info *)malloc(
 			sizeof(struct smbus_tx_thread_info));
-
+	if (!info) {
+		free(buf);
+		MCTP_ERR("failed to malloc TX thread info");
+		return -1;
+	}
 	struct mctp_hdr *hdr = (void *)(smbus->txbuf_ptr +
 					sizeof(struct mctp_smbus_header_tx));
 
@@ -417,6 +422,8 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len,
 
 	if (out_fd < 0) {
 		MCTP_ERR("The dest eid is not supported on any SMBUS");
+		free(info);
+		free(buf);
 		return 0;
 	}
 	pthread_mutex_lock(&thread_mutex);
@@ -428,6 +435,12 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len,
 	info->addr = dest_addr;
 
 	struct qentry *node = malloc(sizeof(struct qentry));
+	if (!node) {
+		free(buf);
+		free(info);
+		MCTP_ERR("failed to malloc node");
+		return -1;
+	}
 	node->data = info;
 
 	pthread_cond_signal(&cond);
