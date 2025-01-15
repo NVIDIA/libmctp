@@ -777,11 +777,9 @@ static const sd_bus_vtable mctp_ctrl_service_ready_vtable[] = {
 	SD_BUS_VTABLE_END
 };
 
-static int mctp_mark_service_ready(mctp_sdbus_context_t *context)
+static void mctp_get_ctrl_objpath(mctp_sdbus_context_t *context,
+				  char *mctp_ctrl_objpath)
 {
-	int r = 0;
-	char mctp_ctrl_objpath[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE];
-
 	memset(mctp_ctrl_objpath, '\0', MCTP_CTRL_SDBUS_OBJ_PATH_SIZE);
 	if (MCTP_BINDING_SMBUS == context->cmdline->binding_type) {
 		snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_OBJ_PATH_SIZE,
@@ -796,6 +794,15 @@ static int mctp_mark_service_ready(mctp_sdbus_context_t *context)
 		snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_OBJ_PATH_SIZE,
 			 "%s/%s", MCTP_CTRL_OBJ_NAME, mctp_medium_type);
 	}
+}
+
+static int mctp_mark_service_ready(mctp_sdbus_context_t *context)
+{
+	int r = 0;
+	char mctp_ctrl_objpath[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE];
+
+	mctp_get_ctrl_objpath(context, mctp_ctrl_objpath);
+
 	r = sd_bus_add_object_manager(context->bus, NULL, mctp_ctrl_objpath);
 	if (r < 0) {
 		MCTP_CTRL_ERR("Failed to add object manager: %s\n",
@@ -1033,9 +1040,8 @@ static int mctp_ctrl_sdbus_host_endpoints(const mctp_cmdline_args_t *cmdline,
 	char mctp_ctrl_objpath[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE];
 	int r = 0;
 
-	memset(mctp_ctrl_objpath, '\0', MCTP_CTRL_SDBUS_OBJ_PATH_SIZE);
-	snprintf(mctp_ctrl_objpath, MCTP_CTRL_SDBUS_OBJ_PATH_SIZE, "%s/%s",
-		 MCTP_CTRL_OBJ_NAME, mctp_medium_type);
+	mctp_get_ctrl_objpath(context, mctp_ctrl_objpath);
+
 	r = mctp_sdbus_refresh_endpoints(cmdline, context);
 	if (r < 0) {
 		MCTP_CTRL_ERR("Failed to add/refresh D-Bus objects: %s\n",
