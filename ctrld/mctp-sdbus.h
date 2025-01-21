@@ -91,7 +91,7 @@ typedef struct mctp_sdbus_context {
 #endif
 } mctp_sdbus_context_t;
 
-enum { SDBUS_POLLING_TIMEOUT = 1, SDBUS_PROCESS_EVENT };
+enum { SDBUS_POLLING_TIMEOUT = 1, SDBUS_PROCESS_EVENT, SDBUS_SIGTERM };
 
 /**
  * @brief initialize D-Bus objects for mctp ctrl servies and hanlde D-Bus requests
