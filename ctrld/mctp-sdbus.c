@@ -655,11 +655,15 @@ static int mctp_ctrl_monitor_signal_events(mctp_sdbus_context_t *context)
 			return 0;
 		}
 
+		/* return a positive value when systemd tries to terminate the
+		   mctp-demux-daemon so that the service state can be "inactive"
+		   but not "failed".
+		*/
 		if (si.ssi_signo == SIGINT || si.ssi_signo == SIGTERM) {
 			MCTP_CTRL_INFO("%s: %d signal received", __func__,
 				       si.ssi_signo);
 			mctp_ctrl_sdbus_stop();
-			return -1;
+			return si.ssi_signo;
 		}
 	}
 
@@ -1141,9 +1145,9 @@ int mctp_ctrl_sdbus_dispatch(mctp_ctrl_t *mctp_ctrl,
 	}
 
 	r = mctp_ctrl_monitor_signal_events(context);
-	if (r < 0) {
-		MCTP_CTRL_INFO("Signal event is capatured\n");
-		return -1;
+	if (r > 0) {
+		MCTP_CTRL_INFO("Signal:%d is capatured\n", r);
+		return (r == SIGTERM) ? SDBUS_SIGTERM : -1;
 	}
 
 	r = mctp_ctrl_dispatch_sd_bus(context);
@@ -1216,7 +1220,9 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 	MCTP_CTRL_DEBUG("%s: Entering polling loop\n", __func__);
 
 	while (mctp_ctrl_running) {
-		if ((r = mctp_ctrl_sdbus_dispatch(mctp_ctrl, context)) < 0) {
+		r = mctp_ctrl_sdbus_dispatch(mctp_ctrl, context);
+
+		if ((r < 0) || (r == SDBUS_SIGTERM)) {
 			break;
 		}
 	}
