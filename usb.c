@@ -183,6 +183,7 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 	bool bus_reg = false;
 	struct mctp_binding_usb *usb = user_data;
 	struct mctp_binding *base_usb = &usb->binding;
+	bool ignore = true;
 	(void)libusb_get_device_descriptor(dev, &desc);
 	(void)ctx;
 
@@ -246,6 +247,7 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 						*itf_desc = &itf->altsetting[k];
 					if (itf_desc->bInterfaceClass ==
 					    MCTP_CLASS_ID) {
+						ignore = false;
 						for (uint8_t l = 0;
 						     l <
 						     itf_desc->bNumEndpoints;
@@ -269,6 +271,11 @@ int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 					}
 				}
 			}
+		}
+
+		if (true == ignore) {
+			mctp_prinfo("%s: Ignoring device.", __func__);
+			return 0;
 		}
 
 		rc = libusb_open(dev, &dev_handle);
