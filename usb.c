@@ -160,17 +160,29 @@ out:
 			__func__, libusb_error_name(ret), ret);
 	}
 }
-void mctp_usb_get_port_path(uint8_t *port_numbers, int num, char *port_path)
+void mctp_usb_get_port_path(uint8_t *port_numbers, const int num,
+			    char *port_path)
 {
-	/*max 2 digit port number + 1 for - + 1 for null + 1 to avoid compiler warnging*/
-	int buffer_size = 5;
-	snprintf(port_path, buffer_size, "%d", port_numbers[0]);
-	for (int i = 1; i < num; i++) {
-		snprintf(port_path + strlen(port_path), buffer_size, "-%d",
+	size_t buffer_size = MCTP_USB_PORT_PATH_MAX_LEN;
+	mctp_prinfo("%s:num: %d\n", __func__, num);
+	/* resultant len ctr */
+	int len = 0;
+	for (int i = 0; i < num; i++) {
+		if (i > 0) {
+			snprintf(&port_path[len], buffer_size - len, "-");
+			len++;
+		}
+		/* safe since port_numbers[i] is uint8 */
+		snprintf(&port_path[len], buffer_size - len, "%d",
 			 port_numbers[i]);
+		len++;
 	}
-	mctp_prinfo("%s:port path for arrived device= %s\n", __func__,
-		    port_path);
+	/* 
+	 * Handle case with empty string, even though
+	 * snprintf appends \0
+	 */
+	port_path[len] = '\0';
+	mctp_prinfo("%s:port_path: %s\n", __func__, port_path);
 }
 
 int mctp_usb_hotplug_callback(struct libusb_context *ctx,
