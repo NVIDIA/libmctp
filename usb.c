@@ -631,52 +631,52 @@ struct mctp_binding *mctp_binding_usb_core(struct mctp_binding_usb *usb)
 struct mctp_binding_usb *mctp_usb_init(mctp_usb_dev_cfg_t *cfg)
 {
 	struct mctp_binding_usb *usb;
-	libusb_hotplug_callback_handle callback_handle;
 	MctpUsbBatchMode mode = cfg->mode;
-	int rc;
+	enum libusb_error rc;
+	void (*const mctp_send_tx_queue_usb_cb[MCTP_USB_BATCH_ZPAD + 1])(
+		struct mctp_bus *) = {
+		[MCTP_USB_BATCH_NONE] = NULL,
+		[MCTP_USB_BATCH_REG] = mctp_send_tx_queue_usb,
+		[MCTP_USB_BATCH_FRAG] = mctp_send_tx_queue_usb_frag,
+		[MCTP_USB_BATCH_ZPAD] = mctp_send_tx_queue_usb_zpad,
+	};
+
 	usb = __mctp_alloc(sizeof(*usb));
-	memset(usb->port_path, '\0', sizeof(usb->port_path));
-	libusb_init(&usb->ctx);
-	usb->dev_handle = NULL;
-	usb->bindingfds_change = false;
-	usb->txbuf_ptr = NULL;
+	if (!usb) {
+		MCTP_ERR("Failed to alloc memory\n");
+		return NULL;
+	}
 
-	usb->binding.name = "usb";
-	usb->binding.version = 1;
-	usb->bus_no = cfg->bus_id;
-	strncpy(usb->port_path, cfg->port_path, sizeof(usb->port_path) - 1);
-
-	mctp_prinfo("Starting USB binding with mode: %d\n", mode);
-
-	if (MCTP_USB_BATCH_NONE == mode) {
-		usb->binding.mctp_send_tx_queue = NULL;
-	} else if (MCTP_USB_BATCH_REG == mode) {
-		usb->binding.mctp_send_tx_queue = mctp_send_tx_queue_usb;
-	} else if (MCTP_USB_BATCH_FRAG == mode) {
-		usb->binding.mctp_send_tx_queue = mctp_send_tx_queue_usb_frag;
-	} else if (MCTP_USB_BATCH_ZPAD == mode) {
-		usb->binding.mctp_send_tx_queue = mctp_send_tx_queue_usb_zpad;
-	} else {
+	if (mode < 0 || mode > MCTP_USB_BATCH_ZPAD) {
 		mctp_prinfo(
 			"Unknown USB batch mode %d detected, revert to no batching!\n",
 			mode);
+		mode = 0;
 	}
+	mctp_prinfo("Starting USB binding with mode: %d\n", mode);
 
-	usb->binding.pkt_size = MCTP_PACKET_SIZE(MCTP_BTU);
-	usb->binding.pkt_header = 4;
-	usb->binding.pkt_trailer = 0;
-	usb->binding.pkt_priv_size = sizeof(struct mctp_usb_pkt_private);
+	*usb = (struct mctp_binding_usb) {
+		.bus_no = cfg->bus_id,
+		.mode = mode,
+		.binding = {
+			.name = "usb",
+			.version = 1,
+			.pkt_size = MCTP_PACKET_SIZE(MCTP_BTU),
+			.pkt_header = 4,
+			.pkt_trailer = 0,
+			.pkt_priv_size = sizeof(struct mctp_usb_pkt_private),
+			.start = mctp_usb_start,
+			.tx = mctp_binding_usb_tx,
+			.mctp_send_tx_queue = mctp_send_tx_queue_usb_cb[mode],
+		},
+	};
+	strncpy(usb->port_path, cfg->port_path, sizeof(usb->port_path) - 1);
 
+	libusb_init(&usb->ctx);
 	usb->usb_poll_fds = libusb_get_pollfds(usb->ctx);
-	usb->bindingfds_cnt = 0;
 	while (usb->usb_poll_fds[usb->bindingfds_cnt]) {
 		usb->bindingfds_cnt++;
 	}
-	usb->binding.start = mctp_usb_start;
-	usb->binding.tx = mctp_binding_usb_tx;
-	usb->tx_cntr = 0;
-	usb->tx_failed_cntr = 0;
-	usb->mode = mode;
 
 	rc = libusb_hotplug_register_callback(
 		NULL,
@@ -684,11 +684,10 @@ struct mctp_binding_usb *mctp_usb_init(mctp_usb_dev_cfg_t *cfg)
 			LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT,
 		LIBUSB_HOTPLUG_ENUMERATE, LIBUSB_HOTPLUG_MATCH_ANY,
 		LIBUSB_HOTPLUG_MATCH_ANY, LIBUSB_HOTPLUG_MATCH_ANY,
-		mctp_usb_hotplug_callback, usb, &callback_handle);
+		mctp_usb_hotplug_callback, usb, NULL);
 	if (LIBUSB_SUCCESS != rc) {
-		mctp_prerr(
-			"%s: Error creating a hotplug callback with value %d\n",
-			__func__, rc);
+		mctp_prerr("%s: Error creating a hotplug callback:%s\n",
+			   __func__, libusb_error_name(rc));
 		libusb_exit(NULL);
 	}
 	return usb;
