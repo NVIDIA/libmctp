@@ -667,6 +667,17 @@ struct mctp_binding_usb *mctp_usb_init(mctp_usb_dev_cfg_t *cfg)
 	usb->binding.pkt_trailer = 0;
 	usb->binding.pkt_priv_size = sizeof(struct mctp_usb_pkt_private);
 
+	usb->usb_poll_fds = libusb_get_pollfds(usb->ctx);
+	usb->bindingfds_cnt = 0;
+	while (usb->usb_poll_fds[usb->bindingfds_cnt]) {
+		usb->bindingfds_cnt++;
+	}
+	usb->binding.start = mctp_usb_start;
+	usb->binding.tx = mctp_binding_usb_tx;
+	usb->tx_cntr = 0;
+	usb->tx_failed_cntr = 0;
+	usb->mode = mode;
+
 	rc = libusb_hotplug_register_callback(
 		NULL,
 		LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED |
@@ -680,17 +691,6 @@ struct mctp_binding_usb *mctp_usb_init(mctp_usb_dev_cfg_t *cfg)
 			__func__, rc);
 		libusb_exit(NULL);
 	}
-	usb->usb_poll_fds = libusb_get_pollfds(usb->ctx);
-	usb->bindingfds_cnt = 0;
-	while (usb->usb_poll_fds[usb->bindingfds_cnt]) {
-		usb->bindingfds_cnt++;
-	}
-	usb->binding.start = mctp_usb_start;
-	usb->binding.tx = mctp_binding_usb_tx;
-	usb->tx_cntr = 0;
-	usb->tx_failed_cntr = 0;
-	usb->mode = mode;
-
 	return usb;
 }
 
