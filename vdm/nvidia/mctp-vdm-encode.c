@@ -180,6 +180,18 @@ bool mctp_encode_vendor_cmd_background_copy(
 	ENCODE_VMD_CMD_FUNC(BG_COPY);
 }
 
+bool mctp_encode_vendor_cmd_background_copy_v2(
+	struct mctp_vendor_cmd_background_copy *cmd)
+{
+	MCTP_ASSERT_RET(cmd != NULL, false, "cmd is NULL\n");
+
+	encode_vendor_cmd_header(&cmd->vdr_msg_hdr, getRqDgramInst(),
+				 MCTP_VENDOR_CMD_BG_COPY);
+	cmd->vdr_msg_hdr.msg_version = MCTP_VDM_HDR_MSG_VER_2;
+
+	return true;
+}
+
 bool mctp_encode_vendor_cmd_hbenvent(struct mctp_vendor_cmd_hbenvent *cmd)
 {
 	ENCODE_VMD_CMD_FUNC(HEARTBEAT);

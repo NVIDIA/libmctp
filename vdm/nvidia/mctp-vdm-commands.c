@@ -1329,6 +1329,50 @@ void create_json_background_copy_progress_byte_1(const uint8_t *resp_msg,
 }
 
 /*
+ * This function parses the first byte from the response of 
+ * the 'background_copy_progress_v2' command and generates corresponding JSON 
+ * data representing the status of the background copy progress.
+ * The status indicates whether background copy is in progress or not.
+ * 
+ * Possible statuses:
+ * 0x1: No background copy in progress or background copy complete.
+ * 0x2: Background copy in progress.
+ * 0x3: Background copy was successful.
+ * 0x4: Background copy failed.
+ * 
+ */
+void create_json_background_copy_progress_byte_1_v2(
+	const uint8_t *resp_msg, struct json_object *json_obj)
+{
+	uint8_t resp_byte_1 =
+		resp_msg[MCTP_VDM_BACKGROUND_COPY_BYTE_1_POSITION];
+
+	char *progress_value_txt;
+
+	switch (resp_byte_1) {
+	case 0x1:
+		progress_value_txt =
+			"No background copy in progress or background copy complete";
+		break;
+	case 0x2:
+		progress_value_txt = "Background copy in progress";
+		break;
+	case 0x3:
+		progress_value_txt = "Background copy successful";
+		break;
+	case 0x4:
+		progress_value_txt = "Background copy failed";
+		break;
+	default:
+		progress_value_txt = "Undefined value";
+		break;
+	}
+
+	json_object_object_add(json_obj, "STATUS",
+			       json_object_new_string(progress_value_txt));
+}
+
+/*
  * This function parses the second byte from the response of 
  * the 'background_copy_progress' command and generates corresponding JSON 
  * data representing the progress of background copy operation.
@@ -1415,6 +1459,36 @@ int background_copy(int fd, uint8_t tid, uint8_t code, uint8_t verbose)
 }
 
 /*
+ * Background Copy v2:
+ * This function performs a background copy operation using MCTP VDM version 2 commands.
+ * It encodes the necessary VDM headers, updates the operation code, and communicates with the target device.
+ */
+int background_copy_v2(int fd, uint8_t tid, uint8_t code, uint8_t verbose)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_background_copy cmd = { 0 };
+
+	/* Encode the VDM headers for Background copy */
+	mctp_encode_vendor_cmd_background_copy_v2(&cmd);
+
+	/* Update the code field */
+	cmd.code = code;
+
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
+				       (uint8_t **)&resp, &resp_len, verbose);
+
+	/* free memory */
+	free(resp);
+
+	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
+			"%s: fail to recv [rc: %d] response\n", __func__, rc);
+	return 0;
+}
+
+/*
  * Background Copy v1:
  * The command is mainly used to manage interaction between Global #WP
  * and background copy.
@@ -1473,6 +1547,71 @@ int background_copy_json(int fd, uint8_t tid, uint8_t code)
 
 	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, -1,
 			"%s: fail to recv [rc: %d] response\n", __func__, rc);
+	return 0;
+}
+
+/*
+ * Background Copy v2:
+ * This function executes a background copy operation using MCTP VDM version 2 commands
+ * and processes the response to generate a JSON-formatted output based on the operation code.
+ */
+int background_copy_json_v2(int fd, uint8_t tid, uint8_t code)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc = -1;
+	struct mctp_vendor_cmd_background_copy cmd = { 0 };
+
+	/* Encode the VDM headers for Background copy */
+	mctp_encode_vendor_cmd_background_copy_v2(&cmd);
+
+	/* Update the code field */
+	cmd.code = code;
+
+	/* Send and Receive the MCTP-VDM command */
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
+				       (uint8_t **)&resp, &resp_len, false);
+
+	if (rc != MCTP_REQUESTER_SUCCESS) {
+		fprintf(stderr, "%s: fail to recv [rc: %d] response\n",
+			__func__, rc);
+		free(resp);
+		return rc;
+	}
+
+	struct json_object *json_obj = json_object_new_object();
+	struct json_object *background_copy_response = json_object_new_object();
+
+	create_json_with_completion_code(resp, background_copy_response);
+
+	switch (code) {
+	case MCTP_VDM_BACKGROUND_COPY_QUERY_STATUS:
+		create_json_background_copy_query_status_byte_1(
+			resp, background_copy_response);
+		break;
+	case MCTP_VDM_BACKGROUND_COPY_PROGRESS:
+		create_json_background_copy_progress_byte_1_v2(
+			resp, background_copy_response);
+		create_json_background_copy_progress_byte_2(
+			resp, background_copy_response);
+		break;
+	case MCTP_VDM_BACKGROUND_COPY_PENDING:
+		create_json_background_copy_pending_byte_1(
+			resp, background_copy_response);
+		break;
+	}
+
+	json_object_object_add(json_obj, "RESPONSE", background_copy_response);
+
+	/* Printing JSON object */
+	printf("%s\n", json_object_to_json_string_ext(json_obj,
+						      JSON_C_TO_STRING_PRETTY));
+
+	json_object_put(json_obj);
+
+	/* free memory */
+	free(resp);
+
 	return 0;
 }
 

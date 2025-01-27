@@ -78,18 +78,21 @@ static const struct option options[] = {
 };
 
 /* List of commands that support JSON output */
-const char *commands_supported_json_flag[] = { "query_boot_status",
-					       "background_copy_init",
-					       "background_copy_disable",
-					       "background_copy_enable",
-					       "background_copy_disable_one",
-					       "background_copy_enable_one",
-					       "background_copy_query_status",
-					       "background_copy_query_progress",
-					       "background_copy_query_pending",
-					       "in_band_disable",
-					       "in_band_enable",
-					       "in_band_query_status" };
+const char *commands_supported_json_flag[] = {
+	"query_boot_status",
+	"background_copy_init",
+	"background_copy_disable",
+	"background_copy_enable",
+	"background_copy_disable_one",
+	"background_copy_enable_one",
+	"background_copy_query_status",
+	"background_copy_query_progress",
+	"background_copy_query_progress_v2",
+	"background_copy_query_pending",
+	"in_band_disable",
+	"in_band_enable",
+	"in_band_query_status"
+};
 
 #define VMD_CMD_ASSERT_GOTO(cond, label, fmt, ...)                             \
 	do {                                                                   \
@@ -123,6 +126,7 @@ static void usage(void)
 		background_copy_disable, background_copy_enable\n \
 		background_copy_disable_one, background_copy_enable_one\n \
 		background_copy_query_status, background_copy_query_progress\n \
+		background_copy_query_progress_v2\n \
 		background_copy_query_pending\n \
 		in_band_disable, in_band_enable\n \
 		in_band_query_status\n \
@@ -713,6 +717,17 @@ int main(int argc, char *const *argv)
 			rc = background_copy(fd, teid,
 					     MCTP_VDM_BACKGROUND_COPY_PROGRESS,
 					     VERBOSE_EN);
+		}
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to query prog bg: %d\n", rc);
+	} else if (!strcmp(item, "background_copy_query_progress_v2")) {
+		if (json_output) {
+			rc = background_copy_json_v2(
+				fd, teid, MCTP_VDM_BACKGROUND_COPY_PROGRESS);
+		} else {
+			rc = background_copy_v2(
+				fd, teid, MCTP_VDM_BACKGROUND_COPY_PROGRESS,
+				VERBOSE_EN);
 		}
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to query prog bg: %d\n", rc);
