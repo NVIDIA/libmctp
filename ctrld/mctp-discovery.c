@@ -41,6 +41,10 @@
 #include "mctp-ctrl-log.h"
 #include "dbus_log_event.h"
 
+#ifdef MCTP_IN_KERNEL
+#include "mctp-netlink.h"
+#endif
+
 extern const char *phy_transport_binding_to_string(uint8_t id);
 
 extern uint8_t g_eid_pool_size;
@@ -402,7 +406,17 @@ int mctp_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
 		/* Reset the EID pool size */
 		g_eid_pool_size = 0;
 	}
+#ifdef MCTP_IN_KERNEL
+	if (mctp_nl_add_route(set_eid_resp->eid_set) < 0) {
+		MCTP_CTRL_ERR("%s: Failed to add route for eid %d\n", __func__,
+			      set_eid_resp->eid_set);
+	}
 
+	if (mctp_nl_add_neigh(set_eid_resp->eid_set) < 0) {
+		MCTP_CTRL_ERR("%s: Failed to add neigh for eid %d\n", __func__,
+			      set_eid_resp->eid_set);
+	}
+#endif
 	return MCTP_RET_REQUEST_SUCCESS;
 }
 

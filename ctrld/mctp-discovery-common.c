@@ -21,6 +21,10 @@
 #include "libmctp-cmds.h"
 #include "mctp-ctrl-log.h"
 
+#ifdef MCTP_IN_KERNEL
+#include "mctp-netlink.h"
+#endif
+
 /* Global pointer for Routing table and its length */
 mctp_routing_table_t *g_routing_table_entries = NULL;
 int g_routing_table_length = 0;
@@ -322,6 +326,19 @@ int mctp_routing_entry_add(struct get_routing_table_entry *routing_table_entry)
 
 	/* Increment the global counter */
 	g_routing_table_length++;
+
+#ifdef MCTP_IN_KERNEL
+	/*Routes and neighour for downstream eid*/
+	if (mctp_nl_add_route(new_entry->routing_table.starting_eid) < 0) {
+		MCTP_CTRL_ERR("%s: Failed to add route for eid %d\n", __func__,
+			      new_entry->routing_table.starting_eid);
+	}
+
+	if (mctp_nl_add_neigh(new_entry->routing_table.starting_eid) < 0) {
+		MCTP_CTRL_ERR("%s: Failed to add neigh for eid %d\n", __func__,
+			      new_entry->routing_table.starting_eid);
+	}
+#endif
 
 	return 0;
 }

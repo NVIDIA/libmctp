@@ -40,6 +40,9 @@ extern uint8_t g_eid_pool_size;
 extern uint8_t g_eid_pool_start;
 extern mctp_routing_table_t *g_routing_table_entries;
 extern const uint8_t MCTP_ROUTING_ENTRY_START;
+#ifdef MCTP_IN_KERNEL
+#include "mctp-netlink.h"
+#endif
 
 /* The EIDs and pool start information would be obtaind from commandline */
 static uint8_t g_i2c_bridge_eid, g_i2c_own_eid, g_i2c_bridge_pool_start;
@@ -256,7 +259,17 @@ int mctp_i2c_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
 			"%s: Set Endpoint id: 0x%x (Accepted by the device)\n",
 			__func__, set_eid_resp->eid_set);
 	}
+#ifdef MCTP_IN_KERNEL
+	if (mctp_nl_add_route(set_eid_resp->eid_set) < 0) {
+		MCTP_CTRL_ERR("%s: Failed to add route for eid %d\n", __func__,
+			      set_eid_resp->eid_set);
+	}
 
+	if (mctp_nl_add_neigh(set_eid_resp->eid_set) < 0) {
+		MCTP_CTRL_ERR("%s: Failed to add neigh for eid %d\n", __func__,
+			      set_eid_resp->eid_set);
+	}
+#endif
 	/* Check whether the device requires EID pool allocation or not */
 	if (set_eid_resp->status & MCTP_SETEID_ALLOC_STATUS_EID_POOL_REQ) {
 		MCTP_CTRL_DEBUG(
@@ -1283,14 +1296,40 @@ mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_t *cmd,
 		g_i2c_bus_info.buses[i].dest_slave_addr =
 			cmd->i2c.dest_slave_addr[i];
 
+#ifndef MCTP_IN_KERNEL
 		MCTP_CTRL_DEBUG("Doing discovery for: %d, address: %d\n",
 				g_i2c_bus, g_i2c_dest_slave_addr);
+#else
+		MCTP_CTRL_DEBUG("Doing discovery for: %d, address: %d\n",
+				cmd->dest_eid_tab[i],
+				g_i2c_bus_info.buses[i].dest_slave_addr);
+		char ifname[MAX_INTERFACE_LEN];
+		int rc = 0;
+		memset(ifname, '\0', MAX_INTERFACE_LEN);
+		sprintf(ifname, "mctpi2c%d", (int)g_i2c_bus_info.buses[i].bus);
+		update_interface_info(
+			ifname, &(g_i2c_bus_info.buses[i].dest_slave_addr), 1,
+			cmd->i2c.own_eid);
 
+		/* SMBUS/I2C require to set NETLINK socket for all slave devices*/
+		if ((rc = mctp_nl_socket_init(ifname, cmd->i2c.own_eid)) < 0) {
+			MCTP_CTRL_ERR(
+				"%s failed to setup nl_socket for %s eid %d rc %d\n",
+				__func__, ifname, cmd->i2c.own_eid, rc);
+			return MCTP_RET_DISCOVERY_FAILED;
+		}
+#endif
 		do {
 			/* Wait for MCTP response */
+#ifdef MCTP_IN_KERNEL
+			mctp_ret = mctp_discover_response(
+				discovery_mode, g_i2c_bus_info.buses[i].eid,
+				ctrl->sock, &mctp_resp_msg, &resp_msg_len);
+#else
 			mctp_ret = mctp_discover_response(
 				discovery_mode, cmd->i2c.own_eid, ctrl->sock,
 				&mctp_resp_msg, &resp_msg_len);
+#endif
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				MCTP_CTRL_ERR(
 					"%s: Failed to received message %d\n",
@@ -1313,7 +1352,6 @@ mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_t *cmd,
 				/* Update the EID operation and EID number */
 				set_eid_op = set_eid;
 				eid = cmd->dest_eid_tab[i];
-
 				g_i2c_bus_info.buses[i].eid = eid;
 
 				/* Send the MCTP_SET_EP_REQUEST */

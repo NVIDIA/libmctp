@@ -65,6 +65,9 @@
 #ifdef MOCKUP_ENDPOINT
 #include "fsdyn-endpoint.h"
 #endif
+#ifdef MCTP_IN_KERNEL
+#include "mctp-netlink.h"
+#endif
 
 /* MCTP Tx/Rx waittime in milli-seconds */
 #define MCTP_CTRL_WAIT_SECONDS (1 * 1000)
@@ -117,6 +120,49 @@ mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd, mctp_ctrl_t *ctrl);
 extern void *mctp_spi_keepalive_event(void *arg);
 extern mctp_ret_codes_t
 mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd, mctp_ctrl_t *ctrl);
+
+#ifdef MCTP_IN_KERNEL
+int fill_interface_info(mctp_binding_ids_t binding_type, char *pattern,
+			uint8_t *phy_addr, uint8_t phy_addlen, uint8_t ifeid)
+{
+	char ifname[MAX_INTERFACE_LEN];
+	int rc = 0;
+
+	memset(ifname, '\0', MAX_INTERFACE_LEN);
+	if (ifeid < MIN_EID) {
+		MCTP_CTRL_WARN(
+			"%s ifeid (%d) should be greater than MIN_EID (8)\n",
+			__func__, ifeid);
+		ifeid = MIN_EID;
+	}
+
+	if (binding_type == MCTP_BINDING_USB ||
+	    binding_type == MCTP_BINDING_SPI) {
+		/* Can get ifindex via alternate as well*/
+		memcpy(ifname, pattern, MAX_INTERFACE_LEN - 1);
+		ifname[MAX_INTERFACE_LEN - 1] = '\0';
+		memset(phy_addr, 0x0, MAX_ADDR_LEN);
+		phy_addlen = 0;
+	} else if (binding_type == MCTP_BINDING_SMBUS) {
+		/* Ignore as SMBUS/I2c will be filled during discovery*/
+		return 0;
+	}
+
+	if (update_interface_info(ifname, phy_addr, phy_addlen, ifeid) < 0) {
+		MCTP_CTRL_ERR("%s failed to update interface info\n", __func__);
+		return -1;
+	}
+
+	if ((rc = mctp_nl_socket_init(ifname, ifeid)) < 0) {
+		MCTP_CTRL_ERR(
+			"%s failed to setup nl_socket for %s eid %d rc [%d]\n",
+			__func__, ifname, ifeid, rc);
+		return -1;
+	}
+
+	return 0;
+}
+#endif
 
 #ifdef MOCKUP_ENDPOINT
 // Create selected endpoint
@@ -1168,7 +1214,8 @@ static void parse_command_line(int argc, char *const *argv,
 			}
 			break;
 		case 'j':
-			if (cmdline->binding_type == MCTP_BINDING_SMBUS) {
+			if (cmdline->binding_type == MCTP_BINDING_SMBUS ||
+			    cmdline->binding_type == MCTP_BINDING_SPI) {
 				own_eid = (uint8_t)atoi(optarg);
 			}
 			break;
@@ -1262,7 +1309,10 @@ static void parse_command_line(int argc, char *const *argv,
 			exit(EXIT_FAILURE);
 		}
 	}
-
+#ifdef MCTP_IN_KERNEL
+	uint8_t phy_addr[MAX_ADDR_LEN] = { 0 };
+	uint8_t phy_addlen = 0;
+#endif
 	switch (cmdline->binding_type) {
 	case MCTP_BINDING_PCIE:
 		cmdline->pcie.bridge_eid = bridge_eid;
@@ -1278,6 +1328,18 @@ static void parse_command_line(int argc, char *const *argv,
 			parse_spi_json_config(config_json_file_path, cmdline);
 			mctp_ctrl->eid = cmdline->dest_eid;
 		}
+#ifdef MCTP_IN_KERNEL
+		MCTP_CTRL_ERR("dev_num %d channelnum %d", cmdline->spi.dev_num,
+			      cmdline->spi.channel);
+		char ifname[MAX_INTERFACE_LEN];
+		memset(ifname, '\0', sizeof(ifname));
+		snprintf(ifname, sizeof(ifname), "mctpspi%d_%d",
+			 cmdline->spi.dev_num, cmdline->spi.channel);
+		if (fill_interface_info(MCTP_BINDING_SPI, ifname, phy_addr,
+					phy_addlen, own_eid) < 0) {
+			exit(EXIT_FAILURE);
+		}
+#endif
 		break;
 	case MCTP_BINDING_SMBUS:
 		if (config_json_file_path != NULL) {
@@ -1302,6 +1364,24 @@ static void parse_command_line(int argc, char *const *argv,
 		if (parse_usb_json_config(cmdline, config_json_file_path) ==
 		    EXIT_FAILURE)
 			exit(EXIT_FAILURE);
+#ifdef MCTP_IN_KERNEL
+		char altname[5 * MCTP_USB_PORT_PATH_MAX_DEPTH];
+		char port_path[MCTP_USB_PORT_PATH_MAX_LEN];
+		memset(altname, '\0', sizeof(altname));
+		memset(port_path, '\0', sizeof(port_path));
+		strncpy(port_path, cmdline->usb.port_path,
+			sizeof(port_path) - 1);
+		port_path[sizeof(port_path) - 1] = '\0';
+		for (size_t ind = 0; ind < strlen(port_path); ind++)
+			if (port_path[ind] == '-')
+				port_path[ind] = '.';
+		snprintf(altname, sizeof(altname), "mctpusb%d-%s",
+			 cmdline->usb.bus_id, port_path);
+		if (fill_interface_info(MCTP_BINDING_USB, altname, phy_addr,
+					phy_addlen, cmdline->usb.own_eid) < 0) {
+			exit(EXIT_FAILURE);
+		}
+#endif
 		break;
 	default:
 		break;

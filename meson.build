@@ -30,7 +30,8 @@ sources = [
   'serial.c',
   'smbus.c',
   'mctp-json.c',
-  'mctp-socket.c'
+  'mctp-socket.c',
+  'mctp-netlink.c'
 ]
 
 json_c = declare_dependency(dependencies: [comp.find_library('json-c')])

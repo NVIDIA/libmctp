@@ -1019,12 +1019,20 @@ void mctp_json_spi_get_params_ctrl(json_object *jo, char **sockname,
 	j_tmp = json_object_object_get(j, "device_num");
 	val_int = json_object_get_int(j_tmp);
 	cmdline->spi.dev_num = val_int;
+	fprintf(stderr, "config devnum %d\n", val_int);
 
 	/* Get SPI device number */
 	j_tmp = json_object_object_get(j, "heartbeat_enable");
 	val_bool = json_object_get_boolean(j_tmp);
 	cmdline->spi.hb_enable = val_bool;
 
+#ifdef MCTP_IN_KERNEL
+	/* Get SPI channel number*/
+	j_tmp = json_object_object_get(j, "channel_num");
+	val_int = json_object_get_int(j_tmp);
+	cmdline->spi.channel = val_int;
+	fprintf(stderr, "config channelnum %d\n", val_int);
+#endif
 	/* Get socket path */
 	mctp_json_get_socket_name(sockname, j);
 

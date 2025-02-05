@@ -103,6 +103,9 @@ struct mctp_cmdline_spi {
 	mctp_spi_cmd_mode_t cmd_mode;
 	uint8_t dev_num;
 	bool hb_enable;
+#ifdef MCTP_IN_KERNEL
+	int channel;
+#endif
 };
 
 /* I2C specific configuration */
