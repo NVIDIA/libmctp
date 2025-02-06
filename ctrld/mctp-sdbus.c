@@ -718,7 +718,7 @@ static const sd_bus_vtable mctp_ctrl_endpoint_vtable[] = {
 			SD_BUS_VTABLE_PROPERTY_CONST),
 	SD_BUS_PROPERTY("SupportedMessageTypes", "ay",
 			mctp_ctrl_sdbus_get_msg_type, 0,
-			SD_BUS_VTABLE_PROPERTY_CONST),
+			SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
 	SD_BUS_PROPERTY("MediumType", "s", mctp_ctrl_sdbus_get_medium_type, 0,
 			SD_BUS_VTABLE_PROPERTY_CONST),
 	SD_BUS_VTABLE_END
@@ -728,7 +728,7 @@ static const sd_bus_vtable mctp_ctrl_endpoint_vtable[] = {
 static const sd_bus_vtable mctp_ctrl_common_uuid_vtable[] = {
 	SD_BUS_VTABLE_START(0),
 	SD_BUS_PROPERTY("UUID", "s", mctp_ctrl_sdbus_get_uuid, 0,
-			SD_BUS_VTABLE_PROPERTY_CONST),
+			SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
 	SD_BUS_VTABLE_END
 };
 
@@ -860,6 +860,7 @@ static int mctp_sdbus_refresh_endpoints(const mctp_cmdline_args_t *cmdline,
 	int r = 0;
 	char mctp_ctrl_objpath[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE];
 	mctp_msg_type_table_t *entry = g_msg_type_entries;
+	mctp_uuid_table_t *uuid_entry = g_uuid_entries;
 
 	while (entry != NULL) {
 		/* Reset the message buffer */
@@ -983,6 +984,36 @@ static int mctp_sdbus_refresh_endpoints(const mctp_cmdline_args_t *cmdline,
 				MCTP_CTRL_ERR(
 					"%s: %d returned from sd bus emit properties changed",
 					__func__, r);
+			}
+			/* Needed to Re-read the supported message types from the GPU EID
+			once again and refresh the same in our D-Bus objects */
+			/* Emit a properties changed signal for entry */
+			if (entry->refresh_needed) {
+				r = sd_bus_emit_properties_changed(
+					context->bus, mctp_ctrl_objpath,
+					MCTP_CTRL_DBUS_EP_INTERFACE,
+					"SupportedMessageTypes", NULL);
+				if (r < 0) {
+					MCTP_CTRL_ERR(
+						"%s: %d returned from sd bus refresh message types",
+						__func__, r);
+				}
+				entry->refresh_needed = false;
+			}
+			/* Needed to Re-read the UUID from the GPU EID
+			once again and refresh the same in our D-Bus objects */
+			/* Emit a properties changed signal for entry */
+			if (uuid_entry && uuid_entry->refresh_needed) {
+				r = sd_bus_emit_signal(
+					context->bus, mctp_ctrl_objpath,
+					MCTP_CTRL_DBUS_UUID_INTERFACE, "UUID",
+					NULL);
+				if (r < 0) {
+					MCTP_CTRL_ERR(
+						"%s: %d returned from sd bus refresh UUID",
+						__func__, r);
+				}
+				uuid_entry->refresh_needed = false;
 			}
 		}
 

@@ -74,6 +74,7 @@ typedef struct mctp_msg_type_table {
 	bool old_enabled; /* Was the endpoint previously enabled? */
 	bool enabled;	  /* Is the endpoint enabled? */
 	bool new; /* Use to indicate a newly discovered endpoint - To be published to D-Bus */
+	bool refresh_needed; /* Used to indicate refresh required for msg types  - To be published to D-Bus*/
 	uint16_t data_len;
 	uint8_t data[MCTP_MSG_TYPE_MAX_SIZE];
 	struct mctp_msg_type_table *next;
@@ -83,6 +84,7 @@ typedef struct mctp_msg_type_table {
 typedef struct mctp_uuid_table {
 	uint8_t eid;
 	guid_t uuid;
+	bool refresh_needed; /* Used to indicate refresh required for UUID  - To be published to D-Bus*/
 	struct mctp_uuid_table *next;
 } mctp_uuid_table_t;
 

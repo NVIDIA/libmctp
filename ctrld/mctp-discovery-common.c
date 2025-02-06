@@ -379,8 +379,26 @@ int mctp_uuid_entry_add(mctp_uuid_table_t *uuid_tbl)
 
 	/* Traverse the message type table */
 	temp_entry = g_uuid_entries;
-	while (temp_entry->next != NULL)
+	while (temp_entry->next != NULL) {
+		if (temp_entry->eid == new_entry->eid) {
+			if (memcmp(&temp_entry->uuid, &new_entry->uuid,
+				   sizeof(guid_t)) != 0) {
+				MCTP_CTRL_DEBUG(
+					"%s: EID %d exists with different UUID, updating.\n",
+					__func__, temp_entry->eid);
+				memcpy(&temp_entry->uuid, &new_entry->uuid,
+				       sizeof(guid_t));
+				temp_entry->refresh_needed = true;
+			} else {
+				MCTP_CTRL_DEBUG(
+					"%s: EID %d already exists with identical UUID, ignoring.\n",
+					__func__, temp_entry->eid);
+			}
+			free(new_entry);
+			return 0;
+		}
 		temp_entry = temp_entry->next;
+	}
 
 	/* Add at the last */
 	temp_entry->next = new_entry;
@@ -467,10 +485,23 @@ int mctp_msg_type_entry_add(mctp_msg_type_table_t *msg_type_tbl)
 	temp_entry = g_msg_type_entries;
 	while (temp_entry->next != NULL) {
 		if (temp_entry->eid == new_entry->eid) {
-			MCTP_CTRL_DEBUG(
-				"%s: EID %d already exists in message type list, ignoring.\n",
-				__func__, temp_entry->eid);
-			temp_entry->enabled = true;
+			if ((temp_entry->data_len == new_entry->data_len) &&
+			    (memcmp(temp_entry->data, new_entry->data,
+				    new_entry->data_len) == 0)) {
+				MCTP_CTRL_DEBUG(
+					"%s: EID %d already exists with identical data, ignoring.\n",
+					__func__, temp_entry->eid);
+				temp_entry->enabled = true;
+			} else {
+				MCTP_CTRL_DEBUG(
+					"%s: EID %d already exists in message type list with different data, Updating.\n",
+					__func__, temp_entry->eid);
+				temp_entry->data_len = new_entry->data_len;
+				memcpy(temp_entry->data, new_entry->data,
+				       new_entry->data_len);
+				temp_entry->enabled = new_entry->enabled;
+				temp_entry->refresh_needed = true;
+			}
 			free(new_entry);
 			return 0;
 		}
@@ -478,10 +509,23 @@ int mctp_msg_type_entry_add(mctp_msg_type_table_t *msg_type_tbl)
 	}
 
 	if (temp_entry->eid == new_entry->eid) {
-		MCTP_CTRL_DEBUG(
-			"%s: EID %d already exists in message type list, ignoring.\n",
-			__func__, temp_entry->eid);
-		temp_entry->enabled = true;
+		if ((temp_entry->data_len == new_entry->data_len) &&
+		    (memcmp(temp_entry->data, new_entry->data,
+			    new_entry->data_len) == 0)) {
+			MCTP_CTRL_DEBUG(
+				"%s: EID %d already exists with identical data, ignoring.\n",
+				__func__, temp_entry->eid);
+			temp_entry->enabled = true;
+		} else {
+			MCTP_CTRL_DEBUG(
+				"%s: EID %d already exists in message type list with different data, Updating.\n",
+				__func__, temp_entry->eid);
+			temp_entry->data_len = new_entry->data_len;
+			memcpy(temp_entry->data, new_entry->data,
+			       new_entry->data_len);
+			temp_entry->enabled = new_entry->enabled;
+			temp_entry->refresh_needed = true;
+		}
 		free(new_entry);
 		return 0;
 	}
