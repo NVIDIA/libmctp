@@ -138,9 +138,6 @@ void mctp_trace_common(const char *tag, const void *const payload,
 	if (!trace_enable || len == 0)
 		return;
 
-	if ((MCTP_LOG_STDIO == log_type) && (log_stdio_level < MCTP_LOG_DEBUG))
-		return;
-
 	for (i = 0; i < limit; i++)
 		ptr += sprintf(ptr, TRACE_FORMAT, ((uint8_t *)payload)[i]);
 
