@@ -371,6 +371,7 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 
 		pthread_mutex_lock(&thread_mutex);
 		TAILQ_REMOVE(&head, entry, entries);
+		free(entry);
 		pthread_mutex_unlock(&thread_mutex);
 	}
 
@@ -381,6 +382,7 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 		free(info->buf);
 		free(info);
 		TAILQ_REMOVE(&head, entry, entries);
+		free(entry);
 	}
 	pthread_exit(NULL);
 }
