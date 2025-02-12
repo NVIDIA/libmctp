@@ -408,7 +408,7 @@ static size_t prepare_usb_hdr(struct mctp_pktbuf *pkt, size_t pkt_length)
 
 	hdr = (struct mctp_usb_header_tx *)pkt->data;
 	hdr->dmtf_id = MCTP_USB_DMTF_ID;
-	mctp_pkt_length = (uint8_t)pkt_length + (uint8_t)sizeof(hdr);
+	mctp_pkt_length = (uint8_t)pkt_length + (uint8_t)sizeof(*hdr);
 	hdr->length = mctp_pkt_length;
 	hdr->reserved = 0x0;
 
