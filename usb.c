@@ -39,6 +39,7 @@
 
 #define USB_POLL_FD_NUM                                                        \
 	3 //Assume that the number of usb fd we want to poll is fixed
+#define USB_EP_TYPE_MASK 0x80
 
 #ifndef container_of
 #define container_of(ptr, type, member)                                        \
@@ -83,6 +84,7 @@ struct mctp_binding_usb {
 	/* device address data*/
 	uint8_t bus_no;
 	char port_path[MCTP_USB_PORT_PATH_MAX_LEN];
+	struct libusb_transfer *rx_xfr;
 };
 
 int mctp_usb_handle_event(struct mctp_binding_usb *usb)
@@ -113,8 +115,14 @@ void mctp_usb_rx_transfer_callback(struct libusb_transfer *xfr)
 	int ret = MCTP_USB_NO_ERROR;
 
 	switch (xfr->status) {
+	case LIBUSB_TRANSFER_NO_DEVICE:
+		mctp_prerr("Device is removed\n");
+		return;
+	case LIBUSB_TRANSFER_CANCELLED:
+		mctp_prerr("Transfer cancelled\n");
+		libusb_free_transfer(xfr);
+		return;
 	case LIBUSB_TRANSFER_COMPLETED:
-
 		mctp_trace_rx(xfr->buffer, xfr->actual_length);
 
 		if (xfr->actual_length < (ssize_t)sizeof(*hdr)) {
@@ -125,8 +133,7 @@ void mctp_usb_rx_transfer_callback(struct libusb_transfer *xfr)
 		}
 
 		hdr = (void *)xfr->buffer;
-		if (hdr->dmtf_id !=
-		    MCTP_USB_DMTF_ID) { // The recipient of the message is 'Src_slave_addr'
+		if (hdr->dmtf_id != MCTP_USB_DMTF_ID) {
 			mctp_prerr("Got bad DMTF ID: %d", hdr->dmtf_id);
 			goto out;
 		}
@@ -177,7 +184,7 @@ void mctp_usb_get_port_path(uint8_t *port_numbers, const int num,
 			 port_numbers[i]);
 		len++;
 	}
-	/* 
+	/*
 	 * Handle case with empty string, even though
 	 * snprintf appends \0
 	 */
@@ -185,164 +192,175 @@ void mctp_usb_get_port_path(uint8_t *port_numbers, const int num,
 	mctp_prinfo("%s:port_path: %s\n", __func__, port_path);
 }
 
+static bool mctp_usb_is_device_of_interest(struct libusb_device *dev,
+					   struct mctp_binding_usb *usb)
+{
+	struct libusb_device_descriptor desc;
+	int rc;
+
+	rc = libusb_get_device_descriptor(dev, &desc);
+	if (LIBUSB_SUCCESS == rc) {
+		mctp_prinfo("Device attached: %04x:%04x\n", desc.idVendor,
+			    desc.idProduct);
+	} else {
+		mctp_prerr("%s: Device attached\n", __func__);
+		mctp_prerr("%s: Error getting device descriptor: %s\n",
+			   __func__, libusb_strerror((enum libusb_error)rc));
+		return false;
+	}
+	/* Proceed only when the argumemnt port path matches
+			with current device port path*/
+	{
+		uint8_t bus_number = libusb_get_bus_number(dev);
+		if (bus_number == usb->bus_no) {
+			uint8_t port_numbers[MCTP_USB_PORT_PATH_MAX_DEPTH + 1];
+			char port_path[MCTP_USB_PORT_PATH_MAX_LEN];
+			int num = libusb_get_port_numbers(dev, port_numbers,
+							  sizeof(port_numbers));
+			mctp_usb_get_port_path(port_numbers, num, port_path);
+
+			if (strncmp(port_path, usb->port_path,
+				    MCTP_USB_PORT_PATH_MAX_LEN) != 0) {
+				//Ignore the device
+				mctp_prinfo(
+					"%s:port path mismatch ignore device "
+					"received= %s\n",
+					__func__, usb->port_path);
+				return false;
+			}
+		} else {
+			//Ignore the device
+			mctp_prinfo("%s:Bus id mismatch ignore device\n",
+				    __func__);
+			return false;
+		}
+	}
+
+	// Iterate through all usb configurations to get mctp info
+	struct libusb_config_descriptor *config;
+	for (uint8_t i = 0; i < desc.bNumConfigurations; i++) {
+		libusb_get_config_descriptor(dev, i, &config);
+		for (uint8_t j = 0; j < config->bNumInterfaces; ++j) {
+			const struct libusb_interface *itf =
+				&config->interface[j];
+			for (uint8_t k = 0; k < itf->num_altsetting; ++k) {
+				const struct libusb_interface_descriptor
+					*itf_desc = &itf->altsetting[k];
+				if (itf_desc->bInterfaceClass ==
+				    MCTP_CLASS_ID) {
+					for (uint8_t l = 0;
+					     l < itf_desc->bNumEndpoints; l++) {
+						const struct libusb_endpoint_descriptor
+							*ep_desc =
+								&itf_desc->endpoint
+									 [l];
+						// Get endpoints address
+						if ((ep_desc->bEndpointAddress &
+						     USB_EP_TYPE_MASK) ==
+						    LIBUSB_ENDPOINT_OUT)
+							usb->endpoint_out_addr =
+								ep_desc->bEndpointAddress;
+						if ((ep_desc->bEndpointAddress &
+						     USB_EP_TYPE_MASK) ==
+						    LIBUSB_ENDPOINT_IN)
+							usb->endpoint_in_addr =
+								ep_desc->bEndpointAddress;
+					}
+					libusb_free_config_descriptor(config);
+					return true;
+				}
+			}
+		}
+	}
+	libusb_free_config_descriptor(config);
+	return false;
+}
+
 int mctp_usb_hotplug_callback(struct libusb_context *ctx,
 			      struct libusb_device *dev,
 			      libusb_hotplug_event event, void *user_data)
 {
-	static libusb_device_handle *dev_handle = NULL;
-	struct libusb_device_descriptor desc;
 	int rc;
 	bool bus_reg = false;
 	struct mctp_binding_usb *usb = user_data;
 	struct mctp_binding *base_usb = &usb->binding;
-	bool ignore = true;
+	struct libusb_device_descriptor desc;
 	(void)libusb_get_device_descriptor(dev, &desc);
 	(void)ctx;
+
+	if (event != LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED &&
+	    event != LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT) {
+		MCTP_ERR("Entered unhandled event callback, event: %d\n",
+			 event);
+		return 0;
+	}
+
+	if (false == mctp_usb_is_device_of_interest(dev, usb)) {
+		mctp_prinfo("%s: Ignoring device.", __func__);
+		return 0;
+	}
 
 	if (base_usb->bus) {
 		bus_reg = true;
 	}
 
 	if (LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED == event) {
-		rc = libusb_get_device_descriptor(dev, &desc);
-		if (LIBUSB_SUCCESS == rc) {
-			mctp_prinfo("Device attached: %04x:%04x\n",
-				    desc.idVendor, desc.idProduct);
-		} else {
-			mctp_prerr("%s: Device attached\n", __func__);
-			mctp_prerr("%s: Error getting device descriptor: %s\n",
-				   __func__,
-				   libusb_strerror((enum libusb_error)rc));
+		if (usb->dev_handle) {
+			libusb_close(usb->dev_handle);
+			usb->dev_handle = NULL;
 		}
-		/* Proceed only when the argumemnt port path matches 
-			with current device port path*/
-		{
-			uint8_t bus_number = libusb_get_bus_number(dev);
-			if (bus_number == usb->bus_no) {
-				uint8_t port_numbers
-					[MCTP_USB_PORT_PATH_MAX_DEPTH + 1];
-				char port_path[MCTP_USB_PORT_PATH_MAX_LEN];
-				int num = libusb_get_port_numbers(
-					dev, port_numbers,
-					sizeof(port_numbers));
-				mctp_usb_get_port_path(port_numbers, num,
-						       port_path);
-
-				if (strncmp(port_path, usb->port_path,
-					    MCTP_USB_PORT_PATH_MAX_LEN) != 0) {
-					//Ignore the device
-					mctp_prinfo(
-						"%s:port path mismatch ignore device "
-						"received= %s\n",
-						__func__, usb->port_path);
-					return 0;
-				}
-			} else {
-				//Ignore the device
-				mctp_prinfo(
-					"%s:Bus id mismatch ignore device\n",
-					__func__);
-				return 0;
-			}
-		}
-
-		// Iterate through all usb configurations to get mctp info
-		struct libusb_config_descriptor *config;
-		for (uint8_t i = 0; i < desc.bNumConfigurations; i++) {
-			libusb_get_config_descriptor(dev, i, &config);
-			for (uint8_t j = 0; j < config->bNumInterfaces; ++j) {
-				const struct libusb_interface *itf =
-					&config->interface[j];
-				for (uint8_t k = 0; k < itf->num_altsetting;
-				     ++k) {
-					const struct libusb_interface_descriptor
-						*itf_desc = &itf->altsetting[k];
-					if (itf_desc->bInterfaceClass ==
-					    MCTP_CLASS_ID) {
-						ignore = false;
-						for (uint8_t l = 0;
-						     l <
-						     itf_desc->bNumEndpoints;
-						     l++) {
-							const struct libusb_endpoint_descriptor
-								*ep_desc =
-									&itf_desc->endpoint
-										 [l];
-							// Get endpoints address
-							if ((ep_desc->bEndpointAddress &
-							     0x80) ==
-							    LIBUSB_ENDPOINT_OUT)
-								usb->endpoint_out_addr =
-									ep_desc->bEndpointAddress;
-							if ((ep_desc->bEndpointAddress &
-							     0x80) ==
-							    LIBUSB_ENDPOINT_IN)
-								usb->endpoint_in_addr =
-									ep_desc->bEndpointAddress;
-						}
-					}
-				}
-			}
-		}
-
-		if (true == ignore) {
-			mctp_prinfo("%s: Ignoring device.", __func__);
-			return 0;
-		}
-
-		rc = libusb_open(dev, &dev_handle);
+		rc = libusb_open(dev, &usb->dev_handle);
 		if (LIBUSB_SUCCESS != rc) {
 			mctp_prerr(
 				"%s: Could not open USB device with value %d\n",
 				__func__, rc);
 		}
-		/* Free memory used to store previous FDs */
-		if (usb->usb_poll_fds) {
-			libusb_free_pollfds(usb->usb_poll_fds);
-		}
-		usb->usb_poll_fds = libusb_get_pollfds(usb->ctx);
-		usb->bindingfds_cnt = 0;
-		while (usb->usb_poll_fds[usb->bindingfds_cnt]) {
-			usb->bindingfds_cnt++;
-		}
-		usb->bindingfds_change = true;
 		if (bus_reg)
 			mctp_binding_set_tx_enabled(base_usb, true);
-		//Submit to get Rx
-		struct libusb_transfer *rx_xtr = libusb_alloc_transfer(0);
-		libusb_fill_bulk_transfer(rx_xtr, dev_handle,
+
+		if (usb->rx_xfr) {
+			libusb_cancel_transfer(usb->rx_xfr);
+		}
+		usb->rx_xfr = libusb_alloc_transfer(0);
+		libusb_fill_bulk_transfer(usb->rx_xfr, usb->dev_handle,
 					  usb->endpoint_in_addr, // Endpoint ID
 					  usb->rxbuf, sizeof(usb->rxbuf),
 					  mctp_usb_rx_transfer_callback, usb,
 					  0);
-		if (libusb_submit_transfer(rx_xtr) < 0) {
+		if (libusb_submit_transfer(usb->rx_xfr) < 0) {
 			mctp_prerr("Rx: Error libusb_submit_transfer %s\n",
 				   libusb_error_name(rc));
-			libusb_free_transfer(rx_xtr);
+			libusb_free_transfer(usb->rx_xfr);
+			usb->rx_xfr = NULL;
 		}
-
 	} else if (LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT == event) {
-		rc = libusb_get_device_descriptor(dev, &desc);
-		if (bus_reg)
+		if (bus_reg) {
 			mctp_binding_set_tx_enabled(base_usb, false);
-		if (LIBUSB_SUCCESS == rc) {
-			mctp_prinfo("Device de-attached: %04x:%04x\n",
-				    desc.idVendor, desc.idProduct);
-		} else {
 			mctp_prerr("Device de-attached\n");
-			mctp_prerr("Error getting device descriptor: %s\n",
-				   libusb_strerror((enum libusb_error)rc));
 		}
-		if (dev_handle) {
-			libusb_close(dev_handle);
-			dev_handle = NULL;
+		if (usb->rx_xfr) {
+			libusb_cancel_transfer(usb->rx_xfr);
+			usb->rx_xfr = NULL;
+		}
+		if (usb->dev_handle) {
+			libusb_close(usb->dev_handle);
+			usb->dev_handle = NULL;
 		}
 	} else {
 		mctp_prerr("Unhandled event %d\n", event);
 		if (bus_reg)
 			mctp_binding_set_tx_enabled(base_usb, false);
+	} /* Free memory used to store previous FDs */
+	if (usb->usb_poll_fds) {
+		libusb_free_pollfds(usb->usb_poll_fds);
 	}
-	usb->dev_handle = dev_handle;
+	usb->usb_poll_fds = libusb_get_pollfds(usb->ctx);
+	usb->bindingfds_cnt = 0;
+	while (usb->usb_poll_fds[usb->bindingfds_cnt]) {
+		usb->bindingfds_cnt++;
+	}
+	usb->bindingfds_change = true;
+
 	return 0;
 }
 
@@ -415,7 +433,7 @@ static size_t prepare_usb_hdr(struct mctp_pktbuf *pkt, size_t pkt_length)
 	return mctp_pkt_length;
 }
 
-/* 
+/*
  * Batch Tx on bus, called from core.c
  */
 void mctp_send_tx_queue_usb(struct mctp_bus *bus)
@@ -464,7 +482,7 @@ void mctp_send_tx_queue_usb(struct mctp_bus *bus)
 	MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
 }
 
-/* 
+/*
  * Batch Tx on bus with zero padding, called from core.c
  */
 void mctp_send_tx_queue_usb_zpad(struct mctp_bus *bus)
@@ -525,7 +543,7 @@ void mctp_send_tx_queue_usb_zpad(struct mctp_bus *bus)
 	MCTP_ASSERT(rv >= 0, "mctp_usb_tx failed: %d", rv);
 }
 
-/* 
+/*
  * Batch Tx on bus with fragmentation, called from core.c
  */
 void mctp_send_tx_queue_usb_frag(struct mctp_bus *bus)
@@ -669,6 +687,7 @@ struct mctp_binding_usb *mctp_usb_init(mctp_usb_dev_cfg_t *cfg)
 			.tx = mctp_binding_usb_tx,
 			.mctp_send_tx_queue = mctp_send_tx_queue_usb_cb[mode],
 		},
+		.rx_xfr = NULL,
 	};
 	strncpy(usb->port_path, cfg->port_path, sizeof(usb->port_path) - 1);
 
