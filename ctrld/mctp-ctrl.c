@@ -354,6 +354,7 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 	uint8_t *mctp_resp_msg;
 	struct mctp_astpcie_pkt_private pvt_binding;
 	struct mctp_smbus_pkt_private pvt_binding_smbus;
+	struct mctp_usb_pkt_private pvt_binding_usb = { 0 };
 	int64_t t_start, t_end;
 	int retry = 0;
 
@@ -427,6 +428,18 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 				(const uint8_t *)cmd->tx_data, cmd->tx_len,
 				&cmd->binding_type, (void *)&pvt_binding_smbus,
 				sizeof(pvt_binding_smbus));
+
+			if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
+				MCTP_CTRL_ERR("%s: Failed to send message..\n",
+					      __func__);
+			}
+		} else if (cmd->binding_type == MCTP_BINDING_USB) {
+			/* Send the request message over socket */
+			mctp_ret = mctp_client_with_binding_send(
+				cmd->dest_eid, sock_fd,
+				(const uint8_t *)cmd->tx_data, cmd->tx_len,
+				&cmd->binding_type, (void *)&pvt_binding_usb,
+				sizeof(pvt_binding_usb));
 
 			if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 				MCTP_CTRL_ERR("%s: Failed to send message..\n",
