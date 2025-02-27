@@ -136,6 +136,8 @@ struct mctp_pktbuf {
 	unsigned char data[];
 };
 
+#define MCTP_PKTBUF_SIZE (sizeof(struct mctp_pktbuf))
+
 struct mctp_binding;
 
 struct mctp_pktbuf *mctp_pktbuf_alloc(struct mctp_binding *hw, size_t len);

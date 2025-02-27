@@ -13,11 +13,11 @@
 /* 65 (4101 bytes / 64 = 64.07, rounded to 65) packets are enqueued to be send */
 #define MCTP_POOL_SIZE 65
 /* Taking PCIE since it has the maximum medium_header_size
-mctp_pktbuf->size = 24 + mctp_pktbuf->data[] = 83
+mctp_pktbuf->size = 24 or 48 (in 32/64 bits system) + mctp_pktbuf->data[] = 83
 mctp_pktbuf->data[] = medium_header+ mctp_header+ mctp_payload+ mctp_trailer 
 medium_header = 12(taking max for pcie) + mctp_header = 4 + mctp_payload = 64
 + mctp_trailer = 3 (taking max for pcie) == 83 */
-#define MCTP_PACKET_BUFFER_SIZE 107
+#define MCTP_PACKET_BUFFER_SIZE (MCTP_PKTBUF_SIZE + 83)
 
 struct mctp_memory_pool {
 	void *buffers[MCTP_POOL_SIZE];
