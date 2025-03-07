@@ -282,6 +282,7 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 			mctp_prerr("fail to do clock_gettime");
 		}
 
+		retry = MCTP_SMBUS_I2C_TX_RETRIES_MAX;
 		do {
 			/* blocking i2c transaction */
 			rc = ioctl(info->fd, I2C_RDWR, &msgrdwr);
