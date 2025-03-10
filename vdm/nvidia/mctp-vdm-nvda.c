@@ -71,6 +71,7 @@ static const struct option options[] = {
 	{ "teid", required_argument, 0, 't' },
 	{ "cmd", required_argument, 0, 'c' },
 	{ "file", required_argument, 0, 'f' },
+	{ "timeout", required_argument, 0, 'o' },
 	{ "help", no_argument, 0, 'h' },
 	{ "more", no_argument, 0, 'm' },
 	{ "json", no_argument, 0, 'j' },
@@ -109,6 +110,9 @@ static void usage(void)
 	fprintf(stderr, "usage: mctp-vdm-util -t [eid] -c [cmd] [params]\n");
 	fprintf(stderr, "-t/-teid: Endpoint EID\n");
 	fprintf(stderr, "-c/-cmd: Command\n");
+	fprintf(stderr,
+		"-o/-timeout: Request timeout in seconds (default: %d)\n",
+		MCTP_CTRL_TXRX_TIMEOUT_16SECS);
 	fprintf(stderr, "Available commands:\n \
 		selftest - need 4 bytes as the payload\n \
 		boot_complete_v1\n \
@@ -457,9 +461,10 @@ int main(int argc, char *const *argv)
 	uint8_t payload_required = 0;
 	uint8_t payload[MCTP_CERTIFICATE_CHAIN_SIZE] = { '\0' };
 	sd_bus *bus = NULL;
+	int timeout = MCTP_CTRL_TXRX_TIMEOUT_16SECS;
 
 	for (;;) {
-		rc = getopt_long(argc, argv, "jmvt:c:f:h", options, NULL);
+		rc = getopt_long(argc, argv, "jmvt:c:o:f:h", options, NULL);
 		if (rc == -1)
 			break;
 
@@ -515,10 +520,18 @@ int main(int argc, char *const *argv)
 		case 'h':
 			usage();
 			return EXIT_SUCCESS;
+		case 'o':
+			timeout = strtol(optarg, NULL, 10);
+			break;
 		default:
 			fprintf(stderr, "Invalid argument\n");
 			return EXIT_FAILURE;
 		}
+	}
+
+	if (timeout < 0) {
+		fprintf(stderr, "Invalid timeout value\n");
+		return EXIT_FAILURE;
 	}
 
 	if (json_output && !is_json_supported(item)) {
@@ -582,7 +595,7 @@ int main(int argc, char *const *argv)
 
 	/* Establish the socket connection */
 	rc = mctp_usr_socket_init(&fd, g_sock_name, MCTP_MESSAGE_TYPE_VDIANA,
-				  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
+				  timeout);
 	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, EXIT_FAILURE,
 			"Failed to open mctp socket\n");
 
