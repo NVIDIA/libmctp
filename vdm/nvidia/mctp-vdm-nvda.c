@@ -125,6 +125,8 @@ static void usage(void)
 		debug_token_install - need n bytes debug token\n \
 		debug_token_erase\n \
 		debug_token_query\n \
+		debug_token_query_v2\n \
+		debug_token_query_v3\n \
 		program_certificate_chain - need 2048 bytes certificate\n \
 		background_copy_init\n \
 		background_copy_disable, background_copy_enable\n \
@@ -769,6 +771,10 @@ int main(int argc, char *const *argv)
 				    "failed to query debug token: %d\n", rc);
 	} else if (!strcmp(item, "debug_token_query_v2")) {
 		rc = debug_token_query_v2(fd, teid, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "failed to query debug token: %d\n", rc);
+	} else if (!strcmp(item, "debug_token_query_v3")) {
+		rc = debug_token_query_v3(fd, teid, VERBOSE_EN);
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "failed to query debug token: %d\n", rc);
 	} else if (!strcmp(item, "program_certificate_chain")) {

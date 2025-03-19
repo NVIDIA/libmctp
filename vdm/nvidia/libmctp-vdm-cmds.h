@@ -234,6 +234,8 @@ bool mctp_encode_vendor_cmd_dbg_token_query(
 	struct mctp_vendor_cmd_dbg_token_query *cmd);
 bool mctp_encode_vendor_cmd_dbg_token_query_v2(
 	struct mctp_vendor_cmd_dbg_token_query *cmd);
+bool mctp_encode_vendor_cmd_dbg_token_query_v3(
+	struct mctp_vendor_cmd_dbg_token_query *cmd);
 bool mctp_encode_vendor_cmd_certificate_install(
 	struct mctp_vendor_cmd_certificate_install *cmd);
 bool mctp_encode_vendor_cmd_in_band(struct mctp_vendor_cmd_in_band *cmd);
