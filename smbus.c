@@ -330,8 +330,10 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 
 			clock_gettime(CLOCK_MONOTONIC, &tm);
 
-			uint64_t t = tm.tv_sec * (uint64_t)1000000000L +
-				     tm.tv_nsec + info->timeout * 1000000L;
+			uint64_t t = tm.tv_sec * (uint64_t)1000000000UL +
+				     tm.tv_nsec +
+				     (uint64_t)info->timeout * 1000000UL;
+
 			tm.tv_sec = t / 1000000000L;
 			tm.tv_nsec = t % 1000000000L;
 
@@ -445,6 +447,7 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len,
 	if (!node) {
 		free(buf);
 		free(info);
+		pthread_mutex_unlock(&thread_mutex);
 		MCTP_ERR("failed to malloc node");
 		return -1;
 	}

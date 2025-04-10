@@ -648,6 +648,7 @@ int mctp_i2c_get_endpoint_uuid_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 	memcpy(&uuid_table.uuid.canonical, &uuid_resp->uuid.canonical,
 	       sizeof(guid_t));
 	uuid_table.next = NULL;
+	uuid_table.refresh_needed = false;
 
 	/* Create a new UUID entry and add to list */
 	ret = mctp_uuid_entry_add(&uuid_table);
@@ -762,6 +763,7 @@ int mctp_i2c_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 	msg_type_table.old_enabled = false;
 	msg_type_table.enabled = true;
 	msg_type_table.new = true;
+	msg_type_table.refresh_needed = false;
 	msg_type_table.data_len = ((struct mctp_ctrl_resp *)mctp_resp_msg)
 					  ->data[MCTP_MSG_TYPE_DATA_LEN_OFFSET];
 	if (msg_type_table.data_len > (MCTP_BTU - 1)) {
