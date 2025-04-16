@@ -51,7 +51,7 @@ int update_interface_info(const char *ifname, const uint8_t *phy_addr,
 	return 0;
 }
 
-int mctp_nl_socket_init(char *ifname, mctp_eid_t eid)
+int mctp_nl_socket_init()
 {
 	struct {
 		struct nlmsghdr nh;
@@ -60,17 +60,13 @@ int mctp_nl_socket_init(char *ifname, mctp_eid_t eid)
 		uint8_t data[4];
 	} msg = { 0 };
 
+	mctp_eid_t eid = local_interface.ifeid;
 	struct sockaddr_nl nl_addr = { 0 };
 	int ifindex = 0;
 	int rc = 0;
 
-	if (!ifname) {
-		MCTP_ERR("%s Invalid interface name\n", __func__);
-		return -1;
-	}
-
-	ifindex = if_nametoindex(ifname);
-	if (ifindex < 0) {
+	ifindex = if_nametoindex(local_interface.ifname);
+	if (ifindex <= 0) {
 		MCTP_ERR("%s Invalid interface index %d\n", __func__, ifindex);
 		return -1;
 	}
@@ -117,15 +113,15 @@ int mctp_nl_socket_init(char *ifname, mctp_eid_t eid)
 
 		local_interface.nl_sd = nl_sd;
 	}
-
+	/* Bind local eid to interface ifindex */
 	if ((rc = sendto(local_interface.nl_sd, &msg.nh, msg.nh.nlmsg_len, 0,
 			 (struct sockaddr *)&nl_addr, sizeof(nl_addr))) < 0) {
 		MCTP_ERR(
 			"%s failed to setup local EID %d for interface %s rc [%d] %s\n",
-			__func__, eid, ifname, rc, strerror(errno));
+			__func__, eid, local_interface.ifname, rc,
+			strerror(errno));
 		goto out;
 	}
-
 	return 0;
 out:
 	if (local_interface.nl_sd != 0) {

@@ -53,7 +53,9 @@
 #include "mctp-discovery-i2c.h"
 #include "mctp-discovery.h"
 
+#ifdef ENABLE_USB
 #include "mctp-ctrl-usb.h"
+#endif
 
 extern mctp_routing_table_t *g_routing_table_entries;
 
@@ -1240,7 +1242,7 @@ int mctp_ctrl_sdbus_dispatch(mctp_ctrl_t *mctp_ctrl,
 		MCTP_CTRL_ERR("Error handling timer event: %d\n", r);
 		return -1;
 	}
-
+#ifdef ENABLE_USB
 	if (mctp_ctrl_get_binding_type(mctp_ctrl) != MCTP_BINDING_USB)
 		return SDBUS_PROCESS_EVENT;
 
@@ -1249,6 +1251,7 @@ int mctp_ctrl_sdbus_dispatch(mctp_ctrl_t *mctp_ctrl,
 		MCTP_CTRL_ERR("Error handling libusb Hotplug event: %d\n", r);
 		return -1;
 	}
+#endif
 
 	return SDBUS_PROCESS_EVENT;
 }
@@ -1307,6 +1310,7 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 	}
 #endif
 
+#ifdef ENABLE_USB
 	if (mctp_ctrl_get_binding_type(mctp_ctrl) == MCTP_BINDING_USB) {
 		mctp_ctrl_usb_t *usb =
 			mctp_ctrl_usb_hotplug_init(mctp_ctrl, context);
@@ -1316,6 +1320,7 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 		if (!mctp_ctrl_usb_init_pollfd(usb))
 			return -1;
 	}
+#endif
 
 	MCTP_CTRL_DEBUG("%s: Entering polling loop\n", __func__);
 

@@ -50,14 +50,11 @@ struct g_hw_info {
 
 /**
  * @brief Open the AF_NETLINK socket interface, return success only if
- *        Socket is opened and Register with the message type.
- *
- * @param[in] ifname  Local interface name
- * @param[in] eid     Local interface eid
+ *        Socket is opened and local EID is set up.
  *
  * @return 0 on success, -1 on failure
  */
-int mctp_nl_socket_init(char *ifname, mctp_eid_t eid);
+int mctp_nl_socket_init();
 
 /**
  * @brief Set network route for eid to local interface 
@@ -66,6 +63,7 @@ int mctp_nl_socket_init(char *ifname, mctp_eid_t eid);
  *
  * @return 0 on success, -1 on failure
  */
+
 int mctp_nl_add_route(mctp_eid_t eid);
 
 /**

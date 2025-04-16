@@ -1314,7 +1314,7 @@ mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_t *cmd,
 			cmd->i2c.own_eid);
 
 		/* SMBUS/I2C require to set NETLINK socket for all slave devices*/
-		if ((rc = mctp_nl_socket_init(ifname, cmd->i2c.own_eid)) < 0) {
+		if ((rc = mctp_nl_socket_init()) < 0) {
 			MCTP_CTRL_ERR(
 				"%s failed to setup nl_socket for %s eid %d rc %d\n",
 				__func__, ifname, cmd->i2c.own_eid, rc);

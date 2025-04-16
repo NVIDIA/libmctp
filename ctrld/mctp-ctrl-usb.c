@@ -41,6 +41,12 @@
 #include "mctp-ctrl-log.h"
 #include "mctp-sdbus.h"
 
+#ifdef MCTP_IN_KERNEL
+#include "mctp-netlink.h"
+#define MAX_NETLINK_TRY	  5
+#define MAX_NETLINK_DELAY 100000 //100 milliseconds
+#endif
+
 /* LIBUSB_CLASS_MCTP isn't defined at libusb_class_code */
 #define LIBUSB_CLASS_MCTP 0x14
 
@@ -204,10 +210,28 @@ static int handle_mctp_usb_device_arrived(mctp_ctrl_usb_t *usb,
 		return LIBUSB_SUCCESS;
 	}
 
+#ifdef MCTP_IN_KERNEL
+	uint8_t retry = 0;
+	/* Bind local EID to new ifindex, retry incase interface up is delayed */
+	while (((rc = mctp_nl_socket_init()) < 0) &&
+	       (retry < MAX_NETLINK_TRY)) {
+		usleep(MAX_NETLINK_DELAY);
+		MCTP_CTRL_ERR(
+			"%s failed to setup nl_socket after device arrival, retry count[%d]",
+			__func__, retry);
+		retry++;
+	}
+	if (rc < 0) {
+		MCTP_CTRL_ERR(
+			"%s failed to setup nl_socket, terminating re-dicovery",
+			__func__);
+		return LIBUSB_ERROR_OTHER;
+	}
+#endif
 	/* Perform a re-discovery, but start with getting routing table entries
 	directly since we don't really need to repeat the whole process */
 	ret = mctp_discover_endpoints(mctp_ctrl->cmdline, mctp_ctrl,
-				      MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST);
+				      MCTP_SET_EP_REQUEST);
 
 	if (ret != MCTP_RET_DISCOVERY_SUCCESS) {
 		MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
@@ -411,6 +435,8 @@ exit:
 
 void mctp_ctrl_usb_hotplug_exit(mctp_ctrl_usb_t *usb)
 {
+	if (!usb)
+		return;
 	usb->mctp_ctrl->pvt_binding_data = NULL;
 	libusb_hotplug_deregister_callback(usb->ctx, usb->cb_handle);
 	if (usb->usb_poll_fds)

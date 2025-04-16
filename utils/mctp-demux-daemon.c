@@ -1114,6 +1114,7 @@ static int binding_smbus_process(struct binding *binding)
 	return 0;
 }
 
+#ifdef ENABLE_USB
 static void binding_usb_usage(void)
 {
 	mctp_prinfo(
@@ -1134,6 +1135,7 @@ static int parse_usb_json_config(mctp_usb_dev_cfg_t *cfg,
 {
 	return mctp_json_usb_get_params_demux(cfg, json_file_path);
 }
+
 static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 			    mctp_eid_t eid, int n_params,
 			    char *const *params __attribute__((unused)))
@@ -1282,60 +1284,64 @@ static int binding_usb_process(struct binding *binding)
 	}
 	return rc;
 }
+#endif
 
-struct binding bindings[] = { {
-				      .name = "null",
-				      .init = binding_null_init,
-			      },
-			      {
-				      .name = "serial",
-				      .init = binding_serial_init,
-				      .destroy = NULL,
-				      .init_pollfd = binding_serial_init_pollfd,
-				      .process = binding_serial_process,
-				      .sockname = "\0mctp-serial-mux",
-			      },
-			      {
-				      .name = "astlpc",
-				      .init = binding_astlpc_init,
-				      .destroy = binding_astlpc_destroy,
-				      .init_pollfd = binding_astlpc_init_pollfd,
-				      .process = binding_astlpc_process,
-				      .sockname = "\0mctp-lpc-mux",
-			      },
-			      {
-				      .name = "astpcie",
-				      .init = binding_astpcie_init,
-				      .destroy = binding_astpcie_destroy,
-				      .init_pollfd =
-					      binding_astpcie_init_pollfd,
-				      .process = binding_astpcie_process,
-				      .sockname = "\0mctp-pcie-mux",
-			      },
-			      {
-				      .name = "astspi",
-				      .init = binding_astspi_init,
-				      .destroy = NULL,
-				      .init_pollfd = binding_astspi_init_pollfd,
-				      .process = binding_astspi_process,
-				      .sockname = "\0mctp-spi-mux",
-			      },
-			      {
-				      .name = "smbus",
-				      .init = binding_smbus_init,
-				      .destroy = NULL,
-				      .init_pollfd = binding_smbus_init_pollfd,
-				      .process = binding_smbus_process,
-				      .sockname = "\0mctp-i2c-mux",
-			      },
-			      {
-				      .name = "usb",
-				      .init = binding_usb_init,
-				      .destroy = NULL,
-				      .init_pollfd = binding_usb_init_pollfd,
-				      .process = binding_usb_process,
-				      .sockname = NULL,
-			      } };
+struct binding bindings[] = {
+	{
+		.name = "null",
+		.init = binding_null_init,
+	},
+	{
+		.name = "serial",
+		.init = binding_serial_init,
+		.destroy = NULL,
+		.init_pollfd = binding_serial_init_pollfd,
+		.process = binding_serial_process,
+		.sockname = "\0mctp-serial-mux",
+	},
+	{
+		.name = "astlpc",
+		.init = binding_astlpc_init,
+		.destroy = binding_astlpc_destroy,
+		.init_pollfd = binding_astlpc_init_pollfd,
+		.process = binding_astlpc_process,
+		.sockname = "\0mctp-lpc-mux",
+	},
+	{
+		.name = "astpcie",
+		.init = binding_astpcie_init,
+		.destroy = binding_astpcie_destroy,
+		.init_pollfd = binding_astpcie_init_pollfd,
+		.process = binding_astpcie_process,
+		.sockname = "\0mctp-pcie-mux",
+	},
+	{
+		.name = "astspi",
+		.init = binding_astspi_init,
+		.destroy = NULL,
+		.init_pollfd = binding_astspi_init_pollfd,
+		.process = binding_astspi_process,
+		.sockname = "\0mctp-spi-mux",
+	},
+	{
+		.name = "smbus",
+		.init = binding_smbus_init,
+		.destroy = NULL,
+		.init_pollfd = binding_smbus_init_pollfd,
+		.process = binding_smbus_process,
+		.sockname = "\0mctp-i2c-mux",
+	},
+#ifdef ENABLE_USB
+	{
+		.name = "usb",
+		.init = binding_usb_init,
+		.destroy = NULL,
+		.init_pollfd = binding_usb_init_pollfd,
+		.process = binding_usb_process,
+		.sockname = NULL,
+	}
+#endif
+};
 
 struct binding *binding_lookup(const char *name)
 {

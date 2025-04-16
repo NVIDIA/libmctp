@@ -42,6 +42,7 @@ deps = [json_c]
 if get_option('enable-usb').enabled()
     sources += 'usb.c'
     usb_lib = declare_dependency(dependencies: [comp.find_library('usb-1.0')])
+	add_project_arguments('-DENABLE_USB', language: ['c', 'cpp'])
     deps += [usb_lib]
 
     # Check if batching is enabled

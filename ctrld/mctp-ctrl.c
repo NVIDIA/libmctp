@@ -71,6 +71,7 @@
 #endif
 #ifdef ENABLE_USB
 #include "mctp-ctrl-usb.h"
+#endif
 
 /* MCTP Tx/Rx waittime in milli-seconds */
 #define MCTP_CTRL_WAIT_SECONDS (1 * 1000)
@@ -156,7 +157,7 @@ int fill_interface_info(mctp_binding_ids_t binding_type, char *pattern,
 		return -1;
 	}
 
-	if ((rc = mctp_nl_socket_init(ifname, ifeid)) < 0) {
+	if ((rc = mctp_nl_socket_init()) < 0) {
 		MCTP_CTRL_ERR(
 			"%s failed to setup nl_socket for %s eid %d rc [%d]\n",
 			__func__, ifname, ifeid, rc);
@@ -221,6 +222,8 @@ static const fsdyn_ep_ops_t fmon_emulation_fops = {
 
 static void mctp_ctrl_clean_up(mctp_ctrl_t *mctp_ctrl)
 {
+	(void)mctp_ctrl;
+#ifdef ENABLE_USB
 	mctp_binding_ids_t binding_type = mctp_ctrl_get_binding_type(mctp_ctrl);
 
 	switch (binding_type) {
@@ -230,6 +233,7 @@ static void mctp_ctrl_clean_up(mctp_ctrl_t *mctp_ctrl)
 	default:
 		break;
 	};
+#endif
 	/* Make sure opened threads are closed */
 	if (g_keepalive_thread != 0) {
 		pthread_kill(g_keepalive_thread, SIGUSR2);
@@ -1001,9 +1005,8 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 
 		/* Discover endpoints via USB */
 		MCTP_CTRL_INFO("%s: Start MCTP-over-USB Discovery\n", __func__);
-		mctp_err_ret = mctp_discover_endpoints(
-			cmdline, mctp_ctrl,
-			MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST);
+		mctp_err_ret = mctp_discover_endpoints(cmdline, mctp_ctrl,
+						       MCTP_SET_EP_REQUEST);
 		if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
 			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
 			mctp_ctrl_clean_up(mctp_ctrl);
@@ -1397,10 +1400,6 @@ static void parse_command_line(int argc, char *const *argv,
 			exit(EXIT_FAILURE);
 		}
 #endif
-		mctp_ctrl->pvt_binding_data =
-			(void *)mctp_ctrl_usb_hotplug_init(mctp_ctrl);
-		MCTP_ASSERT(mctp_ctrl->pvt_binding_data != NULL, -1,
-			    "Could not initialise usb binding");
 		break;
 	default:
 		break;
