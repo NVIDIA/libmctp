@@ -16,6 +16,7 @@
  */
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "mctp-discovery-common.h"
 #include "libmctp-cmds.h"
@@ -60,112 +61,95 @@ mctp_discovery_message_table_t msg_tbl[] = {
 void mctp_print_resp_msg(struct mctp_ctrl_resp *ep_discovery_resp,
 			 const char *msg, int msg_len)
 {
-	MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
-
+	char comp_code_str[100] = "";
 	/* Print only if message exist */
 	if (msg) {
 		MCTP_CTRL_TRACE("   %s\n", msg);
-		MCTP_CTRL_TRACE(
-			"-----------------------------------------------\n");
 	}
 	if (!ep_discovery_resp) {
 		MCTP_CTRL_TRACE("INVALID EP DISCOVERY RESP \n");
 		return;
 	}
 
-	MCTP_CTRL_TRACE("MCTP-RESP-HDR >> \n");
-	MCTP_CTRL_TRACE("\tmsg_type \t: 0x%x\n",
-			ep_discovery_resp->hdr.ic_msg_type);
-	MCTP_CTRL_TRACE("\trq_dgram_inst \t: 0x%x\n",
-			ep_discovery_resp->hdr.rq_dgram_inst);
-	MCTP_CTRL_TRACE("\tcommand_code \t: 0x%x\n",
-			ep_discovery_resp->hdr.command_code);
+	if (msg_len >= 1) {
+		snprintf(comp_code_str, sizeof(comp_code_str),
+			 "\n\tcomp_code \t: 0x%x (%s)",
+			 ep_discovery_resp->completion_code,
+			 (ep_discovery_resp->completion_code ==
+			  MCTP_CTRL_CC_SUCCESS) ?
+				 "SUCCESS" :
+				 "FAILURE");
+	}
 
-	/* Print the compeltion code */
-	if (msg_len >= 1)
-		MCTP_CTRL_TRACE("\tcomp_code \t: 0x%x (%s)\n",
-				ep_discovery_resp->completion_code,
-				(ep_discovery_resp->completion_code ==
-				 MCTP_CTRL_CC_SUCCESS) ?
-					"SUCCESS" :
-					"FAILURE");
+	MCTP_CTRL_TRACE(
+		"MCTP-RESP-HDR >> msg_type: 0x%x, rq_dgram_inst: 0x%x, command_code: 0x%x%s\n",
+		ep_discovery_resp->hdr.ic_msg_type,
+		ep_discovery_resp->hdr.rq_dgram_inst,
+		ep_discovery_resp->hdr.command_code, comp_code_str);
 
 	/* Decrement the length by one */
 	msg_len--;
 
-	MCTP_CTRL_TRACE("MCTP-RESP-DATA >> \n");
-
 	/* Check if data available or not */
 	if (msg_len <= 0) {
 		MCTP_CTRL_TRACE("\t--------------<empty>-------------\n");
+	} else {
+		char trace_buf[2048];
+		snprintf(trace_buf, sizeof(trace_buf), "\tDATA: ");
+		for (int i = 0; i < msg_len; i++) {
+			snprintf(trace_buf + strlen(trace_buf),
+				 sizeof(trace_buf) - strlen(trace_buf),
+				 "0x%02x ", ep_discovery_resp->data[i]);
+		}
+		MCTP_CTRL_TRACE("MCTP-RESP-DATA >> %s\n", trace_buf);
 	}
-
-	for (int i = 0; i < msg_len; i++)
-		MCTP_CTRL_TRACE("\tDATA[%d] \t\t: 0x%x\n", i,
-				ep_discovery_resp->data[i]);
-	MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
 }
 
 /* Tracing function to print request messages */
 void mctp_print_req_msg(struct mctp_ctrl_req *ep_discovery_req, const char *msg,
 			size_t msg_len)
 {
-	MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
-
 	/* Print only if message exist */
 	if (msg) {
 		MCTP_CTRL_TRACE("   %s\n", msg);
-		MCTP_CTRL_TRACE(
-			"-----------------------------------------------\n");
 	}
 
-	MCTP_CTRL_TRACE("MCTP-REQ-HDR >> \n");
-	MCTP_CTRL_TRACE("\tmsg_type \t: 0x%x\n",
-			ep_discovery_req->hdr.ic_msg_type);
-	MCTP_CTRL_TRACE("\trq_dgram_inst \t: 0x%x\n",
-			ep_discovery_req->hdr.rq_dgram_inst);
-	MCTP_CTRL_TRACE("\tcommand_code \t: 0x%x\n",
-			ep_discovery_req->hdr.command_code);
-
-	MCTP_CTRL_TRACE("MCTP-REQ-DATA >> \n");
+	MCTP_CTRL_TRACE(
+		"MCTP-REQ-HDR >> msg_type: 0x%x, rq_dgram_inst: 0x%x, command_code: 0x%x\n",
+		ep_discovery_req->hdr.ic_msg_type,
+		ep_discovery_req->hdr.rq_dgram_inst,
+		ep_discovery_req->hdr.command_code);
 
 	/* Check if data available or not */
 	if (msg_len <= 0) {
 		MCTP_CTRL_TRACE("\t--------------<empty>-------------\n");
+	} else {
+		char trace_buf[2048];
+		snprintf(trace_buf, sizeof(trace_buf), "\tDATA: ");
+		for (size_t i = 0; i < msg_len; i++) {
+			snprintf(trace_buf + strlen(trace_buf),
+				 sizeof(trace_buf) - strlen(trace_buf),
+				 "0x%02x ", ep_discovery_req->data[i]);
+		}
+		MCTP_CTRL_TRACE("MCTP-REQ-DATA >> %s\n", trace_buf);
 	}
-
-	for (size_t i = 0; i < msg_len; i++)
-		MCTP_CTRL_TRACE("\tDATA[%zu] \t\t: 0x%x\n", i,
-				ep_discovery_req->data[i]);
-	MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
 }
 
 /* Tracing function to print Routing table entry */
 void mctp_print_routing_table_entry(
 	int routing_id, struct get_routing_table_entry *routing_table)
 {
-	MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
 	MCTP_CTRL_TRACE("MCTP-ROUTING-TABLE-ENTRY [%d]\n", routing_id);
 
 	/* Print only if message exist */
 	if (routing_table) {
 		MCTP_CTRL_TRACE(
-			"-----------------------------------------------\n");
-
-		MCTP_CTRL_TRACE("\t\teid_range_size            :  0x%x\n",
-				routing_table->eid_range_size);
-		MCTP_CTRL_TRACE("\t\tstarting_eid              :  0x%x\n",
-				routing_table->starting_eid);
-		MCTP_CTRL_TRACE("\t\tentry_type                :  0x%x\n",
-				routing_table->entry_type);
-		MCTP_CTRL_TRACE("\t\tphys_transport_binding_id :  0x%x\n",
-				routing_table->phys_transport_binding_id);
-		MCTP_CTRL_TRACE("\t\tphys_media_type_id        :  0x%x\n",
-				routing_table->phys_media_type_id);
-		MCTP_CTRL_TRACE("\t\tphys_address_size         :  0x%x\n",
-				routing_table->phys_address_size);
-		MCTP_CTRL_TRACE(
-			"-----------------------------------------------\n");
+			"eid_range_size: 0x%x, starting_eid: 0x%x, entry_type: 0x%x, phys_transport_binding_id: 0x%x, phys_media_type_id: 0x%x, phys_address_size: 0x%x\n",
+			routing_table->eid_range_size,
+			routing_table->starting_eid, routing_table->entry_type,
+			routing_table->phys_transport_binding_id,
+			routing_table->phys_media_type_id,
+			routing_table->phys_address_size);
 	} else {
 		MCTP_CTRL_TRACE(
 			"-----------------< empty/invalid >------------------\n");
@@ -176,24 +160,23 @@ void mctp_print_routing_table_entry(
 static void
 mctp_print_msg_types_table_entry(mctp_msg_type_table_t *msg_type_table)
 {
-	MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
 	MCTP_CTRL_TRACE("MCTP-MSG-TYPE-TABLE-ENTRY\n");
 
 	/* Print only if message exist */
 	if (msg_type_table) {
-		MCTP_CTRL_TRACE(
-			"-----------------------------------------------\n");
+		char trace_buf[2048];
+		snprintf(
+			trace_buf, sizeof(trace_buf),
+			"EID: 0x%x, Number of supported types: 0x%x, Supported Types: ",
+			msg_type_table->eid, msg_type_table->data_len);
 
-		MCTP_CTRL_TRACE("\t\tEID                       :  0x%x\n",
-				msg_type_table->eid);
-		MCTP_CTRL_TRACE("\t\tNumber of supported types :  0x%x\n",
-				msg_type_table->data_len);
-		MCTP_CTRL_TRACE("\t\tSupported Types           :  ");
 		for (int i = 0; i < msg_type_table->data_len; i++) {
-			MCTP_CTRL_TRACE("0x%x  ", msg_type_table->data[i]);
+			snprintf(trace_buf + strlen(trace_buf),
+				 sizeof(trace_buf) - strlen(trace_buf),
+				 "0x%x  ", msg_type_table->data[i]);
 		}
-		MCTP_CTRL_TRACE(
-			"\n-----------------------------------------------\n");
+
+		MCTP_CTRL_TRACE("%s\n", trace_buf);
 	} else {
 		MCTP_CTRL_TRACE(
 			"-----------------< empty/invalid >------------------\n");
@@ -203,35 +186,23 @@ mctp_print_msg_types_table_entry(mctp_msg_type_table_t *msg_type_table)
 /* Tracing function to print UUID */
 static void mctp_print_uuid_table_entry(mctp_uuid_table_t *uuid_tbl)
 {
-	MCTP_CTRL_TRACE("\n-----------------------------------------------\n");
-	MCTP_CTRL_TRACE("MCTP-UUID-ENTRY-FOR-EID                 :  0x%x\n",
-			uuid_tbl->eid);
+	MCTP_CTRL_TRACE("MCTP-UUID-ENTRY-FOR-EID  :  0x%x\n", uuid_tbl->eid);
 
 	/* Print only if message exist */
 	if (uuid_tbl) {
 		MCTP_CTRL_TRACE(
-			"-----------------------------------------------\n");
-
-		MCTP_CTRL_TRACE("\t\tEID                             :  0x%x\n",
-				uuid_tbl->eid);
-		MCTP_CTRL_TRACE("\t\tUUID:(time-low)                 :  0x%x\n",
-				uuid_tbl->uuid.canonical.data0);
-		MCTP_CTRL_TRACE("\t\tUUID:(time-mid)                 :  0x%x\n",
-				uuid_tbl->uuid.canonical.data1);
-		MCTP_CTRL_TRACE("\t\tUUID:(time-high and version)    :  0x%x\n",
-				uuid_tbl->uuid.canonical.data2);
-		MCTP_CTRL_TRACE("\t\tUUID:(clk-seq and resvd)        :  0x%x\n",
-				uuid_tbl->uuid.canonical.data3);
-		MCTP_CTRL_TRACE(
-			"\t\tUUID:(node)                     :  0x%x-0x%x-0x%x-0x%x-0x%x-0x%x\n",
+			"EID: 0x%x, UUID: time-low=0x%x, time-mid=0x%x, time-high-version=0x%x, clk-seq-resvd=0x%x "
+			"UUID:(node)  :  0x%x-0x%x-0x%x-0x%x-0x%x-0x%x\n",
+			uuid_tbl->eid, uuid_tbl->uuid.canonical.data0,
+			uuid_tbl->uuid.canonical.data1,
+			uuid_tbl->uuid.canonical.data2,
+			uuid_tbl->uuid.canonical.data3,
 			uuid_tbl->uuid.canonical.data4[0],
 			uuid_tbl->uuid.canonical.data4[1],
 			uuid_tbl->uuid.canonical.data4[2],
 			uuid_tbl->uuid.canonical.data4[3],
 			uuid_tbl->uuid.canonical.data4[4],
 			uuid_tbl->uuid.canonical.data4[5]);
-		MCTP_CTRL_TRACE(
-			"\n-----------------------------------------------\n");
 	} else {
 		MCTP_CTRL_TRACE(
 			"-----------------< empty/invalid >------------------\n");
