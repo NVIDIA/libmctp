@@ -307,8 +307,6 @@ void *mctp_spi_keepalive_event(void *arg)
 #endif
 
 	while (mctp_ctrl_running) {
-		MCTP_CTRL_DEBUG("[%s] Send 'Heartbeat' message\n", __func__);
-
 		rc = heartbeat(socket_fd, ctrl->eid, VERBOSE_DISABLE);
 		if (rc != 0) {
 			MCTP_CTRL_ERR("[%s] Heartbeat message failed.\n",
