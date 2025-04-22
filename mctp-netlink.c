@@ -77,10 +77,10 @@ int mctp_nl_socket_init()
 
 	msg.rta.rta_type = IFA_LOCAL;
 	msg.rta.rta_len = RTA_LENGTH(sizeof(eid));
-	memcpy(RTA_DATA(&msg.rta), &eid, sizeof(eid));
+	memcpy(msg.data, &eid, sizeof(eid));
 
-	msg.nh.nlmsg_len =
-		NLMSG_LENGTH(sizeof(msg.ifmsg)) + RTA_SPACE(sizeof(eid));
+	msg.nh.nlmsg_len = NLMSG_ALIGN(NLMSG_LENGTH(sizeof(msg.ifmsg)) +
+				       RTA_SPACE(sizeof(eid)));
 	nl_addr.nl_family = AF_NETLINK;
 	nl_addr.nl_pid = 0;
 
@@ -99,6 +99,7 @@ int mctp_nl_socket_init()
 			MCTP_ERR(
 				"AF_NETLINK socket[%d] setsockopt failed rc[%d] %s\n",
 				nl_sd, rc, strerror(errno));
+			close(nl_sd);
 			goto out;
 		}
 
@@ -108,14 +109,16 @@ int mctp_nl_socket_init()
 			MCTP_ERR(
 				"AF_NETLINK socket[%d] setsockopt failed rc[%d] %s\n",
 				nl_sd, rc, strerror(errno));
+			close(nl_sd);
 			goto out;
 		}
 
 		local_interface.nl_sd = nl_sd;
 	}
-	/* Bind local eid to interface ifindex */
-	if ((rc = sendto(local_interface.nl_sd, &msg.nh, msg.nh.nlmsg_len, 0,
-			 (struct sockaddr *)&nl_addr, sizeof(nl_addr))) < 0) {
+
+	if ((rc = sendto(local_interface.nl_sd, (void *)&msg.nh,
+			 msg.nh.nlmsg_len, 0, (struct sockaddr *)&nl_addr,
+			 sizeof(nl_addr))) < 0) {
 		MCTP_ERR(
 			"%s failed to setup local EID %d for interface %s rc [%d] %s\n",
 			__func__, eid, local_interface.ifname, rc,
@@ -240,9 +243,17 @@ int mctp_nl_add_route(mctp_eid_t eid)
 
 		rta1 = (void *)buff1;
 		rta_len1 = sizeof(buff1);
-		space1 = 0;
-		space1 += mctp_put_rtnlmsg_attr(&rta1, &rta_len1, RTAX_MTU,
-						&mtu, sizeof(mtu));
+		rc = mctp_put_rtnlmsg_attr(&rta1, &rta_len1, RTAX_MTU, &mtu,
+					   sizeof(mtu));
+		if (rc < 0) {
+			return -1;
+		}
+		space1 = rc;
+
+		if (space1 >= sizeof(buff1)) {
+			MCTP_ERR("insufficient buffer length");
+			return -1;
+		}
 		msg.nh.nlmsg_len += mctp_put_rtnlmsg_attr(
 			&rta, &rta_len, RTA_METRICS | NLA_F_NESTED, buff1,
 			space1);
@@ -260,155 +271,4 @@ int mctp_nl_add_route(mctp_eid_t eid)
 	}
 
 	return 0;
-}
-
-int parse_rtattr_flags(struct rtattr *tb[], int max, struct rtattr *rta,
-		       int len, unsigned short flags)
-{
-	unsigned short type;
-	type = 0;
-	memset(tb, 0, sizeof(struct rtattr *) * (max + 1));
-	while (RTA_OK(rta, len)) {
-		type = rta->rta_type & ~flags;
-		if ((type <= max) && (!tb[type]))
-			tb[type] = rta;
-		rta = RTA_NEXT(rta, len);
-	}
-	if (len)
-		MCTP_ERR("!!!Deficit %d, rta_len=%d\n", len, rta->rta_len);
-
-	return 0;
-}
-static inline char *rta_getattr_str(const struct rtattr *rta)
-{
-	return (char *)RTA_DATA(rta);
-}
-
-static int parse_getlink_dump(struct nlmsghdr *nlh, uint32_t len, char *ifname,
-			      char *pattern)
-{
-	struct ifinfomsg *info;
-	bool found = false;
-
-	for (; NLMSG_OK(nlh, len); nlh = NLMSG_NEXT(nlh, len)) {
-		if (nlh->nlmsg_type == NLMSG_DONE)
-			return found ? 0 : 1; // 1: continue reading
-
-		if (nlh->nlmsg_type == NLMSG_ERROR)
-			return -1;
-
-		if (NLMSG_PAYLOAD(nlh, 0) < sizeof(*info))
-			return -1;
-
-		info = NLMSG_DATA(nlh);
-		if (!info->ifi_index)
-			continue;
-
-		int rlen = NLMSG_PAYLOAD(nlh, sizeof(*info));
-		struct rtattr *tb[IFLA_MAX + 1];
-
-		parse_rtattr_flags(tb, IFLA_MAX, IFLA_RTA(NLMSG_DATA(info)),
-				   rlen, NLA_F_NESTED);
-		if (tb[IFLA_PROP_LIST]) {
-			struct rtattr *i, *proplist = tb[IFLA_PROP_LIST];
-			int rem = RTA_PAYLOAD(proplist);
-
-			for (i = RTA_DATA(proplist); RTA_OK(i, rem);
-			     i = RTA_NEXT(i, rem)) {
-				if (i->rta_type != IFLA_ALT_IFNAME)
-					continue;
-				/*Compare altname with  pattern to get interface name*/
-				char *alt_name = rta_getattr_str(i);
-				if (strstr(alt_name, pattern)) {
-					strncpy(ifname, alt_name,
-						MAX_INTERFACE_LEN - 1);
-					ifname[MAX_INTERFACE_LEN - 1] = '\0';
-					return 0;
-				}
-			}
-		}
-	}
-	return 1; // Continue reading more messages
-}
-
-int mctp_nl_get_ifname(char *ifname, char *pattern)
-{
-	struct {
-		struct nlmsghdr nh;
-		struct ifinfomsg ifmsg;
-	} msg = { 0 };
-	struct sockaddr_nl addr;
-	socklen_t addrlen;
-	size_t buflen;
-	void *buf;
-	int rc;
-
-	addrlen = 0;
-	buf = NULL;
-	buflen = 0;
-	msg.nh.nlmsg_len = NLMSG_LENGTH(sizeof(msg.ifmsg));
-	msg.nh.nlmsg_type = RTM_GETLINK;
-	msg.nh.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
-	msg.ifmsg.ifi_family = AF_MCTP;
-
-	memset(&addr, 0, sizeof(addr));
-	addr.nl_family = AF_NETLINK;
-	addr.nl_pid = 0;
-	int nl_sd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
-	rc = sendto(nl_sd, &msg.nh, msg.nh.nlmsg_len, 0,
-		    (struct sockaddr *)&addr, sizeof(addr));
-	if (rc < 0) {
-		MCTP_ERR("failed to send GETLINK mssg: rc[%d], %s\n", rc,
-			 strerror(errno));
-		return rc;
-	}
-
-	addrlen = sizeof(addr);
-	bool found = false;
-	for (;;) {
-		rc = recvfrom(nl_sd, NULL, 0, MSG_PEEK | MSG_TRUNC, NULL, NULL);
-		if (rc < 0) {
-			MCTP_ERR(
-				"failed to find response for GETLINK: rc[%d] %s\n",
-				rc, strerror(errno));
-			break;
-		}
-
-		if ((size_t)rc > buflen) {
-			char *tmp;
-			buflen = rc;
-			tmp = realloc(buf, buflen);
-			if (!tmp) {
-				rc = -ENOMEM;
-				break;
-			}
-			buf = tmp;
-		}
-
-		rc = recvfrom(nl_sd, buf, buflen, 0, (struct sockaddr *)&addr,
-			      &addrlen);
-		if (rc < 0) {
-			MCTP_ERR(
-				"failed to receive GETLINK response: rc[%d] %s\n",
-				rc, strerror(errno));
-			break;
-		}
-
-		rc = parse_getlink_dump(buf, rc, ifname, pattern);
-		if (rc < 0) {
-			MCTP_ERR("failed to parse netlink response: rc[%d]\n",
-				 rc);
-			break;
-		}
-		if (rc == 0) {
-			found = true;
-			break;
-		}
-		// rc == 1 means continue reading
-	}
-
-	free(buf);
-	close(nl_sd);
-
-	return found ? 0 : -ENODEV;
 }

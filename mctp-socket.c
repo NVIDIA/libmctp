@@ -241,6 +241,11 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 		return MCTP_REQUESTER_TIMEOUT;
 	}
 
+	if (bufLen >= (ssize_t)(SIZE_MAX >> 1)) {
+		mctp_prerr("%s: Recv len is invalid\n", __func__);
+		return MCTP_REQUESTER_INVALID_RECV_LEN;
+	}
+
 	*mctp_resp_msg = malloc(bufLen + 1);
 
 	MCTP_ASSERT_RET(*mctp_resp_msg != NULL, MCTP_REQUESTER_RECV_FAIL,

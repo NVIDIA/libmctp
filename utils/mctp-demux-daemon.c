@@ -1179,7 +1179,7 @@ static int binding_usb_init(struct mctp *mctp, struct binding *binding,
 							[2 *
 							 MCTP_USB_PORT_PATH_MAX_LEN];
 						strncpy(recv_usb_path, arg,
-							2 * MCTP_USB_PORT_PATH_MAX_LEN);
+							2 * MCTP_USB_PORT_PATH_MAX_LEN - 1);
 						char *hyphen_pos = strchr(
 							recv_usb_path, '-');
 						if (hyphen_pos) {

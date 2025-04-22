@@ -588,6 +588,7 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 	}
 
 	MCTP_CTRL_INFO("Command Done in [%zu] ms\n", (size_t)(t_end - t_start));
+	free(mctp_resp_msg);
 
 	return MCTP_CMD_SUCCESS;
 }
@@ -1422,7 +1423,7 @@ static void parse_command_line(int argc, char *const *argv,
 				char recv_usb_path[2 *
 						   MCTP_USB_PORT_PATH_MAX_LEN];
 				strncpy(recv_usb_path, optarg,
-					2 * MCTP_USB_PORT_PATH_MAX_LEN);
+					2 * MCTP_USB_PORT_PATH_MAX_LEN - 1);
 				char *hyphen_pos = strchr(recv_usb_path, '-');
 				if (hyphen_pos) {
 					char *start = recv_usb_path;
@@ -1435,7 +1436,7 @@ static void parse_command_line(int argc, char *const *argv,
 					exit(EXIT_FAILURE);
 				}
 				strncpy(cmdline->usb.port_path, hyphen_pos + 1,
-					sizeof(cmdline->usb.port_path));
+					sizeof(cmdline->usb.port_path) - 1);
 
 				// Convert port_path .  to -
 				port_path_len = strlen(cmdline->usb.port_path);
