@@ -707,7 +707,7 @@ static void query_boot_status_print_bits48_to_bit57(const uint8_t *resp_msg,
 		printf("REGION_CP_SUCCESS");
 		break;
 	case 1:
-		printf("REGION_CP_FAIL_STRAP_SETTING");
+		printf("REGION_CP_NOT_SUPPORTED");
 		break;
 	case 2:
 		printf("REGION_CP_FAIL_NO_BOOT_COMPLETE_SLOT");
@@ -1012,7 +1012,7 @@ create_json_query_boot_status_bits48_to_bit57(const uint8_t *resp_msg,
 		region_copy_failed_value_txt = "REGION_CP_SUCCESS";
 		break;
 	case 1:
-		region_copy_failed_value_txt = "REGION_CP_FAIL_STRAP_SETTING";
+		region_copy_failed_value_txt = "REGION_CP_NOT_SUPPORTED";
 		break;
 	case 2:
 		region_copy_failed_value_txt =
