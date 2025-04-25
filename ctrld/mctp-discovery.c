@@ -1015,15 +1015,15 @@ int mctp_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 }
 
 /* MCTP discovery response receive routine */
-static mctp_ret_codes_t mctp_discover_response(mctp_ctrl_t *ctrl,
-					       mctp_discovery_mode mode,
-					       mctp_eid_t eid,
-					       uint8_t **mctp_resp_msg,
-					       size_t *mctp_resp_len)
+static mctp_ret_codes_t
+mctp_discover_response(mctp_ctrl_t *ctrl, mctp_discovery_mode mode,
+		       mctp_eid_t recv_eid, mctp_eid_t source_eid,
+		       uint8_t **mctp_resp_msg, size_t *mctp_resp_len)
 {
 	int sock = ctrl->sock;
 	mctp_requester_rc_t mctp_ret;
 	char *device_name = "MCTP Device Enumeration Service";
+	char arg[REDFISH_ARG_LEN] = { 0 };
 
 	/* Ignore request commands */
 	switch (mode) {
@@ -1050,7 +1050,7 @@ static mctp_ret_codes_t mctp_discover_response(mctp_ctrl_t *ctrl,
 	case MCTP_GET_MSG_TYPE_RESPONSE:
 
 		/* Receive MCTP packets */
-		mctp_ret = mctp_client_recv(eid, sock, mctp_resp_msg,
+		mctp_ret = mctp_client_recv(recv_eid, sock, mctp_resp_msg,
 					    mctp_resp_len);
 
 		if (mctp_ret == MCTP_REQUESTER_TIMEOUT) {
@@ -1061,8 +1061,11 @@ static mctp_ret_codes_t mctp_discover_response(mctp_ctrl_t *ctrl,
 				      "Reset the baseboard");
 				return MCTP_RET_REQUEST_FAILED;
 			}
-			doLog(ctrl->bus, device_name, "Discovery Timed Out",
-			      EVT_CRITICAL, "Reset the baseboard");
+			snprintf(arg, sizeof(arg) - 1,
+				 "Discovery Timed Out for eid: %d and mode %d",
+				 source_eid, mode);
+			doLog(ctrl->bus, device_name, arg, EVT_CRITICAL,
+			      "Reset the baseboard");
 
 			return MCTP_RET_REQUEST_FAILED;
 		} else if (mctp_ret == MCTP_REQUESTER_RECV_FAIL ||
@@ -1106,6 +1109,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 	mctp_routing_table_t *routing_entry = NULL;
 	mctp_binding_ids_t bind_id = MCTP_BINDING_PCIE;
 	char arg[REDFISH_ARG_LEN] = { 0 };
+	mctp_eid_t source_eid = MCTP_EID_NULL;
 
 	MCTP_CTRL_INFO("%s: Starting discovery with mode: %d\n", __func__,
 		       start_mode);
@@ -1140,7 +1144,8 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			       sdret);
 		/* Wait for MCTP response */
 		mctp_ret = mctp_discover_response(ctrl, discovery_mode,
-						  cmd->dest_eid, &mctp_resp_msg,
+						  cmd->dest_eid, source_eid,
+						  &mctp_resp_msg,
 						  &resp_msg_len);
 		if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed to received message %d\n",
@@ -1199,6 +1204,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			}
 
 			/* Wait for the endpoint discovery response */
+			source_eid = MCTP_EID_NULL;
 			discovery_mode = MCTP_PREPARE_FOR_EP_DISCOVERY_RESPONSE;
 
 			break;
@@ -1246,6 +1252,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			}
 
 			/* Wait for the endpoint response */
+			source_eid = g_bridge_eid;
 			discovery_mode = MCTP_EP_DISCOVERY_RESPONSE;
 			break;
 
@@ -1298,6 +1305,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			}
 
 			/* Wait for the endpoint response */
+			source_eid = g_bridge_eid;
 			discovery_mode = MCTP_SET_EP_RESPONSE;
 
 			break;
@@ -1385,6 +1393,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			}
 
 			/* Wait for the endpoint response */
+			source_eid = g_bridge_eid;
 			discovery_mode = MCTP_ALLOCATE_EP_ID_RESPONSE;
 
 			break;
@@ -1449,6 +1458,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			}
 
 			/* Wait for the endpoint response */
+			source_eid = eid_start;
 			discovery_mode =
 				MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE;
 
@@ -1562,6 +1572,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 					return MCTP_RET_DISCOVERY_FAILED;
 				}
 				/* Wait for the endpoint response */
+				source_eid = eid_start;
 				discovery_mode = MCTP_GET_EP_UUID_RESPONSE;
 			} else {
 				/* Get the start of Routing entry */
@@ -1660,6 +1671,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 					return MCTP_RET_DISCOVERY_FAILED;
 				}
 				/* Wait for the endpoint response */
+				source_eid = eid_start;
 				discovery_mode = MCTP_GET_MSG_TYPE_RESPONSE;
 			} else {
 				/* No more entries remain */
@@ -1743,12 +1755,14 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
 	int timeout = 0;
 	mctp_binding_ids_t bind_id = MCTP_BINDING_SPI;
 	char arg[REDFISH_ARG_LEN] = { 0 };
+	mctp_eid_t source_eid = MCTP_NULL_ENDPOINT;
 
 	/* Implement SPI UUID and MSG_TYPE commamnds*/
 	do {
-		mctp_ret =
-			mctp_discover_response(ctrl, mode, MCTP_NULL_ENDPOINT,
-					       &mctp_resp_msg, &resp_msg_len);
+		mctp_ret = mctp_discover_response(ctrl, mode,
+						  MCTP_NULL_ENDPOINT,
+						  source_eid, &mctp_resp_msg,
+						  &resp_msg_len);
 		if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed to received message %d\n",
 				      __func__, mctp_ret);
@@ -1784,6 +1798,7 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
 			}
 
 			/* Wait for the endpoint response */
+			source_eid = eid;
 			mode = MCTP_SET_EP_RESPONSE;
 			break;
 
@@ -1859,6 +1874,7 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
 			}
 
 			/* Wait for the endpoint response */
+			source_eid = eid;
 			mode = MCTP_GET_EP_UUID_RESPONSE;
 
 			break;
@@ -1908,6 +1924,7 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
 			}
 
 			/* Wait for the endpoint response */
+			source_eid = eid;
 			mode = MCTP_GET_MSG_TYPE_RESPONSE;
 
 			break;
