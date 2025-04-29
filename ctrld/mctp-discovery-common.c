@@ -257,6 +257,22 @@ int mctp_routing_entry_add(struct get_routing_table_entry *routing_table_entry)
 		/* Update the routing ID */
 		new_entry->id = routing_id++;
 
+#ifdef MCTP_IN_KERNEL
+		/*Routes and neighour for downstream eid*/
+		if (mctp_nl_add_route(new_entry->routing_table.starting_eid) <
+		    0) {
+			MCTP_CTRL_ERR("%s: Failed to add route for eid %d\n",
+				      __func__,
+				      new_entry->routing_table.starting_eid);
+		}
+
+		if (mctp_nl_add_neigh(new_entry->routing_table.starting_eid) <
+		    0) {
+			MCTP_CTRL_ERR("%s: Failed to add neigh for eid %d\n",
+				      __func__,
+				      new_entry->routing_table.starting_eid);
+		}
+#endif
 		return 0;
 	}
 
