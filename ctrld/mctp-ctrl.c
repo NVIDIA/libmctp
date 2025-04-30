@@ -22,6 +22,7 @@
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <getopt.h>
 #include <limits.h>
 #include <poll.h>
@@ -36,6 +37,7 @@
 #include <pthread.h>
 #include <json-c/json.h>
 
+#include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/timerfd.h>
@@ -65,6 +67,9 @@
 #ifdef MOCKUP_ENDPOINT
 #include "fsdyn-endpoint.h"
 #endif
+
+#include <linux/i2c-dev.h>
+#include <linux/i2c.h>
 
 /* MCTP Tx/Rx waittime in milli-seconds */
 #define MCTP_CTRL_WAIT_SECONDS (1 * 1000)
@@ -97,6 +102,7 @@ int g_signal_fd = -1;
 int g_mon_fd = -1;
 #endif
 int g_disc_timer_fd = -1;
+int g_1s_timer_fd = -1; /* New 1s timer FD */
 static sd_bus *g_sdbus = NULL;
 
 static uint8_t chosen_eid_type = EID_TYPE_BRIDGE;
@@ -1287,6 +1293,133 @@ static int mctp_ctrl_sdbus_custom_event(void *ctx)
 	return fsdyn_ep_poll_handler((fsdyn_ep_context_ptr)ctx);
 }
 #endif
+
+/* Function to reset bridge via I2C */
+static int mctp_reset_bridge_i2c(void)
+{
+	int fd;
+	int ret;
+	char filename[20];
+	struct i2c_msg msg;
+	struct i2c_rdwr_ioctl_data msgset;
+	uint8_t reset_cmd[] = { 0x0b, 0x05, 0x84 }; // Reset command bytes
+
+	/* Open I2C device */
+	snprintf(filename, sizeof(filename), "/dev/i2c-1");
+	fd = open(filename, O_RDWR);
+	if (fd < 0) {
+		MCTP_CTRL_ERR("%s: Failed to open I2C device: %s\n", __func__,
+			      strerror(errno));
+		return -1;
+	}
+
+	/* Set slave address */
+	ret = ioctl(fd, I2C_SLAVE, 0x11);
+	if (ret < 0) {
+		MCTP_CTRL_ERR("%s: Failed to set slave address: %s\n", __func__,
+			      strerror(errno));
+		close(fd);
+		return -1;
+	}
+
+	/* Prepare I2C message */
+	msg.addr = 0x11; // Slave address
+	msg.flags = 0;	 // Write
+	msg.len = sizeof(reset_cmd);
+	msg.buf = reset_cmd;
+
+	msgset.msgs = &msg;
+	msgset.nmsgs = 1;
+
+	/* Send reset command */
+	ret = ioctl(fd, I2C_RDWR, &msgset);
+	if (ret < 0) {
+		MCTP_CTRL_ERR("%s: Failed to send reset command: %s\n",
+			      __func__, strerror(errno));
+		close(fd);
+		return -1;
+	}
+
+	close(fd);
+	return 0;
+}
+
+/* Callback for 1s timer */
+void mctp_1s_timer_callback(mctp_ctrl_t *mctp_ctrl)
+{
+	mctp_requester_rc_t mctp_ret = MCTP_REQUESTER_SUCCESS;
+	size_t resp_msg_len = 0;
+	uint8_t *mctp_resp_msg = NULL;
+	struct mctp_ctrl_cmd_get_eid get_eid_cmd = { 0 };
+	struct mctp_ctrl_req ep_req = { 0 };
+	void *pvt_binding = NULL;
+	struct mctp_usb_pkt_private pvt_binding_usb = { 0 };
+	size_t binding_size = 0;
+	mctp_binding_ids_t bind_id = MCTP_BINDING_PCIE;
+
+	MCTP_CTRL_DEBUG("%s: 1s timer callback\n", __func__);
+
+	/* Set private binding */
+	if (MCTP_BINDING_USB == bind_id) {
+		memset(&pvt_binding_usb, 0, sizeof(pvt_binding_usb));
+		pvt_binding = &pvt_binding_usb;
+		binding_size = sizeof(pvt_binding_usb);
+	} else {
+		MCTP_CTRL_ERR(
+			"%s: 1s timer callback -- Unsupported Binding type\n",
+			__func__);
+		return;
+	}
+
+	/* Encode GetEndpointID command */
+	if (!mctp_encode_ctrl_cmd_get_eid(&get_eid_cmd)) {
+		MCTP_CTRL_ERR("%s: Failed to encode GetEndpointID command\n",
+			      __func__);
+		return;
+	}
+
+	/* Initialize the buffers */
+	memset(&ep_req, 0, sizeof(ep_req));
+
+	/* Copy to Tx packet */
+	memcpy(&ep_req, &get_eid_cmd, sizeof(struct mctp_ctrl_cmd_get_eid));
+
+	/* Send the request message over socket */
+	mctp_ret = mctp_client_with_binding_send(
+		mctp_ctrl->cmdline->usb.bridge_eid, mctp_ctrl->sock,
+		(const uint8_t *)&ep_req, sizeof(struct mctp_ctrl_cmd_get_eid),
+		&bind_id, pvt_binding, binding_size);
+	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
+		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
+		return;
+	}
+
+	/* Receive the response */
+	mctp_ret = mctp_client_recv(mctp_ctrl->cmdline->usb.bridge_eid,
+				    mctp_ctrl->sock, &mctp_resp_msg,
+				    &resp_msg_len);
+	if (mctp_ret != MCTP_REQUESTER_SUCCESS) {
+		MCTP_CTRL_ERR(
+			"%s: GetEndpointID command failed with error %d\n",
+			__func__, mctp_ret);
+
+		/* Reset bridge via I2C */
+		MCTP_CTRL_INFO("%s: Attempting bridge reset via I2C\n",
+			       __func__);
+		int ret = mctp_reset_bridge_i2c();
+		if (ret != 0) {
+			MCTP_CTRL_ERR("%s: Bridge reset failed with error %d\n",
+				      __func__, ret);
+		} else {
+			MCTP_CTRL_INFO("%s: Bridge reset successful\n",
+				       __func__);
+		}
+		return;
+	}
+
+	/* Free the response buffer */
+	free(mctp_resp_msg);
+}
 
 int main_ctrl(int argc, char *const *argv)
 {

@@ -53,16 +53,20 @@ extern "C" {
 #define MCTP_CTRL_SDBUS_NMAE_SIZE     255
 #define MCTP_CTRL_SDBUS_NETWORK_ID    0
 
-typedef enum mctp_ctrl_fds {
-	MCTP_CTRL_SD_BUS_FD = 0,
+enum {
+	MCTP_CTRL_SD_BUS_FD,
 	MCTP_CTRL_SIGNAL_FD,
 	MCTP_CTRL_SOCKET_FD,
 	MCTP_CTRL_TIMER_FD,
+	MCTP_CTRL_1S_TIMER_FD, /* New 1s timer FD index */
 #ifdef MOCKUP_ENDPOINT
 	MCTP_CTRL_SD_MON_FD,
 #endif
+#ifdef ENABLE_USB
+	MCTP_CTRL_USB_FD,
+#endif
 	MCTP_CTRL_TOTAL_FDS
-} mctp_ctrl_fds_t;
+};
 
 #define MCTP_CTRL_POLL_TIMEOUT	     1000
 #define MCTP_CTRL_SDBUS_MAX_MSG_SIZE 256

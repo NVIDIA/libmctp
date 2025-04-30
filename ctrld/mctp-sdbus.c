@@ -61,7 +61,9 @@ extern char *mctp_sock_path;
 extern const char *mctp_medium_type;
 
 extern int g_disc_timer_fd;
+extern int g_1s_timer_fd;
 extern void mctp_handle_discovery_notify();
+extern void mctp_1s_timer_callback(mctp_ctrl_t *mctp_ctrl);
 int mctp_ctrl_running = 1;
 
 /* String map for supported bus type */
@@ -1157,6 +1159,30 @@ static int mctp_ctrl_handle_timer(mctp_ctrl_t *mctp_ctrl,
 			mctp_ctrl->perform_rediscovery = false;
 		}
 	}
+
+	/* Handle 1s timer */
+	if (context->fds[MCTP_CTRL_1S_TIMER_FD].revents) {
+		uint64_t ign = 0;
+		if (sizeof(ign) != read(context->fds[MCTP_CTRL_1S_TIMER_FD].fd,
+					&ign, sizeof(ign))) {
+			MCTP_CTRL_ERR("%s: Bad read from 1s timer FD\n",
+				      __func__);
+		}
+		mctp_1s_timer_callback(mctp_ctrl);
+
+		/* Rearm the 1s timer */
+		struct itimerspec its;
+		its.it_interval.tv_sec = 1; /* 1 second interval */
+		its.it_interval.tv_nsec = 0;
+		its.it_value.tv_sec = 1;    /* Next timeout after 1 second */
+		its.it_value.tv_nsec = 0;
+
+		if (timerfd_settime(g_1s_timer_fd, 0, &its, NULL) == -1) {
+			MCTP_CTRL_ERR("%s: Failed to rearm 1s timer\n",
+				      __func__);
+		}
+	}
+
 	return 0;
 }
 
@@ -1222,6 +1248,33 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 {
 	int r = 0;
 
+	if (-1 == g_disc_timer_fd) {
+		MCTP_CTRL_INFO(
+			"%s: Creating discovery timer for the first time\n",
+			__func__);
+		g_disc_timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+	}
+
+	/* Create 1s timer */
+	if (-1 == g_1s_timer_fd) {
+		MCTP_CTRL_INFO("%s: Creating 1s timer for the first time\n",
+			       __func__);
+		g_1s_timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+
+		/* Set up 1s timer interval */
+		struct itimerspec its;
+		its.it_interval.tv_sec = 1; /* 1 second interval */
+		its.it_interval.tv_nsec = 0;
+		its.it_value.tv_sec = 1;    /* First timeout after 1 second */
+		its.it_value.tv_nsec = 0;
+
+		if (timerfd_settime(g_1s_timer_fd, 0, &its, NULL) == -1) {
+			MCTP_CTRL_ERR("%s: Failed to set 1s timer interval\n",
+				      __func__);
+			return -1;
+		}
+	}
+
 	r = mctp_ctrl_sdbus_host_endpoints(cmdline, context);
 	if (r != 0) {
 		MCTP_CTRL_ERR(
@@ -1240,6 +1293,11 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 	context->fds[MCTP_CTRL_TIMER_FD].fd = g_disc_timer_fd;
 	context->fds[MCTP_CTRL_TIMER_FD].events = POLLIN;
 	context->fds[MCTP_CTRL_TIMER_FD].revents = 0;
+
+	/* Add 1s timer to poll list */
+	context->fds[MCTP_CTRL_1S_TIMER_FD].fd = g_1s_timer_fd;
+	context->fds[MCTP_CTRL_1S_TIMER_FD].events = POLLIN;
+	context->fds[MCTP_CTRL_1S_TIMER_FD].revents = 0;
 
 #ifdef MOCKUP_ENDPOINT
 	if (monfd) {
