@@ -70,6 +70,7 @@
 
 #include <linux/i2c-dev.h>
 #include <linux/i2c.h>
+#include "dbus_log_event.h"
 
 /* MCTP Tx/Rx waittime in milli-seconds */
 #define MCTP_CTRL_WAIT_SECONDS (1 * 1000)
@@ -234,12 +235,15 @@ static const struct option g_options[] = {
 	{ "cmd_mode", required_argument, 0, 'x' },
 	{ "mctp-iana-vdm", required_argument, 0, 'i' },
 
+	/* USB specific options */
+	{ "get_eid_timer", required_argument, 0, 'g' },
+
 	{ "help", optional_argument, 0, 'h' },
 	{ 0 },
 };
 
 static const char *const short_options =
-	"v:c:e:m:t:d:s:r:b:f:n:u:i:j:p:q:x:y:z:h::";
+	"v:c:e:m:t:d:s:r:b:f:n:u:i:j:p:q:x:y:z:g:h::";
 
 static void usage(void)
 {
@@ -333,6 +337,7 @@ static void usage_usb(void)
 		"\t-c\t option to remove duplicate EID entries from the routing table\n"
 		"\t-z\t option to ignore certain EID entries from the routing table"
 		" supplied as a space separated list in decimal\n"
+		"\t-g\t Time interval for polling getEID from FPGA in seconds. 0 to disable polling. 1s by default\n"
 		"To send MCTP message for USB binding type\n"
 		"Eg: Prepare for Endpoint Discovery\n");
 }
@@ -573,7 +578,8 @@ static void mctp_handle_event(mctp_ctrl_t *mctp_ctrl, uint8_t *message,
 	}
 	/* Only support datagram requests/events */
 	if (((message[1] & 0x80) != 0x80) || ((message[1] & 0x40) != 0x40)) {
-		MCTP_CTRL_ERR(
+		/* Don't flood journal with this message */
+		mctp_prdebug(
 			"%s: MCTP message has the wrong req bit or datagram bit. Req bit: %d, Datagram bit: %d\n",
 			__func__, (message[1] & 0x80) >> 7,
 			(message[1] & 0x40) >> 6);
@@ -827,6 +833,56 @@ static int open_mctp_sock(const mctp_cmdline_args_t *cmdline,
 	return EXIT_SUCCESS;
 }
 
+/* Function to reset bridge via I2C */
+static int mctp_reset_bridge_i2c(void)
+{
+	int fd;
+	int ret;
+	char filename[20];
+	struct i2c_msg msg;
+	struct i2c_rdwr_ioctl_data msgset;
+	uint8_t reset_cmd[] = { 0x0b, 0x05, 0x84 }; // Reset command bytes
+
+	/* Open I2C device */
+	snprintf(filename, sizeof(filename), "/dev/i2c-1");
+	fd = open(filename, O_RDWR);
+	if (fd < 0) {
+		MCTP_CTRL_ERR("%s: Failed to open I2C device: %s\n", __func__,
+			      strerror(errno));
+		return -1;
+	}
+
+	/* Set slave address */
+	ret = ioctl(fd, I2C_SLAVE, 0x11);
+	if (ret < 0) {
+		MCTP_CTRL_ERR("%s: Failed to set slave address: %s\n", __func__,
+			      strerror(errno));
+		close(fd);
+		return -1;
+	}
+
+	/* Prepare I2C message */
+	msg.addr = 0x11; // Slave address
+	msg.flags = 0;	 // Write
+	msg.len = sizeof(reset_cmd);
+	msg.buf = reset_cmd;
+
+	msgset.msgs = &msg;
+	msgset.nmsgs = 1;
+
+	/* Send reset command */
+	ret = ioctl(fd, I2C_RDWR, &msgset);
+	if (ret < 0) {
+		MCTP_CTRL_ERR("%s: Failed to send reset command: %s\n",
+			      __func__, strerror(errno));
+		close(fd);
+		return -1;
+	}
+
+	close(fd);
+	return 0;
+}
+
 static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 			    mctp_ctrl_t *mctp_ctrl)
 {
@@ -962,10 +1018,36 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 
 		/* Discover endpoints via USB*/
 		MCTP_CTRL_INFO("%s: Start MCTP-over-USB Discovery\n", __func__);
-		mctp_err_ret = mctp_discover_endpoints(
-			cmdline, mctp_ctrl,
-			MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST);
-		if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
+
+		/* Retry FPGA reset logic */
+		/* Context:
+        * 1. FPGA USB egress path can sometimes lock up, resulting in no Rx traffic to xMC.
+        * 2. Resetting the FPGA logic fixes the issue.
+        */
+		int retry = 0;
+		for (; retry < 5; retry++) {
+			mctp_err_ret = mctp_discover_endpoints(
+				cmdline, mctp_ctrl,
+				MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST);
+			if (mctp_err_ret == MCTP_RET_DISCOVERY_SUCCESS) {
+				MCTP_CTRL_INFO("%s: Discovery successful\n",
+					       __func__);
+				break;
+			} else if (mctp_err_ret == MCTP_RET_DISCOVERY_FAILED) {
+				MCTP_CTRL_ERR(
+					"%s: Attempting bridge reset via I2C\n",
+					__func__);
+				mctp_reset_bridge_i2c();
+				continue;
+			} else {
+				MCTP_CTRL_ERR(
+					"MCTP-Ctrl discovery unsuccessful\n");
+				mctp_ctrl_clean_up();
+				return EXIT_FAILURE;
+			}
+		}
+
+		if (retry == 5) {
 			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
 			mctp_ctrl_clean_up();
 			return EXIT_FAILURE;
@@ -1078,6 +1160,7 @@ static void parse_command_line(int argc, char *const *argv,
 
 	cmdline->verbose = false;
 	cmdline->use_json = false;
+	cmdline->get_eid_timer = 0;
 	cmdline->binding_type = MCTP_BINDING_RESERVED;
 	cmdline->delay = MCTP_CTRL_DELAY_DEFAULT;
 	cmdline->ops = MCTP_CMDLINE_OP_WRITE_DATA;
@@ -1099,6 +1182,10 @@ static void parse_command_line(int argc, char *const *argv,
 			break;
 		if (rc == 't') {
 			cmdline->binding_type = (uint8_t)atoi(optarg);
+			/* enable getEid timer for USB binding type */
+			if (cmdline->binding_type == MCTP_BINDING_USB) {
+				cmdline->get_eid_timer = 1;
+			}
 		}
 	}
 	optind = 1; // Reset to 1 to restart scanning
@@ -1216,6 +1303,14 @@ static void parse_command_line(int argc, char *const *argv,
 				command_mode = atoi(optarg);
 			}
 			break;
+		case 'g':
+			if (cmdline->binding_type == MCTP_BINDING_USB) {
+				cmdline->get_eid_timer = (uint8_t)atoi(optarg);
+				MCTP_CTRL_INFO("%s: getEid timer: %d\n",
+					       __func__,
+					       cmdline->get_eid_timer);
+			}
+			break;
 		case 'h':
 			if (optarg == NULL)
 				usage();
@@ -1294,56 +1389,6 @@ static int mctp_ctrl_sdbus_custom_event(void *ctx)
 }
 #endif
 
-/* Function to reset bridge via I2C */
-static int mctp_reset_bridge_i2c(void)
-{
-	int fd;
-	int ret;
-	char filename[20];
-	struct i2c_msg msg;
-	struct i2c_rdwr_ioctl_data msgset;
-	uint8_t reset_cmd[] = { 0x0b, 0x05, 0x84 }; // Reset command bytes
-
-	/* Open I2C device */
-	snprintf(filename, sizeof(filename), "/dev/i2c-1");
-	fd = open(filename, O_RDWR);
-	if (fd < 0) {
-		MCTP_CTRL_ERR("%s: Failed to open I2C device: %s\n", __func__,
-			      strerror(errno));
-		return -1;
-	}
-
-	/* Set slave address */
-	ret = ioctl(fd, I2C_SLAVE, 0x11);
-	if (ret < 0) {
-		MCTP_CTRL_ERR("%s: Failed to set slave address: %s\n", __func__,
-			      strerror(errno));
-		close(fd);
-		return -1;
-	}
-
-	/* Prepare I2C message */
-	msg.addr = 0x11; // Slave address
-	msg.flags = 0;	 // Write
-	msg.len = sizeof(reset_cmd);
-	msg.buf = reset_cmd;
-
-	msgset.msgs = &msg;
-	msgset.nmsgs = 1;
-
-	/* Send reset command */
-	ret = ioctl(fd, I2C_RDWR, &msgset);
-	if (ret < 0) {
-		MCTP_CTRL_ERR("%s: Failed to send reset command: %s\n",
-			      __func__, strerror(errno));
-		close(fd);
-		return -1;
-	}
-
-	close(fd);
-	return 0;
-}
-
 /* Callback for 1s timer */
 void mctp_1s_timer_callback(mctp_ctrl_t *mctp_ctrl)
 {
@@ -1355,9 +1400,7 @@ void mctp_1s_timer_callback(mctp_ctrl_t *mctp_ctrl)
 	void *pvt_binding = NULL;
 	struct mctp_usb_pkt_private pvt_binding_usb = { 0 };
 	size_t binding_size = 0;
-	mctp_binding_ids_t bind_id = MCTP_BINDING_PCIE;
-
-	MCTP_CTRL_DEBUG("%s: 1s timer callback\n", __func__);
+	mctp_binding_ids_t bind_id = MCTP_BINDING_USB;
 
 	/* Set private binding */
 	if (MCTP_BINDING_USB == bind_id) {
@@ -1393,11 +1436,28 @@ void mctp_1s_timer_callback(mctp_ctrl_t *mctp_ctrl)
 		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
 		return;
 	}
+	/* set up a 1 second recv timeout on the socket: */
+	struct timeval tv = { .tv_sec = 1, .tv_usec = 0 };
+	if (setsockopt(mctp_ctrl->sock, SOL_SOCKET, SO_RCVTIMEO, &tv,
+		       sizeof(tv)) < 0) {
+		MCTP_CTRL_ERR("%s: could not set SO_RCVTIMEO for 1sec: %s\n",
+			      __func__, strerror(errno));
+	}
 
 	/* Receive the response */
 	mctp_ret = mctp_client_recv(mctp_ctrl->cmdline->usb.bridge_eid,
 				    mctp_ctrl->sock, &mctp_resp_msg,
 				    &resp_msg_len);
+
+	/* Reverting back to the default timeout of 5secs */
+	tv.tv_sec = MCTP_CTRL_TXRX_TIMEOUT_5SECS;
+	tv.tv_usec = 0;
+	if (setsockopt(mctp_ctrl->sock, SOL_SOCKET, SO_RCVTIMEO, &tv,
+		       sizeof(tv)) < 0) {
+		MCTP_CTRL_ERR("%s: could not set SO_RCVTIMEO for 5secs: %s\n",
+			      __func__, strerror(errno));
+	}
+
 	if (mctp_ret != MCTP_REQUESTER_SUCCESS) {
 		MCTP_CTRL_ERR(
 			"%s: GetEndpointID command failed with error %d\n",
@@ -1416,6 +1476,8 @@ void mctp_1s_timer_callback(mctp_ctrl_t *mctp_ctrl)
 		}
 		return;
 	}
+
+	mctp_handle_event(mctp_ctrl, mctp_resp_msg, resp_msg_len);
 
 	/* Free the response buffer */
 	free(mctp_resp_msg);

@@ -1112,7 +1112,8 @@ static int mctp_ctrl_sdbus_host_endpoints(const mctp_cmdline_args_t *cmdline,
 }
 
 static int mctp_ctrl_handle_timer(mctp_ctrl_t *mctp_ctrl,
-				  mctp_sdbus_context_t *context)
+				  mctp_sdbus_context_t *context,
+				  uint8_t get_eid_timer_sec)
 {
 	if (context->fds[MCTP_CTRL_TIMER_FD].revents) {
 		MCTP_CTRL_INFO("%s: Timer expired for discovery notify\n",
@@ -1161,25 +1162,32 @@ static int mctp_ctrl_handle_timer(mctp_ctrl_t *mctp_ctrl,
 	}
 
 	/* Handle 1s timer */
-	if (context->fds[MCTP_CTRL_1S_TIMER_FD].revents) {
-		uint64_t ign = 0;
-		if (sizeof(ign) != read(context->fds[MCTP_CTRL_1S_TIMER_FD].fd,
-					&ign, sizeof(ign))) {
-			MCTP_CTRL_ERR("%s: Bad read from 1s timer FD\n",
-				      __func__);
-		}
-		mctp_1s_timer_callback(mctp_ctrl);
+	if (get_eid_timer_sec > 0 && g_1s_timer_fd != -1) {
+		if (context->fds[MCTP_CTRL_1S_TIMER_FD].revents) {
+			uint64_t ign = 0;
+			if (sizeof(ign) !=
+			    read(context->fds[MCTP_CTRL_1S_TIMER_FD].fd, &ign,
+				 sizeof(ign))) {
+				MCTP_CTRL_ERR("%s: Bad read from 1s timer FD\n",
+					      __func__);
+			}
+			mctp_1s_timer_callback(mctp_ctrl);
 
-		/* Rearm the 1s timer */
-		struct itimerspec its;
-		its.it_interval.tv_sec = 1; /* 1 second interval */
-		its.it_interval.tv_nsec = 0;
-		its.it_value.tv_sec = 1;    /* Next timeout after 1 second */
-		its.it_value.tv_nsec = 0;
+			/* Rearm the 1s timer */
+			struct itimerspec its;
+			its.it_interval.tv_sec =
+				get_eid_timer_sec; /* 1 second interval by default */
+			its.it_interval.tv_nsec = 0;
+			its.it_value.tv_sec =
+				get_eid_timer_sec; /* Next timeout after 1 second */
+			its.it_value.tv_nsec = 0;
 
-		if (timerfd_settime(g_1s_timer_fd, 0, &its, NULL) == -1) {
-			MCTP_CTRL_ERR("%s: Failed to rearm 1s timer\n",
-				      __func__);
+			if (timerfd_settime(g_1s_timer_fd, 0, &its, NULL) ==
+			    -1) {
+				MCTP_CTRL_ERR(
+					"%s: Failed to rearm getEid timer\n",
+					__func__);
+			}
 		}
 	}
 
@@ -1187,7 +1195,8 @@ static int mctp_ctrl_handle_timer(mctp_ctrl_t *mctp_ctrl,
 }
 
 int mctp_ctrl_sdbus_dispatch(mctp_ctrl_t *mctp_ctrl,
-			     mctp_sdbus_context_t *context)
+			     mctp_sdbus_context_t *context,
+			     uint8_t get_eid_timer_sec)
 {
 	int polled, r;
 
@@ -1220,7 +1229,7 @@ int mctp_ctrl_sdbus_dispatch(mctp_ctrl_t *mctp_ctrl,
 		return -1;
 	}
 
-	r = mctp_ctrl_handle_timer(mctp_ctrl, context);
+	r = mctp_ctrl_handle_timer(mctp_ctrl, context, get_eid_timer_sec);
 	if (r < 0) {
 		MCTP_CTRL_ERR("Error handling timer event: %d\n", r);
 		return -1;
@@ -1255,22 +1264,28 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 		g_disc_timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
 	}
 
-	/* Create 1s timer */
-	if (-1 == g_1s_timer_fd) {
-		MCTP_CTRL_INFO("%s: Creating 1s timer for the first time\n",
-			       __func__);
+	uint8_t get_eid_timer_sec = cmdline->get_eid_timer;
+
+	/* Create getEid timer if cmdline->get_eid_timer is enabled */
+	if (get_eid_timer_sec && -1 == g_1s_timer_fd) {
+		MCTP_CTRL_INFO(
+			"%s: Creating getEid timer for the first time with interval %d\n",
+			__func__, get_eid_timer_sec);
 		g_1s_timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
 
 		/* Set up 1s timer interval */
 		struct itimerspec its;
-		its.it_interval.tv_sec = 1; /* 1 second interval */
+		its.it_interval.tv_sec =
+			get_eid_timer_sec; /* 1 second interval by default */
 		its.it_interval.tv_nsec = 0;
-		its.it_value.tv_sec = 1;    /* First timeout after 1 second */
+		its.it_value.tv_sec =
+			get_eid_timer_sec; /* First timeout after get_eid_timer seconds */
 		its.it_value.tv_nsec = 0;
 
 		if (timerfd_settime(g_1s_timer_fd, 0, &its, NULL) == -1) {
-			MCTP_CTRL_ERR("%s: Failed to set 1s timer interval\n",
-				      __func__);
+			MCTP_CTRL_ERR(
+				"%s: Failed to set getEid timer interval to %d seconds\n",
+				__func__, get_eid_timer_sec);
 			return -1;
 		}
 	}
@@ -1295,9 +1310,12 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 	context->fds[MCTP_CTRL_TIMER_FD].revents = 0;
 
 	/* Add 1s timer to poll list */
+	/* safe to set fd to -1 if getEid timer is disabled */
 	context->fds[MCTP_CTRL_1S_TIMER_FD].fd = g_1s_timer_fd;
-	context->fds[MCTP_CTRL_1S_TIMER_FD].events = POLLIN;
-	context->fds[MCTP_CTRL_1S_TIMER_FD].revents = 0;
+	if (g_1s_timer_fd != -1) {
+		context->fds[MCTP_CTRL_1S_TIMER_FD].events = POLLIN;
+		context->fds[MCTP_CTRL_1S_TIMER_FD].revents = 0;
+	}
 
 #ifdef MOCKUP_ENDPOINT
 	if (monfd) {
@@ -1310,7 +1328,8 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 	MCTP_CTRL_DEBUG("%s: Entering polling loop\n", __func__);
 
 	while (mctp_ctrl_running) {
-		r = mctp_ctrl_sdbus_dispatch(mctp_ctrl, context);
+		r = mctp_ctrl_sdbus_dispatch(mctp_ctrl, context,
+					     get_eid_timer_sec);
 
 		if ((r < 0) || (r == SDBUS_SIGTERM)) {
 			break;

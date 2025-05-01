@@ -156,6 +156,7 @@ typedef struct mctp_cmdline_args_ {
 		struct mctp_cmdline_i2c i2c;
 		struct mctp_cmdline_usb usb;
 	};
+	uint8_t get_eid_timer;
 } mctp_cmdline_args_t;
 
 #endif /* __MCTP_CMDLINE_H */
