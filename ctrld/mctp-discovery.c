@@ -1114,23 +1114,28 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 	MCTP_CTRL_INFO("%s: Starting discovery with mode: %d\n", __func__,
 		       start_mode);
 
-	/* Update the EID lists */
-	switch (cmd->binding_type) {
-	case MCTP_BINDING_PCIE:
-		/* Update Target BDF */
-		g_target_bdf = mctp_ctrl_get_target_bdf(cmd);
+	/* Need to avoid resetting g_bridge_eid with cmdline bridge_eid
+	 for Re-discovery*/
+	if (start_mode != MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST) {
+		/* Update the EID lists */
+		switch (cmd->binding_type) {
+		case MCTP_BINDING_PCIE:
+			/* Update Target BDF */
+			g_target_bdf = mctp_ctrl_get_target_bdf(cmd);
+			g_own_eid = cmd->pcie.own_eid;
 
-		g_own_eid = cmd->pcie.own_eid;
-		g_bridge_eid = cmd->pcie.bridge_eid;
-		g_bridge_pool_start = cmd->pcie.bridge_pool_start;
-		break;
-	case MCTP_BINDING_USB:
-		g_own_eid = cmd->usb.own_eid;
-		g_bridge_eid = cmd->usb.bridge_eid;
-		g_bridge_pool_start = cmd->usb.bridge_pool_start;
-		bind_id = MCTP_BINDING_USB;
-	default:
-		break;
+			g_bridge_eid = cmd->pcie.bridge_eid;
+			g_bridge_pool_start = cmd->pcie.bridge_pool_start;
+			break;
+		case MCTP_BINDING_USB:
+			g_own_eid = cmd->usb.own_eid;
+			g_bridge_eid = cmd->usb.bridge_eid;
+			g_bridge_pool_start = cmd->usb.bridge_pool_start;
+			bind_id = MCTP_BINDING_USB;
+			break;
+		default:
+			break;
+		}
 	}
 
 	MCTP_CTRL_INFO(
