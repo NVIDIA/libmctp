@@ -281,6 +281,7 @@ static const struct option g_options[] = {
 	{ "cfg_file_path", required_argument, 0, 'f' },
 	{ "bus_num", required_argument, 0, 'n' },
 	{ "uuid", required_argument, 0, 'u' },
+	{ "exit_on_discovery_fail", no_argument, 0, 'o' },
 
 	/* EID options */
 	{ "pci_own_eid", required_argument, 0, 'i' },
@@ -303,7 +304,7 @@ static const struct option g_options[] = {
 };
 
 static const char *const short_options =
-	"v:c:e:m:t:d:s:r:b:f:n:u:i:j:p:q:x:y:z:w:k:l:h::";
+	"v:c:e:m:t:d:s:r:b:f:n:u:i:j:p:q:x:y:z:w:k:l:oh::";
 
 static void usage(void)
 {
@@ -328,7 +329,8 @@ static void usage_common(void)
 		"\t-d\tDelay in seconds (for MCTP enumeration)\n"
 		"\t-s\tTx data (MCTP packet payload: [Req-dgram]-[cmd-code]--)\n"
 		"\t-f\tAbsolute path to configuration json file\n"
-		"\t-n\tBus number for the selected interface, eg. PCIe 1, PCIe 2, I2C 3, ...");
+		"\t-n\tBus number for the selected interface, eg. PCIe 1, PCIe 2, I2C 3, ...\n"
+		"\t-o\tExit on discovery failure\n");
 }
 
 static void usage_pcie(void)
@@ -963,6 +965,9 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 			if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
 				MCTP_CTRL_ERR(
 					"MCTP-Ctrl discovery unsuccessful\n");
+				if (cmdline->exit_on_discovery_fail) {
+					return EXIT_FAILURE;
+				}
 			}
 
 			break;
@@ -983,6 +988,9 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 			if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
 				MCTP_CTRL_ERR(
 					"MCTP-Ctrl discovery unsuccessful\n");
+				if (cmdline->exit_on_discovery_fail) {
+					return EXIT_FAILURE;
+				}
 			}
 
 			break;
@@ -1130,6 +1138,7 @@ static void parse_command_line(int argc, char *const *argv,
 	cmdline->delay = MCTP_CTRL_DELAY_DEFAULT;
 	cmdline->ops = MCTP_CMDLINE_OP_WRITE_DATA;
 	cmdline->dest_eid = 8;
+	cmdline->exit_on_discovery_fail = false;
 
 	memset(&cmdline->tx_data, 0, MCTP_WRITE_DATA_BUFF_SIZE);
 	memset(&cmdline->rx_data, 0, MCTP_READ_DATA_BUFF_SIZE);
@@ -1253,6 +1262,9 @@ static void parse_command_line(int argc, char *const *argv,
 			} else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 				vdm_ops = atoi(optarg);
 			}
+			break;
+		case 'o':
+			cmdline->exit_on_discovery_fail = true;
 			break;
 		case 'x':
 			if (cmdline->binding_type == MCTP_BINDING_PCIE ||

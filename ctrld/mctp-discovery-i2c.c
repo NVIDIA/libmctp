@@ -1345,6 +1345,12 @@ mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_t *cmd,
 						"%s: Unexpected failure %d, mode[%d]\n",
 						__func__, mctp_ret,
 						discovery_mode);
+					if (cmd->exit_on_discovery_fail) {
+						MCTP_CTRL_ERR(
+							"%s: Discovery failed\n",
+							__func__);
+						return MCTP_RET_DISCOVERY_FAILED;
+					}
 					break;
 				}
 			}

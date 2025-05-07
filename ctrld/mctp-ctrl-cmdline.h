@@ -156,6 +156,7 @@ typedef struct mctp_cmdline_args_ {
 	uint8_t uuid;
 	char uuid_str[UUID_STR_LEN];
 	bool use_json;
+	bool exit_on_discovery_fail;
 	union {
 		struct mctp_cmdline_pcie pcie;
 		struct mctp_cmdline_spi spi;
