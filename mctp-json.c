@@ -1142,6 +1142,37 @@ int mctp_json_usb_get_params_ctrl(mctp_cmdline_args_t *cmdline,
 		usb->perform_device_reset = json_object_get_boolean(attr);
 	}
 
+	/* Parse optional ignore_eids array */
+	attr = json_object_object_get(obj, "ignore_eids");
+	if (attr != NULL) {
+		size_t num_eids = json_object_array_length(attr);
+		size_t i;
+
+		/* Initialize ignore_eids array */
+		memset(cmdline->ignore_eids, 0, sizeof(cmdline->ignore_eids));
+		cmdline->ignore_eids_len = 0;
+
+		/* Copy valid EIDs (0-255) to the array */
+		for (i = 0; i < num_eids && i < MCTP_MAX_IGNORE_EID_LEN; i++) {
+			int eid = json_object_get_int(
+				json_object_array_get_idx(attr, i));
+			if (eid >= 0 && eid <= 255) {
+				cmdline->ignore_eids[cmdline->ignore_eids_len++] =
+					(uint8_t)eid;
+			} else {
+				MCTP_ERR(
+					"Invalid EID value %d in ignore_eids array (must be 0-255)\n",
+					eid);
+			}
+		}
+
+		if (i < num_eids) {
+			MCTP_ERR(
+				"Warning: Some ignore_eids were truncated (max %d allowed)\n",
+				MCTP_MAX_IGNORE_EID_LEN);
+		}
+	}
+
 exit:
 	json_object_put(json);
 	return rc;

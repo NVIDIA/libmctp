@@ -1332,11 +1332,6 @@ static void parse_command_line(int argc, char *const *argv,
 					sizeof(cmdline->ignore_eids[0]));
 			MCTP_CTRL_INFO("%s: No. of EIDs to ignore: %d\n",
 				       __func__, cmdline->ignore_eids_len);
-			for (int i = 0; i < cmdline->ignore_eids_len; ++i) {
-				MCTP_CTRL_INFO("%s: EID to ignore: %d\n",
-					       __func__,
-					       cmdline->ignore_eids[i]);
-			}
 			break;
 		case 'u':
 			set_uuid_str(cmdline->uuid_str, optarg, UUID_STR_LEN);
@@ -1561,6 +1556,10 @@ static void parse_command_line(int argc, char *const *argv,
 		break;
 	default:
 		break;
+	}
+	for (int i = 0; i < cmdline->ignore_eids_len; ++i) {
+		MCTP_CTRL_INFO("%s: EID to ignore: %d\n", __func__,
+			       cmdline->ignore_eids[i]);
 	}
 	free(config_json_file_path);
 }
