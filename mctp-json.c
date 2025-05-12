@@ -1132,6 +1132,16 @@ int mctp_json_usb_get_params_ctrl(mctp_cmdline_args_t *cmdline,
 	}
 	usb->bridge_pool_start = json_object_get_int(attr);
 
+	attr = json_object_object_get(obj, "get_eid_max_fails");
+	if (attr != NULL) {
+		usb->get_eid_max_fails = json_object_get_int(attr);
+	}
+
+	attr = json_object_object_get(obj, "perform_device_reset");
+	if (attr != NULL) {
+		usb->perform_device_reset = json_object_get_boolean(attr);
+	}
+
 exit:
 	json_object_put(json);
 	return rc;

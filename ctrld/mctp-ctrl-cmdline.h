@@ -126,6 +126,8 @@ struct mctp_cmdline_usb {
 	uint8_t bridge_pool_start;
 	bool remove_duplicates;
 	uint8_t bus_id;
+	uint8_t get_eid_max_fails;
+	bool perform_device_reset;
 	char port_path[MCTP_USB_PORT_PATH_MAX_LEN];
 };
 
@@ -163,6 +165,7 @@ typedef struct mctp_cmdline_args_ {
 		struct mctp_cmdline_i2c i2c;
 		struct mctp_cmdline_usb usb;
 	};
+	uint8_t get_eid_timer;
 } mctp_cmdline_args_t;
 
 #endif /* __MCTP_CMDLINE_H */

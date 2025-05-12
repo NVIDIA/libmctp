@@ -23,6 +23,7 @@
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <getopt.h>
 #include <limits.h>
 #include <poll.h>
@@ -37,6 +38,7 @@
 #include <pthread.h>
 #include <json-c/json.h>
 
+#include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/timerfd.h>
@@ -63,6 +65,7 @@
 #include "mctp-discovery-i2c.h"
 #include "mctp-socket.h"
 #include "mctp-json.h"
+#include "dbus_log_event.h"
 #ifdef MOCKUP_ENDPOINT
 #include "fsdyn-endpoint.h"
 #endif
@@ -72,6 +75,9 @@
 #ifdef ENABLE_USB
 #include "mctp-ctrl-usb.h"
 #endif
+
+#include <linux/i2c-dev.h>
+#include <linux/i2c.h>
 
 /* MCTP Tx/Rx waittime in milli-seconds */
 #define MCTP_CTRL_WAIT_SECONDS (1 * 1000)
@@ -108,7 +114,14 @@ int g_signal_fd = -1;
 int g_mon_fd = -1;
 #endif
 int g_disc_timer_fd = -1;
+int g_poll_recover_timer_fd = -1; /* New 1s timer FD */
 static sd_bus *g_sdbus = NULL;
+
+/* State for GetEID Polling Failure Tracking */
+static int get_eid_failure_count = 0;
+static bool get_eid_bridge_eid_unavailable = false;
+static uint8_t last_polled_bridge_eid =
+	MCTP_INVALID_EID_FF; /* Store for logging */
 
 static uint8_t chosen_eid_type = EID_TYPE_BRIDGE;
 extern int command_line_mode;
@@ -297,6 +310,11 @@ static const struct option g_options[] = {
 	{ "mctp-iana-vdm", required_argument, 0, 'i' },
 
 	/* USB specific options */
+	{ "get_eid_timer", required_argument, 0, 'g' },
+	{ "perform_device_reset", no_argument, false, 'W' },
+	{ "get-eid-max-fails", required_argument, 0, 'K' },
+
+	/* USB specific options */
 	{ "port_path", required_argument, 0, 'w' },
 
 	{ "help", optional_argument, 0, 'h' },
@@ -304,7 +322,7 @@ static const struct option g_options[] = {
 };
 
 static const char *const short_options =
-	"v:c:e:m:t:d:s:r:b:f:n:u:i:j:p:q:x:y:z:w:k:l:oh::";
+	"v:c:e:m:t:d:s:r:b:f:n:u:i:j:p:q:x:y:z:w:k:l:oh:g:WK:h::";
 
 static void usage(void)
 {
@@ -400,6 +418,9 @@ static void usage_usb(void)
 		"\t-c\t option to remove duplicate EID entries from the routing table\n"
 		"\t-z\t option to ignore certain EID entries from the routing table"
 		" supplied as a space separated list in decimal\n"
+		"\t-g\t Time interval for polling getEID from FPGA in seconds. 0 to disable polling. 1s by default\n"
+		"\t-W\t Perform reset of the device (e.g., for FPGA bridge). Default: no reset.\n"
+		"\t-K\t Max GetEID consecutive failures before marking EID unavailable\n"
 		"\t-k\t vendor ID of USB device in hex (0x)\n"
 		"\t-l\t product ID of USB device in hex (0x)\n"
 		"To send MCTP message for USB binding type\n"
@@ -655,7 +676,7 @@ static void mctp_handle_event(mctp_ctrl_t *mctp_ctrl, uint8_t *message,
 	}
 	/* Only support datagram requests/events */
 	if (((message[1] & 0x80) != 0x80) || ((message[1] & 0x40) != 0x40)) {
-		MCTP_CTRL_ERR(
+		mctp_prdebug(
 			"%s: MCTP message has the wrong req bit or datagram bit. Req bit: %d, Datagram bit: %d\n",
 			__func__, (message[1] & 0x80) >> 7,
 			(message[1] & 0x40) >> 6);
@@ -671,6 +692,58 @@ static void mctp_handle_event(mctp_ctrl_t *mctp_ctrl, uint8_t *message,
 			__func__, message[2]);
 		break;
 	}
+}
+
+/* Function to reset bridge via I2C */
+static int mctp_reset_bridge_i2c(void)
+{
+	int fd;
+	int ret;
+	char filename[20];
+	struct i2c_msg msg;
+	struct i2c_rdwr_ioctl_data msgset;
+	uint8_t reset_cmd[] = { 0x0b, 0x05, 0x84 }; // Reset command bytes
+
+	memset(&msg, 0, sizeof(msg));
+	memset(&msgset, 0, sizeof(msgset));
+	/* Open I2C device */
+	snprintf(filename, sizeof(filename), "/dev/i2c-1");
+	fd = open(filename, O_RDWR);
+	if (fd < 0) {
+		MCTP_CTRL_ERR("%s: Failed to open I2C device: %s\n", __func__,
+			      strerror(errno));
+		return -1;
+	}
+
+	/* Set slave address */
+	ret = ioctl(fd, I2C_SLAVE, 0x11);
+	if (ret < 0) {
+		MCTP_CTRL_ERR("%s: Failed to set slave address: %s\n", __func__,
+			      strerror(errno));
+		close(fd);
+		return -1;
+	}
+
+	/* Prepare I2C message */
+	msg.addr = 0x11; // Slave address
+	msg.flags = 0;	 // Write
+	msg.len = sizeof(reset_cmd);
+	msg.buf = reset_cmd;
+
+	msgset.msgs = &msg;
+	msgset.nmsgs = 1;
+
+	/* Send reset command */
+	ret = ioctl(fd, I2C_RDWR, &msgset);
+	if (ret < 0) {
+		MCTP_CTRL_ERR("%s: Failed to send reset command: %s\n",
+			      __func__, strerror(errno));
+		close(fd);
+		return -1;
+	}
+
+	close(fd);
+	return 0;
 }
 
 int mctp_event_monitor(mctp_ctrl_t *mctp_evt)
@@ -1013,15 +1086,56 @@ static int exec_daemon_mode(const mctp_cmdline_args_t *cmdline,
 
 		/* Discover endpoints via USB */
 		MCTP_CTRL_INFO("%s: Start MCTP-over-USB Discovery\n", __func__);
-		mctp_err_ret = mctp_discover_endpoints(cmdline, mctp_ctrl,
-						       MCTP_SET_EP_REQUEST);
-		if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
-			MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
-			mctp_ctrl_clean_up(mctp_ctrl);
-			return EXIT_FAILURE;
+		if (cmdline->usb.perform_device_reset) {
+			/* Retry FPGA reset logic */
+			/* Context:
+        * 1. FPGA USB egress path can sometimes lock up, resulting in no Rx traffic to xMC.
+        * 2. Resetting the FPGA logic fixes the issue.
+        */
+			int retry = 0;
+			for (; retry < 5; retry++) {
+				mctp_err_ret = mctp_discover_endpoints(
+					cmdline, mctp_ctrl,
+					MCTP_PREPARE_FOR_EP_DISCOVERY_REQUEST);
+				if (mctp_err_ret ==
+				    MCTP_RET_DISCOVERY_SUCCESS) {
+					MCTP_CTRL_INFO(
+						"%s: Discovery successful\n",
+						__func__);
+					break;
+				} else if (mctp_err_ret ==
+					   MCTP_RET_DISCOVERY_FAILED) {
+					MCTP_CTRL_ERR(
+						"%s: Attempting bridge reset via I2C\n",
+						__func__);
+					mctp_reset_bridge_i2c();
+					continue;
+				} else {
+					MCTP_CTRL_ERR(
+						"MCTP-Ctrl discovery unsuccessful with unexpected error code: %d\n",
+						mctp_err_ret);
+					mctp_ctrl_clean_up(mctp_ctrl);
+					return EXIT_FAILURE;
+				}
+			}
+
+			if (retry == 5) {
+				MCTP_CTRL_ERR(
+					"MCTP-Ctrl discovery unsuccessful\n");
+				mctp_ctrl_clean_up(mctp_ctrl);
+				return EXIT_FAILURE;
+			}
+		} else {
+			mctp_err_ret = mctp_discover_endpoints(
+				cmdline, mctp_ctrl, MCTP_SET_EP_REQUEST);
+			if (mctp_err_ret != MCTP_RET_DISCOVERY_SUCCESS) {
+				MCTP_CTRL_ERR(
+					"MCTP-Ctrl discovery unsuccessful\n");
+				mctp_ctrl_clean_up(mctp_ctrl);
+				return EXIT_FAILURE;
+			}
 		}
 	}
-
 	return EXIT_SUCCESS;
 }
 
@@ -1134,6 +1248,7 @@ static void parse_command_line(int argc, char *const *argv,
 
 	cmdline->verbose = false;
 	cmdline->use_json = false;
+	cmdline->get_eid_timer = 0;
 	cmdline->binding_type = MCTP_BINDING_RESERVED;
 	cmdline->delay = MCTP_CTRL_DELAY_DEFAULT;
 	cmdline->ops = MCTP_CMDLINE_OP_WRITE_DATA;
@@ -1156,6 +1271,10 @@ static void parse_command_line(int argc, char *const *argv,
 			break;
 		if (rc == 't') {
 			cmdline->binding_type = (uint8_t)atoi(optarg);
+			/* enable getEid timer for USB binding type */
+			if (cmdline->binding_type == MCTP_BINDING_USB) {
+				cmdline->get_eid_timer = 1;
+			}
 		}
 	}
 	optind = 1; // Reset to 1 to restart scanning
@@ -1272,6 +1391,33 @@ static void parse_command_line(int argc, char *const *argv,
 				bridge_pool = (uint8_t)atoi(optarg);
 			} else if (cmdline->binding_type == MCTP_BINDING_SPI) {
 				command_mode = atoi(optarg);
+			}
+			break;
+		case 'g':
+			if (cmdline->binding_type == MCTP_BINDING_USB) {
+				cmdline->get_eid_timer = (uint8_t)atoi(optarg);
+				MCTP_CTRL_INFO("%s: getEid timer: %d\n",
+					       __func__,
+					       cmdline->get_eid_timer);
+			}
+			break;
+		case 'W':
+			if (cmdline->binding_type == MCTP_BINDING_USB) {
+				cmdline->usb.perform_device_reset = true;
+				MCTP_CTRL_INFO(
+					"%s: Perform FPGA reset: %u\n",
+					__func__,
+					cmdline->usb.perform_device_reset);
+			}
+			break;
+		case 'K':
+			if (cmdline->binding_type == MCTP_BINDING_USB) {
+				cmdline->usb.get_eid_max_fails =
+					(uint8_t)atoi(optarg);
+				MCTP_CTRL_INFO(
+					"%s: GetEID max failures in window: %u\n",
+					__func__,
+					cmdline->usb.get_eid_max_fails);
 			}
 			break;
 		case 'w':
@@ -1427,6 +1573,193 @@ static int mctp_ctrl_sdbus_custom_event(void *ctx)
 }
 #endif
 
+void mctp_handle_polling_recovery(mctp_ctrl_t *mctp_ctrl,
+				  mctp_sdbus_context_t *context)
+{
+	mctp_requester_rc_t mctp_ret = MCTP_REQUESTER_SUCCESS;
+	size_t resp_msg_len = 0;
+	uint8_t *mctp_resp_msg = NULL;
+	struct mctp_ctrl_cmd_get_eid get_eid_cmd = { 0 };
+	struct mctp_ctrl_req ep_req = { 0 };
+	void *pvt_binding = NULL;
+	struct mctp_usb_pkt_private pvt_binding_usb = { 0 };
+	size_t binding_size = 0;
+	mctp_binding_ids_t bind_id = MCTP_BINDING_USB;
+	extern mctp_msg_type_table_t *g_msg_type_entries;
+
+	if (!mctp_ctrl || !mctp_ctrl->cmdline || !mctp_ctrl->bus) {
+		MCTP_CTRL_ERR(
+			"%s: MCTP control structure, cmdline, or bus not initialized!\n",
+			__func__);
+		return;
+	}
+
+	/* Skip polling if bridge is already known to be unavailable (e.g., due to hotplug event) */
+	if (get_eid_bridge_eid_unavailable) {
+		return;
+	}
+
+	/* Set private binding */
+	if (MCTP_BINDING_USB == bind_id) {
+		memset(&pvt_binding_usb, 0, sizeof(pvt_binding_usb));
+		pvt_binding = &pvt_binding_usb;
+		binding_size = sizeof(pvt_binding_usb);
+	} else {
+		MCTP_CTRL_ERR(
+			"%s: 1s timer callback -- Unsupported Binding type\n",
+			__func__);
+		return;
+	}
+
+	/* Encode GetEndpointID command */
+	if (!mctp_encode_ctrl_cmd_get_eid(&get_eid_cmd)) {
+		MCTP_CTRL_ERR("%s: Failed to encode GetEndpointID command\n",
+			      __func__);
+		return;
+	}
+
+	/* Initialize the buffers */
+	memset(&ep_req, 0, sizeof(ep_req));
+
+	/* Copy to Tx packet */
+	memcpy(&ep_req, &get_eid_cmd, sizeof(struct mctp_ctrl_cmd_get_eid));
+
+	/* Send the request message over socket */
+	mctp_ret = mctp_client_with_binding_send(
+		mctp_ctrl->cmdline->usb.bridge_eid, mctp_ctrl->sock,
+		(const uint8_t *)&ep_req, sizeof(struct mctp_ctrl_cmd_get_eid),
+		&bind_id, pvt_binding, binding_size);
+
+	if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
+		MCTP_CTRL_ERR("%s: Failed to send GetEID message to EID %u\n",
+			      __func__, mctp_ctrl->cmdline->usb.bridge_eid);
+		mctp_ret = MCTP_REQUESTER_SEND_FAIL;
+	}
+	/* set up a 1 second recv timeout on the socket: */
+	struct timeval tv = { .tv_sec = 1, .tv_usec = 0 };
+	if (setsockopt(mctp_ctrl->sock, SOL_SOCKET, SO_RCVTIMEO, &tv,
+		       sizeof(tv)) < 0) {
+		MCTP_CTRL_ERR("%s: could not set SO_RCVTIMEO for 1sec: %s\n",
+			      __func__, strerror(errno));
+	}
+
+	if (mctp_ret != MCTP_REQUESTER_SEND_FAIL) {
+		mctp_ret = mctp_client_recv(mctp_ctrl->cmdline->usb.bridge_eid,
+					    mctp_ctrl->sock, &mctp_resp_msg,
+					    &resp_msg_len);
+	}
+
+	/* Reverting back to the default timeout of 5secs */
+	tv.tv_sec = MCTP_CTRL_TXRX_TIMEOUT_5SECS;
+	tv.tv_usec = 0;
+	if (setsockopt(mctp_ctrl->sock, SOL_SOCKET, SO_RCVTIMEO, &tv,
+		       sizeof(tv)) < 0) {
+		MCTP_CTRL_ERR("%s: could not set SO_RCVTIMEO for 5secs: %s\n",
+			      __func__, strerror(errno));
+	}
+
+	if (mctp_ret == MCTP_REQUESTER_SUCCESS) {
+		if (get_eid_bridge_eid_unavailable) {
+			char eid_str[REDFISH_ARG_LEN];
+			char msg_str[REDFISH_ARG_LEN];
+			char resolution_str[REDFISH_ARG_LEN];
+			snprintf(eid_str, sizeof(eid_str), "BridgeEID_%u",
+				 last_polled_bridge_eid);
+			snprintf(
+				msg_str, sizeof(msg_str),
+				"Communication with Bridge EID %u restored after GetEID success.",
+				last_polled_bridge_eid);
+			snprintf(resolution_str, sizeof(resolution_str),
+				 "Communication with bridge EID restored.");
+			doLog(mctp_ctrl->bus, eid_str, msg_str, EVT_INFO,
+			      resolution_str);
+			MCTP_CTRL_INFO(
+				"%s: Communication with Bridge EID %u restored.\n",
+				__func__, last_polled_bridge_eid);
+			mctp_handle_discovery_notify(); /* Hint at re-discovery */
+		}
+		get_eid_failure_count = 0;
+		get_eid_bridge_eid_unavailable = false;
+
+		mctp_handle_event(mctp_ctrl, mctp_resp_msg, resp_msg_len);
+		free(mctp_resp_msg);
+	} else {
+		MCTP_CTRL_ERR(
+			"%s: GetEndpointID poll to EID %u failed (send/recv error %d)\n",
+			__func__, mctp_ctrl->cmdline->usb.bridge_eid, mctp_ret);
+
+		get_eid_failure_count++;
+
+		if (get_eid_failure_count >=
+		    mctp_ctrl->cmdline->usb.get_eid_max_fails) {
+			if (!get_eid_bridge_eid_unavailable) {
+				char eid_str[REDFISH_ARG_LEN];
+				char msg_str[REDFISH_ARG_LEN];
+				char resolution_str[REDFISH_ARG_LEN];
+				snprintf(eid_str, sizeof(eid_str),
+					 "BridgeEID_%u",
+					 last_polled_bridge_eid);
+				snprintf(
+					msg_str, sizeof(msg_str),
+					"Bridge EID %u unavailable: %d consecutive GetEID failures (max allowed: %d).",
+					last_polled_bridge_eid,
+					get_eid_failure_count,
+					mctp_ctrl->cmdline->usb
+						.get_eid_max_fails);
+				snprintf(
+					resolution_str, sizeof(resolution_str),
+					"Communication with bridge EID %u is unavailable.",
+					last_polled_bridge_eid);
+				doLog(mctp_ctrl->bus, eid_str, msg_str,
+				      EVT_CRITICAL, resolution_str);
+				MCTP_CTRL_WARN(
+					"%s: Bridge EID %u marked unavailable. Consecutive failures: %d/%d.\n",
+					__func__, last_polled_bridge_eid,
+					get_eid_failure_count,
+					mctp_ctrl->cmdline->usb
+						.get_eid_max_fails);
+				get_eid_bridge_eid_unavailable = true;
+			}
+			//Set all endpoints to disabled
+			for (mctp_msg_type_table_t *entry = g_msg_type_entries;
+			     entry != NULL; entry = entry->next) {
+				entry->old_enabled = entry->enabled;
+				entry->enabled = false;
+			}
+
+			/* Refresh D-Bus states */
+			mctp_sdbus_refresh_endpoints(mctp_ctrl->cmdline,
+						     context);
+		} else {
+			MCTP_CTRL_INFO(
+				"%s: GetEID failure for EID %u. Consecutive failure count: %d (max allowed: %d)\n",
+				__func__, mctp_ctrl->cmdline->usb.bridge_eid,
+				get_eid_failure_count,
+				mctp_ctrl->cmdline->usb.get_eid_max_fails);
+		}
+
+		if (mctp_ctrl->cmdline->usb.perform_device_reset) {
+			/* Attempt to reset bridge via I2C for FPGA on any GetEID failure*/
+			MCTP_CTRL_INFO(
+				"%s: Attempting bridge reset via I2C for EID %u due to GetEID failure.\n",
+				__func__, mctp_ctrl->cmdline->usb.bridge_eid);
+			int reset_ret = mctp_reset_bridge_i2c();
+			if (reset_ret != 0) {
+				MCTP_CTRL_ERR(
+					"%s: Bridge reset failed for EID %u with error %d\n",
+					__func__,
+					mctp_ctrl->cmdline->usb.bridge_eid,
+					reset_ret);
+			} else {
+				MCTP_CTRL_INFO(
+					"%s: Bridge reset successful for EID %u\n",
+					__func__,
+					mctp_ctrl->cmdline->usb.bridge_eid);
+			}
+		}
+	}
+}
+
 int main_ctrl(int argc, char *const *argv)
 {
 	int rc;
@@ -1578,3 +1911,24 @@ int main(int argc, char *const *argv)
 	return main_ctrl(argc, argv);
 }
 #endif
+
+void mctp_ctrl_bridge_poll_resume(void)
+{
+	if (get_eid_bridge_eid_unavailable) {
+		MCTP_CTRL_INFO(
+			"%s: Bridge device arrived/recovered. Bridge EID communication potentially restored. Polling will resume.",
+			__func__);
+	}
+	get_eid_bridge_eid_unavailable = false;
+	get_eid_failure_count = 0;
+}
+
+void mctp_ctrl_bridge_poll_suspend(uint8_t bridge_eid)
+{
+	if (!get_eid_bridge_eid_unavailable) {
+		MCTP_CTRL_WARN(
+			"%s: Bridge device detached/unavailable. Bridge EID %u marked unavailable. Polling will stop.",
+			__func__, bridge_eid);
+		get_eid_bridge_eid_unavailable = true;
+	}
+}

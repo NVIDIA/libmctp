@@ -58,6 +58,7 @@ typedef enum mctp_ctrl_fds {
 	MCTP_CTRL_SIGNAL_FD,
 	MCTP_CTRL_SOCKET_FD,
 	MCTP_CTRL_TIMER_FD,
+	MCTP_CTRL_1S_TIMER_FD, /* New 1s timer FD index */
 #ifdef MOCKUP_ENDPOINT
 	MCTP_CTRL_SD_MON_FD,
 #endif
@@ -144,7 +145,8 @@ void mctp_ctrl_sdbus_stop(void);
  * @return int (errno may be set). failure is returned.
  */
 int mctp_ctrl_sdbus_dispatch(mctp_ctrl_t *mctp_ctrl,
-			     mctp_sdbus_context_t *context);
+			     mctp_sdbus_context_t *context,
+			     uint8_t get_eid_timer_sec);
 
 /**
  * @brief Refresh the endpoint at D-Bus

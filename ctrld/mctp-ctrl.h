@@ -134,6 +134,21 @@ mctp_ctrl_get_binding_type(mctp_ctrl_t *mctp_ctrl)
 	return mctp_ctrl->cmdline->binding_type;
 }
 
+/**
+ * @brief Resumes GetEID polling for a bridge device, typically after an arrival/recovery event.
+ *
+ * Resets poll failure tracking and allows the GetEID timer to poll the bridge.
+ */
+void mctp_ctrl_bridge_poll_resume(void);
+
+/**
+ * @brief Suspends GetEID polling for a bridge device, typically after a detachment event.
+ *
+ * Marks the bridge as unavailable to prevent further GetEID polling by the timer.
+ * @param bridge_eid EID of the bridge that became unavailable (for logging).
+ */
+void mctp_ctrl_bridge_poll_suspend(uint8_t bridge_eid);
+
 #ifdef __cplusplus
 }
 #endif

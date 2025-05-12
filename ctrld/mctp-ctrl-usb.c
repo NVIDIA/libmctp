@@ -162,6 +162,8 @@ static int handle_mctp_usb_device_left(mctp_ctrl_usb_t *usb,
 
 	MCTP_CTRL_DEBUG("%s\n", __func__);
 
+	mctp_ctrl_bridge_poll_suspend(usb->mctp_ctrl->cmdline->usb.bridge_eid);
+
 	if (usb->dev_handle) {
 		libusb_close(usb->dev_handle);
 		usb->dev_handle = NULL;
@@ -237,6 +239,9 @@ static int handle_mctp_usb_device_arrived(mctp_ctrl_usb_t *usb,
 		MCTP_CTRL_ERR("MCTP-Ctrl discovery unsuccessful\n");
 		return LIBUSB_ERROR_OTHER;
 	}
+
+	mctp_ctrl_bridge_poll_resume();
+
 	return LIBUSB_SUCCESS;
 }
 
