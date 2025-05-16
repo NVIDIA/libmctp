@@ -71,6 +71,8 @@ pthread_cond_t cond_resp = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t thread_mutex = PTHREAD_MUTEX_INITIALIZER;
 /* the flag to terminate thread */
 bool terminate_tx_thread = false;
+// flag to track if response is received
+bool response_received = false;
 // tx queue list
 struct qentry {
 	TAILQ_ENTRY(qentry) entries;
@@ -244,7 +246,7 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 		}
 
 		pthread_mutex_lock(&thread_mutex);
-		if (TAILQ_EMPTY(&head)) {
+		while (TAILQ_EMPTY(&head)) {
 			pthread_cond_wait(&cond, &thread_mutex);
 		}
 
@@ -253,6 +255,7 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 		buf = info->buf;
 		len = info->len;
 		dest_eid = info->eid;
+		TAILQ_REMOVE(&head, entry, entries);
 		pthread_mutex_unlock(&thread_mutex);
 
 		struct i2c_msg msgs[2] = {
@@ -338,47 +341,52 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 			tm.tv_nsec = t % 1000000000L;
 
 			pthread_mutex_lock(&thread_mutex);
-			rc = pthread_cond_timedwait(&cond_resp, &thread_mutex,
-						    &tm);
-			if (rc != 0) {
-				if (rc != ETIMEDOUT) {
-					mctp_prerr(
-						"fail to pthread_cond_timedwait %d",
-						rc);
-				}
-				mctp_prerr("%s: [%d] - resp timeout ", __func__,
-					   dest_eid);
+			// Check if response is already received before waiting
+			while (!response_received) {
+				rc = pthread_cond_timedwait(&cond_resp,
+							    &thread_mutex, &tm);
+				if (rc != 0) {
+					if (rc != ETIMEDOUT) {
+						mctp_prerr(
+							"fail to pthread_cond_timedwait %d",
+							rc);
+					}
+					mctp_prerr("%s: [%d] - resp timeout ",
+						   __func__, dest_eid);
 
-				uint16_t hold_timeout = 0; /* ms */
-				struct i2c_msg msg = {
-					.addr = 0,
-					.flags = I2C_M_HOLD,
-					.len = sizeof(hold_timeout),
-					.buf = (uint8_t *)&hold_timeout,
-				};
-				struct i2c_rdwr_ioctl_data msgrdwr = { &msg,
-								       1 };
+					uint16_t hold_timeout = 0; /* ms */
+					struct i2c_msg msg = {
+						.addr = 0,
+						.flags = I2C_M_HOLD,
+						.len = sizeof(hold_timeout),
+						.buf = (uint8_t *)&hold_timeout,
+					};
+					struct i2c_rdwr_ioctl_data msgrdwr = {
+						&msg, 1
+					};
 
-				mctp_prinfo("Closing mux for EID: %d\n",
-					    dest_eid);
+					mctp_prinfo("Closing mux for EID: %d\n",
+						    dest_eid);
 
-				rc = ioctl(info->fd, I2C_RDWR, &msgrdwr);
-				if (rc < 0) {
-					mctp_prerr("failed to unlock bus");
+					rc = ioctl(info->fd, I2C_RDWR,
+						   &msgrdwr);
+					if (rc < 0) {
+						mctp_prerr(
+							"failed to unlock bus");
+					}
+					break;
 				}
 			}
+			response_received = false;
 			pthread_mutex_unlock(&thread_mutex);
 		}
 		// free tx info
 		free(info);
-
-		pthread_mutex_lock(&thread_mutex);
-		TAILQ_REMOVE(&head, entry, entries);
 		free(entry);
-		pthread_mutex_unlock(&thread_mutex);
 	}
 
 	// clean up tx queue
+	pthread_mutex_lock(&thread_mutex);
 	while (!TAILQ_EMPTY(&head)) {
 		entry = TAILQ_FIRST(&head);
 		info = (struct smbus_tx_thread_info *)entry->data;
@@ -387,6 +395,7 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 		TAILQ_REMOVE(&head, entry, entries);
 		free(entry);
 	}
+	pthread_mutex_unlock(&thread_mutex);
 	pthread_exit(NULL);
 }
 
@@ -644,7 +653,10 @@ int mctp_smbus_close_mux(struct mctp_binding_smbus *smbus, uint8_t eid)
 	MCTP_ASSERT_RET(rc >= 0, rc, "Invalid ioctl ret val: %d (%s)", errno,
 			strerror(errno));
 
+	pthread_mutex_lock(&thread_mutex);
+	response_received = true;
 	pthread_cond_signal(&cond_resp);
+	pthread_mutex_unlock(&thread_mutex);
 	return rc;
 }
 
