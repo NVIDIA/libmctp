@@ -1450,7 +1450,7 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			eid = g_bridge_eid;
 			/* Send the MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST */
 			mctp_ret = mctp_get_routing_table_send_request(
-				ctrl->sock, bind_id, eid, entry_hdl++);
+				ctrl->sock, bind_id, eid, entry_hdl);
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST\n",
@@ -1528,6 +1528,8 @@ mctp_ret_codes_t mctp_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			if (MCTP_RET_ROUTING_TABLE_FOUND == mctp_ret) {
 				MCTP_CTRL_DEBUG("%s: Next entry found..\n",
 						__func__);
+				/* Only increment entry_hdl after successful response */
+				entry_hdl++;
 				discovery_mode =
 					MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST;
 				break;

@@ -1093,6 +1093,8 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			if (MCTP_RET_ROUTING_TABLE_FOUND == mctp_ret) {
 				MCTP_CTRL_DEBUG("%s: Next entry found..\n",
 						__func__);
+				/* Only increment entry_hdl after successful response */
+				entry_hdl++;
 				discovery_mode =
 					MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST;
 				break;
