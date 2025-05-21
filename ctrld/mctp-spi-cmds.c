@@ -91,6 +91,23 @@ static int mctp_spi_get_version_support(const mctp_cmdline_args_t *cmd)
 	return 0;
 }
 
+static void print_hex(char *msg, uint8_t *data, int len, uint8_t output)
+{
+	if (output == VERBOSE_DISABLE) {
+		return;
+	}
+
+	printf("%s: ", msg);
+
+	if (data) {
+		for (int i = 0; i < len; ++i) {
+			printf("%02X ", data[i]);
+		}
+	}
+
+	printf("\n");
+}
+
 static int mctp_spi_get_message_type(int sock, const mctp_cmdline_args_t *cmd)
 {
 	uint8_t *resp = NULL;
@@ -101,17 +118,30 @@ static int mctp_spi_get_message_type(int sock, const mctp_cmdline_args_t *cmd)
 	(void)cmd;
 
 	mctp_encode_ctrl_cmd_get_msg_type_support(&req);
-	rc = mctp_client_send_recv(cmd->dest_eid, sock, MCTP_CTRL_HDR_MSG_TYPE,
-				   (uint8_t *)&req, sizeof(req), &resp,
-				   &resp_len);
 
-	if (rc != MCTP_REQUESTER_SUCCESS)
+#ifdef MCTP_IN_KERNEL
+	print_hex("TX", (uint8_t *)&req + 1, sizeof(req) - 1, true);
+	rc = mctp_client_send(cmd->dest_eid, sock, MCTP_CTRL_HDR_MSG_TYPE,
+			      (uint8_t *)&req + 1, sizeof(req) - 1);
+#else
+	print_hex("TX", (uint8_t *)&req, sizeof(req), true);
+	rc = mctp_client_send(cmd->dest_eid, sock, MCTP_CTRL_HDR_MSG_TYPE,
+			      (uint8_t *)&req, sizeof(req));
+#endif
+	if (rc == MCTP_REQUESTER_SEND_FAIL) {
+		MCTP_CTRL_ERR("%s: Failed to send message..\n", __func__);
+		return rc;
+	}
+
+	rc = mctp_client_recv(cmd->dest_eid, sock, &resp, &resp_len);
+
+	if (rc != MCTP_REQUESTER_SUCCESS) {
 		MCTP_CTRL_ERR("%s: fail to recv [rc: %d] response\n", __func__,
 			      rc);
-
+	} else {
+		print_hex("RX", resp, resp_len, true);
+	}
 	free(resp);
-
-	/* will implement it */
 	return rc;
 }
 
@@ -437,7 +467,7 @@ void mctp_spi_test_cmd(int socket, const mctp_cmdline_args_t *cmd)
 	case MCTP_SPI_BOOT_COMPLETE:
 
 		MCTP_CTRL_DEBUG("%s: MCTP_SPI_BOOT_COMPLETE\n", __func__);
-		rc = boot_complete_v1(socket, MCTP_NULL_ENDPOINT, VERBOSE_EN);
+		rc = boot_complete_v1(socket, cmd->dest_eid, VERBOSE_EN);
 		if (rc != MCTP_REQUESTER_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed MCTP_SPI_BOOT_COMPLETE\n",
 				      __func__);
@@ -447,7 +477,7 @@ void mctp_spi_test_cmd(int socket, const mctp_cmdline_args_t *cmd)
 
 	case MCTP_SPI_HEARTBEAT_SEND:
 		MCTP_CTRL_DEBUG("%s: MCTP_SPI_HEARTBEAT_SEND\n", __func__);
-		rc = heartbeat(socket, MCTP_NULL_ENDPOINT, VERBOSE_EN);
+		rc = heartbeat(socket, cmd->dest_eid, VERBOSE_EN);
 		if (rc != MCTP_REQUESTER_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_SEND\n",
 				      __func__);
@@ -457,7 +487,7 @@ void mctp_spi_test_cmd(int socket, const mctp_cmdline_args_t *cmd)
 
 	case MCTP_SPI_HEARTBEAT_ENABLE:
 		MCTP_CTRL_DEBUG("%s: MCTP_SPI_HEARTBEAT_ENABLE\n", __func__);
-		rc = set_heartbeat_enable(socket, MCTP_NULL_ENDPOINT,
+		rc = set_heartbeat_enable(socket, cmd->dest_eid,
 					  MCTP_SPI_HB_ENABLE_CMD, VERBOSE_EN);
 		if (rc != MCTP_REQUESTER_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed MCTP_SPI_HEARTBEAT_ENABLE\n",
@@ -468,7 +498,7 @@ void mctp_spi_test_cmd(int socket, const mctp_cmdline_args_t *cmd)
 
 	case MCTP_SPI_QUERY_BOOT_STATUS:
 		MCTP_CTRL_DEBUG("%s: MCTP_SPI_QUERY_BOOT_STATUS\n", __func__);
-		rc = query_boot_status(socket, MCTP_NULL_ENDPOINT, VERBOSE_EN,
+		rc = query_boot_status(socket, cmd->dest_eid, VERBOSE_EN,
 				       false);
 		if (rc != MCTP_REQUESTER_SUCCESS) {
 			MCTP_CTRL_ERR("%s: Failed MCTP_SPI_QUERY_BOOT_STATUS\n",

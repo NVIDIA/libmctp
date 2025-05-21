@@ -462,6 +462,7 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 		if (mctp_ret == MCTP_REQUESTER_SEND_FAIL) {
 			MCTP_CTRL_ERR("%s: Failed to send message..\n",
 				      __func__);
+			return MCTP_CMD_FAILED;
 		}
 
 		break;
@@ -1501,15 +1502,19 @@ static void parse_command_line(int argc, char *const *argv,
 			mctp_ctrl->eid = cmdline->dest_eid;
 		}
 #ifdef MCTP_IN_KERNEL
-		MCTP_CTRL_ERR("dev_num %d channelnum %d", cmdline->spi.dev_num,
-			      cmdline->spi.channel);
-		char ifname[MAX_INTERFACE_LEN];
-		memset(ifname, '\0', sizeof(ifname));
-		snprintf(ifname, sizeof(ifname), "mctpspi%d_%d",
-			 cmdline->spi.dev_num, cmdline->spi.channel);
-		if (fill_interface_info(MCTP_BINDING_SPI, ifname, phy_addr,
-					phy_addlen, own_eid) < 0) {
-			exit(EXIT_FAILURE);
+		if (cmdline->mode == MCTP_MODE_DAEMON) {
+			MCTP_CTRL_ERR("dev_num %d channelnum %d",
+				      cmdline->spi.dev_num,
+				      cmdline->spi.channel);
+			char ifname[MAX_INTERFACE_LEN];
+			memset(ifname, '\0', sizeof(ifname));
+			snprintf(ifname, sizeof(ifname), "mctpspi%d_%d",
+				 cmdline->spi.dev_num, cmdline->spi.channel);
+			if (fill_interface_info(MCTP_BINDING_SPI, ifname,
+						phy_addr, phy_addlen,
+						own_eid) < 0) {
+				exit(EXIT_FAILURE);
+			}
 		}
 #endif
 		break;
@@ -1537,21 +1542,24 @@ static void parse_command_line(int argc, char *const *argv,
 		    EXIT_FAILURE)
 			exit(EXIT_FAILURE);
 #ifdef MCTP_IN_KERNEL
-		char altname[5 * MCTP_USB_PORT_PATH_MAX_DEPTH];
-		char port_path[MCTP_USB_PORT_PATH_MAX_LEN];
-		memset(altname, '\0', sizeof(altname));
-		memset(port_path, '\0', sizeof(port_path));
-		strncpy(port_path, cmdline->usb.port_path,
-			sizeof(port_path) - 1);
-		port_path[sizeof(port_path) - 1] = '\0';
-		for (size_t ind = 0; ind < strlen(port_path); ind++)
-			if (port_path[ind] == '-')
-				port_path[ind] = '.';
-		snprintf(altname, sizeof(altname), "mctpusb%d-%s",
-			 cmdline->usb.bus_id, port_path);
-		if (fill_interface_info(MCTP_BINDING_USB, altname, phy_addr,
-					phy_addlen, cmdline->usb.own_eid) < 0) {
-			exit(EXIT_FAILURE);
+		if (cmdline->mode == MCTP_MODE_DAEMON) {
+			char altname[5 * MCTP_USB_PORT_PATH_MAX_DEPTH];
+			char port_path[MCTP_USB_PORT_PATH_MAX_LEN];
+			memset(altname, '\0', sizeof(altname));
+			memset(port_path, '\0', sizeof(port_path));
+			strncpy(port_path, cmdline->usb.port_path,
+				sizeof(port_path) - 1);
+			port_path[sizeof(port_path) - 1] = '\0';
+			for (size_t ind = 0; ind < strlen(port_path); ind++)
+				if (port_path[ind] == '-')
+					port_path[ind] = '.';
+			snprintf(altname, sizeof(altname), "mctpusb%d-%s",
+				 cmdline->usb.bus_id, port_path);
+			if (fill_interface_info(MCTP_BINDING_USB, altname,
+						phy_addr, phy_addlen,
+						cmdline->usb.own_eid) < 0) {
+				exit(EXIT_FAILURE);
+			}
 		}
 #endif
 		break;
