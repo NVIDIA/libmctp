@@ -1416,14 +1416,15 @@ mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_t *cmd,
 							mctp_resp_msg,
 							resp_msg_len);
 
+					/* Free Rx packet */
+					free(mctp_resp_msg);
 					if (mctp_ret !=
 					    MCTP_RET_REQUEST_SUCCESS) {
 						MCTP_CTRL_ERR(
 							"%s: MCTP_GET_EP_UUID_RESPONSE Failed\n",
 							__func__);
+						break;
 					}
-					/* Free Rx packet */
-					free(mctp_resp_msg);
 				}
 
 				discovery_mode = MCTP_GET_MSG_TYPE_REQUEST;
@@ -1472,6 +1473,7 @@ mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_t *cmd,
 						MCTP_CTRL_ERR(
 							"%s: MCTP_GET_MSG_TYPE_RESPONSE Failed\n",
 							__func__);
+						break;
 					}
 				}
 
