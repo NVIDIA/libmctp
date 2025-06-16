@@ -149,6 +149,37 @@ struct ctx {
 
 struct ctx ctx = { 0 };
 
+#ifdef MCTP_IN_KERNEL
+static int check_endpoint_exists(sd_bus *bus, uint8_t eid)
+{
+	_cleanup_(sd_bus_error_free) sd_bus_error err = SD_BUS_ERROR_NULL;
+	char path[MCTP_CTRL_SDBUS_OBJ_PATH_SIZE] = { 0 };
+	int rc;
+	char *connectivity = NULL;
+
+	snprintf(path, sizeof(path),
+		 "/au/com/codeconstruct/mctp1/networks/1/endpoints/%d", eid);
+
+	rc = sd_bus_get_property_string(bus, "au.com.codeconstruct.MCTP1", path,
+					"au.com.codeconstruct.MCTP.Endpoint1",
+					"Connectivity", &err, &connectivity);
+	if (rc < 0) {
+		fprintf(stderr, "Failed to get Connectivity for EID %d: %s\n",
+			eid, err.message);
+		return -1;
+	}
+
+	if (connectivity && strcmp(connectivity, "Available") == 0) {
+		g_enabled = 1;
+	} else {
+		g_enabled = 0;
+	}
+
+	free(connectivity);
+
+	return 1; // found
+}
+#else
 static int iterate_dbus_dict(sd_bus_message *m, const char *type, uint8_t eid,
 			     int (*callback)(sd_bus_message *m, uint8_t eid))
 {
@@ -331,36 +362,6 @@ static int sock_name_helper(sd_bus *bus, const char *service, uint8_t eid)
 	return found;
 }
 
-static int check_hex_number(char *s)
-{
-	char ch = *s;
-	int len = 0;
-
-	while ((ch = *s++) != 0) {
-		if (len == 2 || isxdigit(ch) == 0) {
-			return -1;
-		}
-		len++;
-	}
-	return 0;
-}
-
-/*
- * Function to check if a command supports JSON output
- */
-static bool is_json_supported(const char *command)
-{
-	int num_supported_commands = sizeof(commands_supported_json_flag) /
-				     sizeof(commands_supported_json_flag[0]);
-
-	for (int i = 0; i < num_supported_commands; ++i) {
-		if (strcmp(command, commands_supported_json_flag[i]) == 0) {
-			return true;
-		}
-	}
-	return false;
-}
-
 /*
  * Function to get destination by EID
  */
@@ -431,6 +432,37 @@ int get_destination_by_path(sd_bus *bus, const uint8_t eid, char *service_name)
 
 	return 0;
 }
+#endif
+
+static int check_hex_number(char *s)
+{
+	char ch = *s;
+	int len = 0;
+
+	while ((ch = *s++) != 0) {
+		if (len == 2 || isxdigit(ch) == 0) {
+			return -1;
+		}
+		len++;
+	}
+	return 0;
+}
+
+/*
+ * Function to check if a command supports JSON output
+ */
+static bool is_json_supported(const char *command)
+{
+	int num_supported_commands = sizeof(commands_supported_json_flag) /
+				     sizeof(commands_supported_json_flag[0]);
+
+	for (int i = 0; i < num_supported_commands; ++i) {
+		if (strcmp(command, commands_supported_json_flag[i]) == 0) {
+			return true;
+		}
+	}
+	return false;
+}
 
 /*
  * Main function
@@ -443,7 +475,6 @@ int main(int argc, char *const *argv)
 	int found = 0;
 	char item[MCTP_VDM_COMMAND_NAME_SIZE] = { '\0' };
 	char file[PATH_MAX] = { 0 };
-	char service_name[PATH_MAX] = { 0 };
 	unsigned int max_len = 0;
 	uint8_t teid = 0;
 	bool more = false;
@@ -563,10 +594,14 @@ int main(int argc, char *const *argv)
 	rc = sd_bus_default(&bus);
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "sd_bus_default failed\n");
 
+#ifdef MCTP_IN_KERNEL
+	found = check_endpoint_exists(bus, teid);
+#else
+	char service_name[PATH_MAX] = { 0 };
 	rc = get_destination_by_path(bus, teid, service_name);
 	MCTP_ASSERT_RET(rc >= 0, EXIT_FAILURE, "get destination failed\n");
-
 	found = sock_name_helper(bus, service_name, teid);
+#endif
 
 	/* free D-Bus*/
 	sd_bus_unref(bus);
@@ -577,8 +612,13 @@ int main(int argc, char *const *argv)
 			"Endpoint is in disabled state\n");
 
 	/* Establish the socket connection */
+#ifdef MCTP_IN_KERNEL
+	rc = mctp_usr_socket_init(&fd, NULL, MCTP_MESSAGE_TYPE_VDIANA,
+				  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
+#else
 	rc = mctp_usr_socket_init(&fd, g_sock_name, MCTP_MESSAGE_TYPE_VDIANA,
 				  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
+#endif
 	MCTP_ASSERT_RET(rc == MCTP_REQUESTER_SUCCESS, EXIT_FAILURE,
 			"Failed to open mctp socket\n");
 
