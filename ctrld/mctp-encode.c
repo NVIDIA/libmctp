@@ -244,6 +244,14 @@ bool mctp_decode_resp_get_uuid(struct mctp_ctrl_resp_get_uuid *get_uuid_resp)
 	if (get_uuid_resp->completion_code != MCTP_CTRL_CC_SUCCESS)
 		return false;
 
+	if (get_uuid_resp->ctrl_hdr.command_code !=
+	    MCTP_CTRL_CMD_GET_ENDPOINT_UUID) {
+		MCTP_CTRL_ERR("%s: Command code: %d, but expected: %d\n",
+			      __func__, get_uuid_resp->ctrl_hdr.command_code,
+			      MCTP_CTRL_CMD_GET_ENDPOINT_UUID);
+		return false;
+	}
+
 	MCTP_CTRL_DEBUG("%s: sizeof uuid: %zu\n", __func__,
 			sizeof(get_uuid_resp->uuid.raw));
 
@@ -300,6 +308,14 @@ bool mctp_decode_ctrl_cmd_get_msg_type_support(
 	if (msg_type_support_cmd->completion_code != MCTP_CTRL_CC_SUCCESS)
 		return false;
 
+	if (msg_type_support_cmd->ctrl_hdr.command_code !=
+	    MCTP_CTRL_CMD_GET_MESSAGE_TYPE_SUPPORT) {
+		MCTP_CTRL_ERR("%s: Command code: %d, but expected: %d\n",
+			      __func__,
+			      msg_type_support_cmd->ctrl_hdr.command_code,
+			      MCTP_CTRL_CMD_GET_MESSAGE_TYPE_SUPPORT);
+		return false;
+	}
 	return true;
 }
 
