@@ -120,8 +120,6 @@ static sd_bus *g_sdbus = NULL;
 /* State for GetEID Polling Failure Tracking */
 static int get_eid_failure_count = 0;
 static bool get_eid_bridge_eid_unavailable = false;
-static uint8_t last_polled_bridge_eid =
-	MCTP_INVALID_EID_FF; /* Store for logging */
 
 static uint8_t chosen_eid_type = EID_TYPE_BRIDGE;
 extern int command_line_mode;
@@ -1672,18 +1670,18 @@ void mctp_handle_polling_recovery(mctp_ctrl_t *mctp_ctrl,
 			char msg_str[REDFISH_ARG_LEN];
 			char resolution_str[REDFISH_ARG_LEN];
 			snprintf(eid_str, sizeof(eid_str), "BridgeEID_%u",
-				 last_polled_bridge_eid);
+				 mctp_ctrl->cmdline->usb.bridge_eid);
 			snprintf(
 				msg_str, sizeof(msg_str),
 				"Communication with Bridge EID %u restored after GetEID success.",
-				last_polled_bridge_eid);
+				mctp_ctrl->cmdline->usb.bridge_eid);
 			snprintf(resolution_str, sizeof(resolution_str),
 				 "Communication with bridge EID restored.");
 			doLog(mctp_ctrl->bus, eid_str, msg_str, EVT_INFO,
 			      resolution_str);
 			MCTP_CTRL_INFO(
 				"%s: Communication with Bridge EID %u restored.\n",
-				__func__, last_polled_bridge_eid);
+				__func__, mctp_ctrl->cmdline->usb.bridge_eid);
 			mctp_handle_discovery_notify(); /* Hint at re-discovery */
 		}
 		get_eid_failure_count = 0;
@@ -1706,23 +1704,24 @@ void mctp_handle_polling_recovery(mctp_ctrl_t *mctp_ctrl,
 				char resolution_str[REDFISH_ARG_LEN];
 				snprintf(eid_str, sizeof(eid_str),
 					 "BridgeEID_%u",
-					 last_polled_bridge_eid);
+					 mctp_ctrl->cmdline->usb.bridge_eid);
 				snprintf(
 					msg_str, sizeof(msg_str),
 					"Bridge EID %u unavailable: %d consecutive GetEID failures (max allowed: %d).",
-					last_polled_bridge_eid,
+					mctp_ctrl->cmdline->usb.bridge_eid,
 					get_eid_failure_count,
 					mctp_ctrl->cmdline->usb
 						.get_eid_max_fails);
 				snprintf(
 					resolution_str, sizeof(resolution_str),
 					"Communication with bridge EID %u is unavailable.",
-					last_polled_bridge_eid);
+					mctp_ctrl->cmdline->usb.bridge_eid);
 				doLog(mctp_ctrl->bus, eid_str, msg_str,
 				      EVT_CRITICAL, resolution_str);
 				MCTP_CTRL_WARN(
 					"%s: Bridge EID %u marked unavailable. Consecutive failures: %d/%d.\n",
-					__func__, last_polled_bridge_eid,
+					__func__,
+					mctp_ctrl->cmdline->usb.bridge_eid,
 					get_eid_failure_count,
 					mctp_ctrl->cmdline->usb
 						.get_eid_max_fails);
