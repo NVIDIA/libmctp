@@ -1553,7 +1553,7 @@ static void parse_command_line(int argc, char *const *argv,
 			for (size_t ind = 0; ind < strlen(port_path); ind++)
 				if (port_path[ind] == '-')
 					port_path[ind] = '.';
-			snprintf(altname, sizeof(altname), "mctpusb%d-%s",
+			snprintf(altname, sizeof(altname), "%d-%s",
 				 cmdline->usb.bus_id, port_path);
 			if (fill_interface_info(MCTP_BINDING_USB, altname,
 						phy_addr, phy_addlen,
