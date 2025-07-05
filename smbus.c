@@ -241,13 +241,14 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 	pthread_detach(pthread_self());
 
 	while (true) {
-		if (terminate_tx_thread) {
-			break;
+		pthread_mutex_lock(&thread_mutex);
+		while (TAILQ_EMPTY(&head) && !terminate_tx_thread) {
+			pthread_cond_wait(&cond, &thread_mutex);
 		}
 
-		pthread_mutex_lock(&thread_mutex);
-		while (TAILQ_EMPTY(&head)) {
-			pthread_cond_wait(&cond, &thread_mutex);
+		if (terminate_tx_thread) {
+			pthread_mutex_unlock(&thread_mutex);
+			break;
 		}
 
 		entry = TAILQ_FIRST(&head);
@@ -286,6 +287,9 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 		}
 
 		retry = MCTP_SMBUS_I2C_TX_RETRIES_MAX;
+		pthread_mutex_lock(&thread_mutex);
+		response_received = false;
+		pthread_mutex_unlock(&thread_mutex);
 		do {
 			/* blocking i2c transaction */
 			rc = ioctl(info->fd, I2C_RDWR, &msgrdwr);
@@ -377,7 +381,6 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 					break;
 				}
 			}
-			response_received = false;
 			pthread_mutex_unlock(&thread_mutex);
 		}
 		// free tx info
@@ -462,9 +465,9 @@ static int mctp_smbus_tx(struct mctp_binding_smbus *smbus, uint8_t len,
 	}
 	node->data = info;
 
-	pthread_cond_signal(&cond);
 	// add the buffer to tx queue
 	TAILQ_INSERT_TAIL(&head, node, entries);
+	pthread_cond_signal(&cond);
 	pthread_mutex_unlock(&thread_mutex);
 
 	return 0;
