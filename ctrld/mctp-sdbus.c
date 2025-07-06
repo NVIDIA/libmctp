@@ -1051,6 +1051,7 @@ mctp_ctrl_sdbus_create_context(sd_bus *bus, const mctp_cmdline_args_t *cmdline)
 	context->fds = calloc(MCTP_CTRL_TOTAL_FDS, sizeof(struct pollfd));
 	if (context->fds == NULL) {
 		MCTP_CTRL_ERR("Failed to allocate pollfd\n");
+		free(context);
 		return NULL;
 	}
 	context->nfds = MCTP_CTRL_TOTAL_FDS;
