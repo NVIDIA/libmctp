@@ -1,14 +1,9 @@
-headers = [
-  '.',
-  '..'
-]
+headers = ['.', '..']
 
-sources = [
-  'mctp-demux-daemon.c',
-]
+sources = ['mctp-demux-daemon.c']
 
 if get_option('capture').enabled()
-  sources += ['mctp-capture.c']
+    sources += ['mctp-capture.c']
 endif
 
 comp = meson.get_compiler('c')
@@ -25,26 +20,26 @@ endif
 
 
 if get_option('capture').enabled()
-  pcap = declare_dependency(dependencies: [comp.find_library('pcap')])
-  deps += [pcap]
+    pcap = declare_dependency(dependencies: [comp.find_library('pcap')])
+    deps += [pcap]
 endif
 
 executable(
-  'mctp-demux-daemon',
-  sources,
-  include_directories: include_directories(headers),
-  dependencies: deps,
-  link_with: libmctp,
-  install: true
+    'mctp-demux-daemon',
+    sources,
+    include_directories: include_directories(headers),
+    dependencies: deps,
+    link_with: libmctp,
+    install: true,
 )
 
 if get_option('enable-mctp-tun').enabled()
-executable(
-  'mctp-tun',
-  'mctp-tun.c',
-  include_directories: include_directories(headers),
-  dependencies: deps,
-  link_with: libmctp,
-  install: true
-)
+    executable(
+        'mctp-tun',
+        'mctp-tun.c',
+        include_directories: include_directories(headers),
+        dependencies: deps,
+        link_with: libmctp,
+        install: true,
+    )
 endif

@@ -9,14 +9,14 @@ message('Host machine: ' + host)
 
 # do not compile modules on WSL
 if not host.to_lower().contains('wsl')
-  cur_dir = meson.current_source_dir()
-  message(cur_dir)
+    cur_dir = meson.current_source_dir()
+    message(cur_dir)
 
-  option_C = '-C' + cur_dir
-  make_file = '-f' + cur_dir + '/Makefile'
+    option_C = '-C' + cur_dir
+    make_file = '-f' + cur_dir + '/Makefile'
 
-  r = run_command('make', option_C, make_file, 'all', check: true)
-  message(r.stdout().strip())
+    r = run_command('make', option_C, make_file, 'all', check: true)
+    message(r.stdout().strip())
 else
-  message('ERROR: on WSL mocked SPI kernel driver cannot be installed')
+    message('ERROR: on WSL mocked SPI kernel driver cannot be installed')
 endif

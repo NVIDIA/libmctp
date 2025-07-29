@@ -1,14 +1,6 @@
-headers = [
-  '.',
-  '..',
-  '../..',
-]
+headers = ['.', '..', '../..']
 
-sources = [
-  'mctp-vdm-nvda.c',
-  'mctp-vdm-commands.c',
-  'mctp-vdm-encode.c'
-]
+sources = ['mctp-vdm-nvda.c', 'mctp-vdm-commands.c', 'mctp-vdm-encode.c']
 
 comp = meson.get_compiler('c')
 
@@ -24,10 +16,10 @@ if get_option('enable-usb').enabled()
 endif
 
 executable(
-  'mctp-vdm-util',
-  sources,
-  include_directories: include_directories(headers),
-  dependencies: deps,
-  link_with: libmctp,
-  install: true
+    'mctp-vdm-util',
+    sources,
+    include_directories: include_directories(headers),
+    dependencies: deps,
+    link_with: libmctp,
+    install: true,
 )
