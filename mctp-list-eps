@@ -1,34 +1,47 @@
 #!/bin/sh
 
 printf '%10s|%5s|%50s|%-10s\n' "Transport" "EID" "UUID" "Supported MCTP Types"
-SERVICES=$(busctl list --no-pager | awk '{print $1}' | grep xyz.openbmc_project.MCTP.Control)
+
+# Look for the new service name pattern
+SERVICES=$(busctl list --no-pager | awk '{print $1}' | grep "au.com.codeconstruct.MCTP")
 
 for SERVICE in $SERVICES; do
-    # Use busctl to get the object tree for the service and extract the object paths
-    OBJECTS=$(busctl tree "$SERVICE" | grep "/xyz/openbmc_project/mctp/0/" | awk -F' |-' '{print $NF}')
+    # New structure: endpoints are under /au/com/codeconstruct/mctp1/networks/1/endpoints/
+    OBJECTS=$(busctl tree "$SERVICE" | grep "/au/com/codeconstruct/mctp1/networks/1/endpoints/" | awk -F' |-' '{print $NF}' | grep -v "^$")
 
-    # Loop through each object path
+    # Loop through each endpoint
     for OBJECT_PATH in $OBJECTS; do
         if [ -n "$OBJECT_PATH" ]; then
-            ENABLED="true"
+            # Initialize variables
+            BINDING=""
+            UUID=""
+            MSG_TYPES=""
+            EID=""
+            CONNECTIVITY=""
+            
             # Get all interfaces for the object
-            INTERFACES=$(busctl introspect "$SERVICE" "$OBJECT_PATH" | grep "interface" | awk '{print $1}')
+            INTERFACES=$(busctl introspect "$SERVICE" "$OBJECT_PATH" 2>/dev/null | grep "interface" | awk '{print $1}')
 
             # Loop through each interface
             for INTERFACE in $INTERFACES; do
-                if [ "$INTERFACE" = "xyz.openbmc_project.MCTP.Binding" ]; then
-                    BINDING=$(busctl get-property "$SERVICE" "$OBJECT_PATH" "$INTERFACE" BindingType | awk '{print $2}' | awk -F '.' '{print $NF}')
-                    BINDING="${BINDING%?}"
-                elif [ "$INTERFACE" = "xyz.openbmc_project.Object.Enable" ]; then
-                    ENABLED=$(busctl get-property "$SERVICE" "$OBJECT_PATH" "$INTERFACE" Enabled | awk '{print $2}')
+                if [ "$INTERFACE" = "au.com.codeconstruct.MCTP.Endpoint1" ]; then
+                    CONNECTIVITY=$(busctl get-property "$SERVICE" "$OBJECT_PATH" "$INTERFACE" Connectivity 2>/dev/null | awk '{print $2}')
+                    CONNECTIVITY="${CONNECTIVITY%\"}"
+                    CONNECTIVITY="${CONNECTIVITY#\"}"
+                elif [ "$INTERFACE" = "xyz.openbmc_project.MCTP.Binding" ]; then
+                    BINDING=$(busctl get-property "$SERVICE" "$OBJECT_PATH" "$INTERFACE" BindingType 2>/dev/null | awk '{print $2}' | awk -F '.' '{print $NF}')
+                    BINDING="${BINDING%\"}"
+                    BINDING="${BINDING#\"}"
                 elif [ "$INTERFACE" = "xyz.openbmc_project.Common.UUID" ]; then
-                    UUID=$(busctl get-property "$SERVICE" "$OBJECT_PATH" "$INTERFACE" UUID | awk '{print $2}')
+                    UUID=$(busctl get-property "$SERVICE" "$OBJECT_PATH" "$INTERFACE" UUID 2>/dev/null | awk '{print $2}')
                 elif [ "$INTERFACE" = "xyz.openbmc_project.MCTP.Endpoint" ]; then
-                    MSG_TYPES=$(busctl get-property "$SERVICE" "$OBJECT_PATH" "$INTERFACE" SupportedMessageTypes | awk '{$1=$2=""; print $0}')
-                    EID=$(busctl get-property "$SERVICE" "$OBJECT_PATH" "$INTERFACE" EID | awk '{print $2}')
+                    MSG_TYPES=$(busctl get-property "$SERVICE" "$OBJECT_PATH" "$INTERFACE" SupportedMessageTypes 2>/dev/null | awk '{$1=$2=""; print $0}')
+                    EID=$(busctl get-property "$SERVICE" "$OBJECT_PATH" "$INTERFACE" EID 2>/dev/null | awk '{print $2}')
                 fi
             done
-            if [ "$ENABLED" = "true" ]; then
+            
+            # Print only if connectivity is Available and we have an EID
+            if [ "$CONNECTIVITY" = "Available" ] && [ -n "$EID" ]; then
                 printf '%10s|%5s|%50s|%-10s\n' "$BINDING" "$EID" "$UUID" "$MSG_TYPES"
             fi
         fi
