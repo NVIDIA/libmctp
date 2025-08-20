@@ -76,7 +76,7 @@ extern void mctp_handle_polling_recovery(mctp_ctrl_t *mctp_ctrl,
 int mctp_ctrl_running = 1;
 
 /* String map for supported bus type */
-char g_mctp_ctrl_supported_buses[MCTP_CTRL_MAX_BUS_TYPES][10] = {
+char g_mctp_ctrl_supported_buses[MCTP_CTRL_MAX_BUS_TYPES][15] = {
 	"PCIe Bus ", "SPI Bus ", "SMBus Bus "
 };
 #if DEBUG
