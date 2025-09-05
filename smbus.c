@@ -357,31 +357,26 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 					}
 					mctp_prerr("%s: [%d] - resp timeout ",
 						   __func__, dest_eid);
-
-					uint16_t hold_timeout = 0; /* ms */
-					struct i2c_msg msg = {
-						.addr = 0,
-						.flags = I2C_M_HOLD,
-						.len = sizeof(hold_timeout),
-						.buf = (uint8_t *)&hold_timeout,
-					};
-					struct i2c_rdwr_ioctl_data msgrdwr = {
-						&msg, 1
-					};
-
-					mctp_prinfo("Closing mux for EID: %d\n",
-						    dest_eid);
-
-					rc = ioctl(info->fd, I2C_RDWR,
-						   &msgrdwr);
-					if (rc < 0) {
-						mctp_prerr(
-							"failed to unlock bus");
-					}
-					break;
 				}
+				break;
 			}
 			pthread_mutex_unlock(&thread_mutex);
+
+			uint16_t hold_timeout = 0; /* ms */
+			struct i2c_msg msg = {
+				.addr = 0,
+				.flags = I2C_M_HOLD,
+				.len = sizeof(hold_timeout),
+				.buf = (uint8_t *)&hold_timeout,
+			};
+			struct i2c_rdwr_ioctl_data msgrdwr = { &msg, 1 };
+
+			mctp_prinfo("Closing mux for EID: %d\n", dest_eid);
+
+			rc = ioctl(info->fd, I2C_RDWR, &msgrdwr);
+			if (rc < 0) {
+				mctp_prerr("failed to unlock bus");
+			}
 		}
 		// free tx info
 		free(info);
@@ -633,34 +628,6 @@ int mctp_smbus_open_out_bus(struct mctp_binding_smbus *smbus, int out_bus)
 	mctp_prdebug("%s: open file: %s\n", __func__, filename);
 	return open(filename, O_RDWR | O_NONBLOCK);
 #endif
-}
-
-int mctp_smbus_close_mux(struct mctp_binding_smbus *smbus, uint8_t eid)
-{
-	uint16_t hold_timeout = 0; /* ms */
-	struct i2c_msg msg = {
-		.addr = 0,
-		.flags = I2C_M_HOLD,
-		.len = sizeof(hold_timeout),
-		.buf = (uint8_t *)&hold_timeout,
-	};
-	struct i2c_rdwr_ioctl_data msgrdwr = { &msg, 1 };
-	int rc;
-	(void)smbus;
-
-	mctp_prdebug("Closing mux for EID: %d\n", eid);
-
-	int out_fd = get_out_fd(smbus, eid);
-
-	rc = ioctl(out_fd, I2C_RDWR, &msgrdwr);
-	MCTP_ASSERT_RET(rc >= 0, rc, "Invalid ioctl ret val: %d (%s)", errno,
-			strerror(errno));
-
-	pthread_mutex_lock(&thread_mutex);
-	response_received = true;
-	pthread_cond_signal(&cond_resp);
-	pthread_mutex_unlock(&thread_mutex);
-	return rc;
 }
 
 /*
@@ -991,8 +958,10 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 	eom = (mctp_hdr->flags_seq_tag & MCTP_HDR_FLAG_EOM) != 0;
 	if (eom) {
 		mctp_prinfo("Mux released\n");
-
-		mctp_smbus_close_mux(smbus, mctp_hdr->src);
+		pthread_mutex_lock(&thread_mutex);
+		response_received = true;
+		pthread_cond_signal(&cond_resp);
+		pthread_mutex_unlock(&thread_mutex);
 	}
 
 	mctp_trace_rx(smbus->rxbuf, len);
