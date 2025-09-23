@@ -314,25 +314,19 @@ static uint8_t pollfd_update(mctp_ctrl_usb_t *usb)
 		libusb_free_pollfds(usb->usb_poll_fds);
 
 	usb->usb_poll_fds = libusb_get_pollfds(usb->ctx);
+	if (!usb->usb_poll_fds) {
+		MCTP_CTRL_ERR("%s: libusb_get_pollfds fail\n", __func__);
+		return 0;
+	}
 	usb->bindingfds_cnt = 0;
 	while (usb->usb_poll_fds[usb->bindingfds_cnt])
 		usb->bindingfds_cnt++;
 
 	assert(usb->bindingfds_cnt <= MCTP_CTRL_USB_POLL_FD_NUM);
-	if (unlikely(context->nfds == MCTP_CTRL_TOTAL_FDS))
-		context->fds =
-			realloc(context->fds, (MCTP_CTRL_TOTAL_FDS +
-					       MCTP_CTRL_USB_POLL_FD_NUM) *
-						      sizeof(*fds));
-
 	MCTP_CTRL_DEBUG("%s: bindindfds_cnt:%lu -> %lu\n", __func__,
 			context->nfds,
 			usb->bindingfds_cnt + MCTP_CTRL_TOTAL_FDS);
 	context->nfds = usb->bindingfds_cnt + MCTP_CTRL_TOTAL_FDS;
-	if (!context->fds) {
-		MCTP_CTRL_ERR("%s: Realloc FDs fail\n", __func__);
-		return 0;
-	}
 
 	fds = context->fds + MCTP_CTRL_TOTAL_FDS;
 	for (nfds_t i = 0; i < usb->bindingfds_cnt; ++i) {

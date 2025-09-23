@@ -1785,9 +1785,9 @@ int main_ctrl(int argc, char *const *argv)
 
 	mctp_ctrl->cmdline = &cmdline;
 
-	/* Update the cmdline sturcture with default values */
+	/* Update the cmdline structure with default values */
 	const char *const mctp_ctrl_name = argv[0];
-	strncpy(cmdline.name, mctp_ctrl_name, sizeof(mctp_ctrl_name) - 1);
+	strncpy(cmdline.name, mctp_ctrl_name, sizeof(cmdline.name) - 1);
 
 	parse_command_line(argc, argv, &cmdline, mctp_ctrl);
 
