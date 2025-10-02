@@ -359,19 +359,12 @@ static int mctp_binding_spi_tx(struct mctp_binding *b, struct mctp_pktbuf *pkt)
 	ret = mctp_spi_tx(spi, spi_message_len, pkt_pvt);
 	mctp_spi_verify_magics(spi);
 
-	if (spb_ap_msgs_available(&spi->nvda_spb_ap) > 0) {
-		/* We can't rely on msg_avaiable counts to issues read transactions
-		 * becasue we only have one mailbox status which can't tell how many
-		 * response pending in glaicer sides. The solution is to read from 
-		 * glacier and read all pending responses once.
-		 */
-		while (1) {
-			status = mctp_spi_rx(spi);
-			if (status == ERR_SPI_RX_NO_DATA)
-				break;
-		}
-		spi->nvda_spb_ap.msgs_available = 0;
+	while (spb_ap_msgs_available(&spi->nvda_spb_ap) > 0) {
+		status = mctp_spi_rx(spi);
+		if (status == ERR_SPI_RX_NO_DATA)
+			break;
 	}
+	spi->nvda_spb_ap.msgs_available = 0;
 
 	MCTP_ASSERT_RET(ret >= 0, -1, "Error in tx of spi message");
 
