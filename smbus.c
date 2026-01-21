@@ -286,11 +286,15 @@ static void *smbus_tx_thread(void *arg __attribute__((unused)))
 			/* blocking i2c transaction */
 			rc = ioctl(info->fd, I2C_RDWR, &msgrdwr);
 			if (rc < 0) {
+				/* Do not retry on ETIMEDOUT -- It may mean that the data has
+				been placed on the bus already. Retrying would cause duplicate
+				transmissions */
 				if ((errno == EAGAIN || errno == EPROTO ||
-				     errno == ETIMEDOUT || errno == ENXIO ||
-				     errno == EIO || errno == EBUSY)) {
-					if (retry % 200 == 0) {
-						/* Only trace every 200 retries*/
+				     errno == ENXIO || errno == EIO ||
+				     errno == EBUSY)) {
+					if (retry % MCTP_SMBUS_I2C_TX_RETRIES_MAX ==
+					    0) {
+						/* Only trace every MCTP_SMBUS_I2C_TX_RETRIES_MAX retries*/
 						MCTP_ERR(
 							"[%d]Invalid ioctl ret val: %d (%s)",
 							dest_eid, errno,
