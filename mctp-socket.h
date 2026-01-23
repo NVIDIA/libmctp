@@ -110,6 +110,18 @@ mctp_requester_rc_t mctp_client_send_recv(mctp_eid_t eid, int fd,
 					  const uint8_t *req_msg,
 					  size_t req_len, uint8_t **resp_msg,
 					  size_t *resp_len);
+
+#ifdef MCTP_IN_KERNEL
+/**
+ * @brief Rebind the AF_MCTP socket to the new ifindex
+ *
+ * @param[in] fd - MCTP socket fd
+ *
+ * @return int 0 on success, negative on failure.
+ */
+int mctp_usr_socket_rebind(int fd);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

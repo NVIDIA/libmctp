@@ -246,6 +246,19 @@ int mctp_routing_entry_add(struct get_routing_table_entry *routing_table_entry)
 	new_entry->valid = true;
 	new_entry->old_valid = false;
 
+#ifdef MCTP_IN_KERNEL
+	/*Routes and neighbour for downstream eid*/
+	if (mctp_nl_add_route(new_entry->routing_table.starting_eid) < 0) {
+		MCTP_CTRL_ERR("%s: Failed to add route for eid %d\n", __func__,
+			      new_entry->routing_table.starting_eid);
+	}
+
+	if (mctp_nl_add_neigh(new_entry->routing_table.starting_eid) < 0) {
+		MCTP_CTRL_ERR("%s: Failed to add neigh for eid %d\n", __func__,
+			      new_entry->routing_table.starting_eid);
+	}
+#endif
+
 	/* Check if any entry exist */
 	if (g_routing_table_entries == NULL) {
 		g_routing_table_entries = new_entry;
@@ -256,26 +269,8 @@ int mctp_routing_entry_add(struct get_routing_table_entry *routing_table_entry)
 
 		/* Update the routing ID */
 		new_entry->id = routing_id++;
-
-#ifdef MCTP_IN_KERNEL
-		/*Routes and neighour for downstream eid*/
-		if (mctp_nl_add_route(new_entry->routing_table.starting_eid) <
-		    0) {
-			MCTP_CTRL_ERR("%s: Failed to add route for eid %d\n",
-				      __func__,
-				      new_entry->routing_table.starting_eid);
-		}
-
-		if (mctp_nl_add_neigh(new_entry->routing_table.starting_eid) <
-		    0) {
-			MCTP_CTRL_ERR("%s: Failed to add neigh for eid %d\n",
-				      __func__,
-				      new_entry->routing_table.starting_eid);
-		}
-#endif
 		return 0;
 	}
-
 	/* Traverse the routing table */
 	temp_entry = g_routing_table_entries;
 	while (temp_entry->next != NULL) {
@@ -313,19 +308,6 @@ int mctp_routing_entry_add(struct get_routing_table_entry *routing_table_entry)
 
 	/* Increment the global counter */
 	g_routing_table_length++;
-
-#ifdef MCTP_IN_KERNEL
-	/*Routes and neighour for downstream eid*/
-	if (mctp_nl_add_route(new_entry->routing_table.starting_eid) < 0) {
-		MCTP_CTRL_ERR("%s: Failed to add route for eid %d\n", __func__,
-			      new_entry->routing_table.starting_eid);
-	}
-
-	if (mctp_nl_add_neigh(new_entry->routing_table.starting_eid) < 0) {
-		MCTP_CTRL_ERR("%s: Failed to add neigh for eid %d\n", __func__,
-			      new_entry->routing_table.starting_eid);
-	}
-#endif
 
 	return 0;
 }

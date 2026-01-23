@@ -110,6 +110,20 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 		goto out;
 	}
 
+	int ifindex = if_nametoindex(local_interface.ifname);
+	if (ifindex <= 0) {
+		MCTP_ERR("Invalid interface index %d\n", ifindex);
+		goto out;
+	}
+
+	if ((rc = setsockopt(*fd, SOL_SOCKET, SO_BINDTOIFINDEX, &ifindex,
+			     sizeof(ifindex)))) {
+		MCTP_ERR(
+			"AF_MCTP socket[%d] SO_BINDTOIFINDEX set failed: rc[%d] %s\n",
+			*fd, rc, strerror(errno));
+		goto out;
+	}
+
 	return MCTP_REQUESTER_SUCCESS;
 out:
 	if (*fd >= 0) {
@@ -147,7 +161,6 @@ mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
 			"%s: Failed to send message on mctp_fd %d. Sent %zd bytes, expected %d bytes: %s",
 			__func__, mctp_fd, rc, (int)req_msg_len,
 			strerror(errno));
-		err(EXIT_FAILURE, "sendto(%zd) - rc: %zd", req_msg_len, rc);
 		return MCTP_REQUESTER_SEND_FAIL;
 	}
 
@@ -193,8 +206,8 @@ mctp_requester_rc_t mctp_client_send_ext(mctp_eid_t dest_eid, int mctp_fd,
 	rc = sendto(mctp_fd, mctp_req_msg, req_msg_len, 0,
 		    (struct sockaddr *)&addr, addrlen);
 	if (rc != (int)req_msg_len) {
-		err(EXIT_FAILURE, "%s: sendto(%zd) - rc: %d Error %s", __func__,
-		    req_msg_len, rc, strerror(errno));
+		mctp_prerr("%s: sendto(%zd) - rc: %d Error %s", __func__,
+			   req_msg_len, rc, strerror(errno));
 		return MCTP_REQUESTER_SEND_FAIL;
 	}
 
@@ -255,7 +268,8 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 		       (struct sockaddr *)&addr, &addrlen);
 
 	if (ret != bufLen) {
-		err(EXIT_FAILURE, "Unexpected length of receive buffer");
+		mctp_prerr("%s: Unexpected length of receive buffer: %zd",
+			   __func__, ret);
 		return MCTP_REQUESTER_RECV_FAIL;
 	}
 	*resp_msg_len = bufLen + 1;
@@ -612,3 +626,23 @@ mctp_requester_rc_t mctp_client_send_recv(mctp_eid_t eid, int fd,
 
 	return rc;
 }
+
+#ifdef MCTP_IN_KERNEL
+int mctp_usr_socket_rebind(int fd)
+{
+	int rc = -1;
+	int ifindex = if_nametoindex(local_interface.ifname);
+	if (ifindex <= 0) {
+		MCTP_ERR("Invalid interface index %d\n", ifindex);
+		return rc;
+	}
+	rc = setsockopt(fd, SOL_SOCKET, SO_BINDTOIFINDEX, &ifindex,
+			sizeof(ifindex));
+	if (rc < 0) {
+		MCTP_ERR("failed to set SO_BINDTOIFINDEX: rc[%d] %s\n", rc,
+			 strerror(errno));
+		return rc;
+	}
+	return rc;
+}
+#endif

@@ -40,6 +40,7 @@
 #include "mctp-ctrl-cmdline.h"
 #include "mctp-ctrl-log.h"
 #include "mctp-sdbus.h"
+#include "mctp-socket.h"
 
 #ifdef MCTP_IN_KERNEL
 #include "mctp-netlink.h"
@@ -227,6 +228,12 @@ static int handle_mctp_usb_device_arrived(mctp_ctrl_usb_t *usb,
 		MCTP_CTRL_ERR(
 			"%s failed to setup nl_socket, terminating re-dicovery",
 			__func__);
+		return LIBUSB_ERROR_OTHER;
+	}
+	/* Need to rebind the socket to the new ifindex */
+	rc = mctp_usr_socket_rebind(mctp_ctrl->sock);
+	if (rc < 0) {
+		MCTP_CTRL_ERR("Failed to rebind socket: %s\n", strerror(-rc));
 		return LIBUSB_ERROR_OTHER;
 	}
 #endif
