@@ -279,7 +279,7 @@ void *mctp_spi_keepalive_event(void *arg)
 	/* Open the user socket file-descriptor */
 	rc = mctp_usr_socket_init(&socket_fd, mctp_sock_path,
 				  MCTP_MESSAGE_TYPE_VDIANA,
-				  MCTP_CTRL_TXRX_TIMEOUT_16SECS);
+				  MCTP_CTRL_TXRX_TIMEOUT_16SECS, false);
 	if (rc != MCTP_REQUESTER_SUCCESS) {
 		MCTP_CTRL_ERR(
 			"[%s] Failed to open socket, errno = %d, rc = %d\n",

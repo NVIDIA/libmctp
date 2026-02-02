@@ -33,11 +33,12 @@ extern "C" {
  * @param[in] *path - Unix socket name
  * @param[in] msgtype - MCTP Message type
  * @param[in] timeout - MCTP Rx/Tx timeout
- *
+ * @param[in] do_bind - Whether to bind to the interface
  * @returns socket fd on successfull, errno on failure.
  */
 mctp_requester_rc_t mctp_usr_socket_init(int *intf, const char *path,
-					 uint8_t msgtype, time_t timeout);
+					 uint8_t msgtype, time_t timeout,
+					 bool do_bind);
 
 /**
  * @brief Read MCTP socket. If there's data available, return success only if

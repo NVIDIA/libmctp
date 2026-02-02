@@ -63,7 +63,8 @@ extern struct g_interface_data local_interface;
 extern struct g_hw_info endpoint_hwinfo;
 
 mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
-					 uint8_t msgtype, time_t time_out)
+					 uint8_t msgtype, time_t time_out,
+					 bool do_bind)
 {
 	int rc = 0;
 	/* Setup AF_MCTP socket*/
@@ -82,16 +83,19 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 		goto out;
 	}
 
-	addr.smctp_family = AF_MCTP;
-	addr.smctp_network = MCTP_NET_ANY;
-	addr.smctp_addr.s_addr = local_interface.ifeid;
-	addr.smctp_type = 0;
-	addr.smctp_tag = MCTP_TAG_OWNER;
+	if (do_bind) {
+		addr.smctp_family = AF_MCTP;
+		addr.smctp_network = MCTP_NET_ANY;
+		addr.smctp_addr.s_addr = local_interface.ifeid;
+		addr.smctp_type = 0;
+		addr.smctp_tag = MCTP_TAG_OWNER;
 
-	if ((rc = bind(*fd, (struct sockaddr *)&addr, sizeof(addr))) < 0) {
-		MCTP_ERR("AF_MCTP socket[%d] bind failed: rc [%d] %s\n", *fd,
-			 rc, strerror(errno));
-		goto out;
+		if ((rc = bind(*fd, (struct sockaddr *)&addr, sizeof(addr))) <
+		    0) {
+			MCTP_ERR("AF_MCTP socket[%d] bind failed: rc [%d] %s\n",
+				 *fd, rc, strerror(errno));
+			goto out;
+		}
 	}
 
 	/* Register socket operations timeouts */
@@ -110,18 +114,20 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 		goto out;
 	}
 
-	int ifindex = if_nametoindex(local_interface.ifname);
-	if (ifindex <= 0) {
-		MCTP_ERR("Invalid interface index %d\n", ifindex);
-		goto out;
-	}
+	if (do_bind) {
+		int ifindex = if_nametoindex(local_interface.ifname);
+		if (ifindex <= 0) {
+			MCTP_ERR("Invalid interface index %d\n", ifindex);
+			goto out;
+		}
 
-	if ((rc = setsockopt(*fd, SOL_SOCKET, SO_BINDTOIFINDEX, &ifindex,
-			     sizeof(ifindex)))) {
-		MCTP_ERR(
-			"AF_MCTP socket[%d] SO_BINDTOIFINDEX set failed: rc[%d] %s\n",
-			*fd, rc, strerror(errno));
-		goto out;
+		if ((rc = setsockopt(*fd, SOL_SOCKET, SO_BINDTOIFINDEX,
+				     &ifindex, sizeof(ifindex)))) {
+			MCTP_ERR(
+				"AF_MCTP socket[%d] SO_BINDTOIFINDEX set failed: rc[%d] %s\n",
+				*fd, rc, strerror(errno));
+			goto out;
+		}
 	}
 
 	return MCTP_REQUESTER_SUCCESS;
@@ -283,12 +289,14 @@ static mctp_requester_rc_t mctp_recv(mctp_eid_t eid, int mctp_fd,
 
 #ifndef MCTP_IN_KERNEL
 mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
-					 uint8_t msgtype, time_t time_out)
+					 uint8_t msgtype, time_t time_out,
+					 bool do_bind)
 {
 	int rc = -1;
 	int len;
 	struct sockaddr_un addr;
 	struct timeval timeout;
+	(void)do_bind;
 
 	/* Set timeout as 5 seconds */
 	timeout.tv_sec = time_out;
