@@ -146,7 +146,7 @@ mctp_requester_rc_t mctp_client_send(mctp_eid_t dest_eid, int mctp_fd,
 				     size_t req_msg_len)
 {
 	struct sockaddr_mctp addr = { 0 };
-	int rc = 0;
+	ssize_t rc = 0;
 
 	if (mctp_fd < 0) {
 		mctp_prerr("%s: Failed to create socket for mctp_fd %d: %s",
