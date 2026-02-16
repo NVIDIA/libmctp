@@ -40,8 +40,8 @@ for SERVICE in $SERVICES; do
                 fi
             done
             
-            # Print only if connectivity is Available and we have an EID
-            if [ "$CONNECTIVITY" = "Available" ] && [ -n "$EID" ]; then
+            # Print only if we have an EID
+            if [ -n "$EID" ]; then
                 printf '%10s|%5s|%50s|%-10s\n' "$BINDING" "$EID" "$UUID" "$MSG_TYPES"
             fi
         fi
