@@ -112,7 +112,7 @@ static void usage(void)
 	fprintf(stderr, "-c/-cmd: Command\n");
 	fprintf(stderr,
 		"-o/-timeout: Request timeout in seconds (default: %d)\n",
-		MCTP_CTRL_TXRX_TIMEOUT_16SECS);
+		MCTP_CTRL_TXRX_TIMEOUT_5SECS);
 	fprintf(stderr, "Available commands:\n \
 		selftest - need 4 bytes as the payload\n \
 		boot_complete_v1\n \
@@ -494,7 +494,7 @@ int main(int argc, char *const *argv)
 	uint8_t payload_required = 0;
 	uint8_t payload[MCTP_CERTIFICATE_CHAIN_SIZE] = { '\0' };
 	sd_bus *bus = NULL;
-	int timeout = MCTP_CTRL_TXRX_TIMEOUT_16SECS;
+	int timeout = MCTP_CTRL_TXRX_TIMEOUT_5SECS;
 
 	for (;;) {
 		rc = getopt_long(argc, argv, "jmvt:c:o:f:h", options, NULL);
@@ -633,7 +633,7 @@ int main(int argc, char *const *argv)
 	/* Establish the socket connection */
 #ifdef MCTP_IN_KERNEL
 	rc = mctp_usr_socket_init(&fd, NULL, MCTP_MESSAGE_TYPE_VDIANA,
-				  MCTP_CTRL_TXRX_TIMEOUT_16SECS, false);
+				  MCTP_CTRL_TXRX_TIMEOUT_5SECS, false);
 #else
 	rc = mctp_usr_socket_init(&fd, g_sock_name, MCTP_MESSAGE_TYPE_VDIANA,
 				  MCTP_CTRL_TXRX_TIMEOUT_16SECS, false);
