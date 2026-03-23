@@ -83,6 +83,8 @@
 
 #define MCTP_SPI_LOAD_UNLOAD_DELAY_SECS 2
 
+#define MCTP_SPI_RX_MAX_RETRY 10
+
 #define ERR_SPI_RX	   -1
 #define ERR_SPI_RX_NO_DATA -2
 #define SPI_HDR_LENGTH	   4
@@ -431,8 +433,16 @@ int mctp_spi_process(struct mctp_binding_spi *spi)
 	ast_spi_gpio_intr_check(spi->gpio_fd, 0, false);
 	(void)spb_ap_on_interrupt(&spi->nvda_spb_ap);
 
-	while (spb_ap_msgs_available(&spi->nvda_spb_ap) > 0)
-		mctp_spi_rx(spi);
+	int rx_err_count = 0;
+	while (spb_ap_msgs_available(&spi->nvda_spb_ap) > 0 &&
+	       rx_err_count < MCTP_SPI_RX_MAX_RETRY) {
+		int rc = mctp_spi_rx(spi);
+		if (rc == ERR_SPI_RX_NO_DATA) {
+			rx_err_count++;
+		} else {
+			rx_err_count = 0;
+		}
+	}
 	return (0);
 }
 
