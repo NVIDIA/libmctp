@@ -119,7 +119,7 @@ static int mctp_ctrl_supported_bus_types(sd_bus *bus, const char *path,
 
 static uint8_t mctp_ctrl_get_eid_from_sdbus_path(const char *path)
 {
-	char *output = NULL;
+	const char *output = NULL;
 
 	output = strrchr(path, '/');
 	if (output != NULL) {
