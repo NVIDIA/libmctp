@@ -1405,6 +1405,11 @@ int mctp_ctrl_sdbus_init(mctp_ctrl_t *mctp_ctrl, int signal_fd,
 			break;
 	}
 
-	free(context);
+	/* NOTE: do NOT free(context) here. The caller (main_ctrl) owns the
+	 * context lifecycle and must free it (and context->fds) only AFTER
+	 * mctp_ctrl_clean_up() has run, so USB binding teardown
+	 * (mctp_ctrl_usb_exit -> libusb_close / libusb_exit) can still safely
+	 * reference context via usb->context. Freeing here causes a
+	 * use-after-free during shutdown when libusb's pollfd notifier fires. */
 	return r;
 }

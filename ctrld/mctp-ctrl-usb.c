@@ -316,6 +316,13 @@ static uint8_t pollfd_update(mctp_ctrl_usb_t *usb)
 	struct pollfd *fds;
 	mctp_sdbus_context_t *context = usb->context;
 
+	/* During shutdown teardown libusb may invoke us via pollfd_*_callback
+	 * after the sdbus context has been released. mctp_ctrl_usb_exit() also
+	 * disarms the notifiers, but keep this guard as a safety net. */
+	if (!context) {
+		return 0;
+	}
+
 	dump_fds(usb, "Old FDs:");
 	if (likely(usb->usb_poll_fds))
 		libusb_free_pollfds(usb->usb_poll_fds);
@@ -443,6 +450,15 @@ void mctp_ctrl_usb_hotplug_exit(mctp_ctrl_usb_t *usb)
 {
 	if (!usb)
 		return;
+
+	/* Stop libusb from invoking pollfd_added_callback / pollfd_removed_callback
+	 * during teardown. The callbacks dereference usb->context, which the caller
+	 * (main_ctrl) frees after this function returns; even before that,
+	 * libusb_close / libusb_exit below can remove libusb's internal pollfds and
+	 * fire the notifier, so we must disarm it first. */
+	libusb_set_pollfd_notifiers(usb->ctx, NULL, NULL, NULL);
+	usb->context = NULL;
+
 	usb->mctp_ctrl->pvt_binding_data = NULL;
 	libusb_hotplug_deregister_callback(usb->ctx, usb->cb_handle);
 	if (usb->usb_poll_fds)

@@ -1774,6 +1774,9 @@ int main_ctrl(int argc, char *const *argv)
 	mctp_ctrl_t *mctp_ctrl, _mctp_ctrl = { 0 };
 	mctp_cmdline_args_t cmdline = { 0 };
 	int ret_val = EXIT_SUCCESS;
+	/* Hoisted so it stays in scope across mctp_ctrl_clean_up() and can be
+	 * freed only after USB binding teardown finishes (see end of function). */
+	mctp_sdbus_context_t *context = NULL;
 #ifdef MOCKUP_ENDPOINT
 	fsdyn_ep_context_ptr filemon;
 #endif
@@ -1855,8 +1858,8 @@ int main_ctrl(int argc, char *const *argv)
 			ret_val = EXIT_FAILURE;
 		}
 
-		mctp_sdbus_context_t *context = mctp_ctrl_sdbus_create_context(
-			mctp_ctrl->bus, &cmdline);
+		context = mctp_ctrl_sdbus_create_context(mctp_ctrl->bus,
+							 &cmdline);
 		if (context == NULL) {
 			MCTP_CTRL_ERR("%s: Context is null\n", __func__);
 			ret_val = EXIT_FAILURE;
@@ -1904,6 +1907,17 @@ int main_ctrl(int argc, char *const *argv)
 	}
 
 	mctp_ctrl_clean_up(mctp_ctrl);
+
+	/* Free the sdbus context only after USB binding teardown has finished
+	 * (mctp_ctrl_clean_up -> mctp_ctrl_usb_exit). usb->context aliases
+	 * this `context` for the lifetime of the binding, so freeing earlier
+	 * (as the previous code did inside mctp_ctrl_sdbus_init) caused a
+	 * use-after-free when libusb_exit fires the pollfd notifier. */
+	if (context) {
+		free(context->fds);
+		free(context);
+		context = NULL;
+	}
 
 #ifdef MOCKUP_ENDPOINT
 	/* Disable monitoring service */
