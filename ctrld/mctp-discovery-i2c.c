@@ -223,6 +223,13 @@ int mctp_i2c_set_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len,
 
 	(void)eid;
 
+	if (resp_msg_len < sizeof(struct mctp_ctrl_resp_set_eid)) {
+		MCTP_CTRL_ERR("%s: Response too short: %zu < %zu\n", __func__,
+			      resp_msg_len,
+			      sizeof(struct mctp_ctrl_resp_set_eid));
+		return MCTP_RET_REQUEST_FAILED;
+	}
+
 	mctp_print_resp_msg(
 		(struct mctp_ctrl_resp *)mctp_resp_msg, "MCTP_SET_EP_RESPONSE",
 		resp_msg_len - sizeof(struct mctp_ctrl_cmd_msg_hdr));
@@ -368,6 +375,13 @@ int mctp_i2c_alloc_eid_get_response(uint8_t *mctp_resp_msg, size_t resp_msg_len)
 	bool req_ret;
 	struct mctp_ctrl_resp_alloc_eid *alloc_eid_resp;
 
+	if (resp_msg_len < sizeof(struct mctp_ctrl_resp_alloc_eid)) {
+		MCTP_CTRL_ERR("%s: Response too short: %zu < %zu\n", __func__,
+			      resp_msg_len,
+			      sizeof(struct mctp_ctrl_resp_alloc_eid));
+		return MCTP_RET_REQUEST_FAILED;
+	}
+
 	mctp_print_resp_msg((struct mctp_ctrl_resp *)mctp_resp_msg,
 			    "MCTP_ALLOCATE_EP_ID_RESPONSE",
 			    resp_msg_len -
@@ -480,6 +494,13 @@ int mctp_i2c_get_routing_table_get_response(int sock_fd, mctp_eid_t eid,
 
 	MCTP_CTRL_TRACE("%s: Get EP reesponse\n", __func__);
 
+	if (resp_msg_len < sizeof(struct mctp_ctrl_resp_get_routing_table)) {
+		MCTP_CTRL_ERR("%s: Response too short: %zu < %zu\n", __func__,
+			      resp_msg_len,
+			      sizeof(struct mctp_ctrl_resp_get_routing_table));
+		return MCTP_RET_REQUEST_FAILED;
+	}
+
 	mctp_print_resp_msg((struct mctp_ctrl_resp *)mctp_resp_msg,
 			    "MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE",
 			    resp_msg_len -
@@ -510,6 +531,17 @@ int mctp_i2c_get_routing_table_get_response(int sock_fd, mctp_eid_t eid,
 	/* Check if the routing table exist */
 	if (routing_table->number_of_entries) {
 		struct get_routing_table_entry routing_table_entry;
+
+		if (resp_msg_len <
+		    sizeof(struct mctp_ctrl_resp_get_routing_table) +
+			    sizeof(struct get_routing_table_entry)) {
+			MCTP_CTRL_ERR(
+				"%s: Response too short for routing entry: %zu < %zu\n",
+				__func__, resp_msg_len,
+				sizeof(struct mctp_ctrl_resp_get_routing_table) +
+					sizeof(struct get_routing_table_entry));
+			return MCTP_RET_REQUEST_FAILED;
+		}
 
 		/* Copy the routing table entries to local routing table */
 		memcpy(&routing_table_entry,
@@ -628,6 +660,13 @@ int mctp_i2c_get_endpoint_uuid_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 	int ret;
 	mctp_uuid_table_t uuid_table;
 
+	if (resp_msg_len < sizeof(struct mctp_ctrl_resp_get_uuid)) {
+		MCTP_CTRL_ERR("%s: Response too short: %zu < %zu\n", __func__,
+			      resp_msg_len,
+			      sizeof(struct mctp_ctrl_resp_get_uuid));
+		return MCTP_RET_REQUEST_FAILED;
+	}
+
 	/* Trace the Rx message */
 	mctp_print_resp_msg((struct mctp_ctrl_resp *)mctp_resp_msg,
 			    "MCTP_GET_EP_UUID_RESPONSE",
@@ -728,11 +767,6 @@ int mctp_i2c_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 	int ret;
 	mctp_msg_type_table_t msg_type_table;
 
-	mctp_print_resp_msg((struct mctp_ctrl_resp *)mctp_resp_msg,
-			    "MCTP_GET_MSG_TYPE_RESPONSE",
-			    resp_msg_len -
-				    sizeof(struct mctp_ctrl_cmd_msg_hdr));
-
 	/* the minimum message size is 5 bytes:
 		eid 1 byte + 3 header bytes + 1 data length field */
 	if (resp_msg_len < 5) {
@@ -741,6 +775,11 @@ int mctp_i2c_get_msg_type_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 			__func__, resp_msg_len);
 		return MCTP_RET_REQUEST_FAILED;
 	}
+
+	mctp_print_resp_msg((struct mctp_ctrl_resp *)mctp_resp_msg,
+			    "MCTP_GET_MSG_TYPE_RESPONSE",
+			    resp_msg_len -
+				    sizeof(struct mctp_ctrl_cmd_msg_hdr));
 
 	msg_type_resp =
 		(struct mctp_ctrl_resp_get_msg_type_support *)mctp_resp_msg;
