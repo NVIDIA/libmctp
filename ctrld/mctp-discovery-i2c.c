@@ -855,7 +855,7 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd,
 	mctp_ctrl_cmd_alloc_eid_op alloc_eid_op;
 	uint8_t eid = 0, eid_count = 0, eid_start = 0;
 	uint8_t entry_hdl = MCTP_ROUTING_ENTRY_START;
-	uint8_t *mctp_resp_msg;
+	uint8_t *mctp_resp_msg = NULL;
 	mctp_eid_t local_eid =
 		11; //8 - Host BMC-FPGA via PCIe | 10 - Host BMC-FPGA via i2c | 9 - HMC-FPGA via PCIe | 11 - HMC-i2c via i2c (MCTP Arch. & Desi. Spec. page 6)
 	size_t resp_msg_len;
@@ -894,6 +894,8 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd,
 				MCTP_CTRL_ERR(
 					"%s: Unexpected failure %d, mode[%d]\n",
 					__func__, mctp_ret, discovery_mode);
+				free(mctp_resp_msg);
+				mctp_resp_msg = NULL;
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 		}
@@ -925,8 +927,8 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			mctp_ret = mctp_i2c_set_eid_get_response(
 				mctp_resp_msg, resp_msg_len, g_i2c_bridge_eid,
 				&eid_count);
-			/* Free Rx packet */
 			free(mctp_resp_msg);
+			mctp_resp_msg = NULL;
 
 			/* Retry if the device is not ready */
 			if (mctp_ret == MCTP_RET_DEVICE_NOT_READY) {
@@ -984,6 +986,8 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd,
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_SET_EP_REQUEST\n",
 					__func__);
+				free(mctp_resp_msg);
+				mctp_resp_msg = NULL;
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
@@ -997,9 +1001,8 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			/* Process the MCTP_ALLOCATE_EP_ID_RESPONSE */
 			mctp_ret = mctp_i2c_alloc_eid_get_response(
 				mctp_resp_msg, resp_msg_len);
-
-			/* Free Rx packet */
 			free(mctp_resp_msg);
+			mctp_resp_msg = NULL;
 
 			if (mctp_ret != MCTP_RET_REQUEST_SUCCESS) {
 				MCTP_CTRL_ERR(
@@ -1037,6 +1040,8 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd,
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_GET_ROUTING_TABLE_ENTRIES_REQUEST\n",
 					__func__);
+				free(mctp_resp_msg);
+				mctp_resp_msg = NULL;
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
@@ -1051,9 +1056,8 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd,
 			/* Process the MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE */
 			mctp_ret = mctp_i2c_get_routing_table_get_response(
 				ctrl->sock, eid, mctp_resp_msg, resp_msg_len);
-
-			/* Free Rx packet */
 			free(mctp_resp_msg);
+			mctp_resp_msg = NULL;
 
 			/* Retry if the device is not ready */
 			if (mctp_ret == MCTP_RET_DEVICE_NOT_READY) {
@@ -1152,8 +1156,9 @@ mctp_ret_codes_t mctp_i2c_discover_endpoints(const mctp_cmdline_args_t *cmd,
 						"%s: MCTP_GET_EP_UUID_RESPONSE Failed\n",
 						__func__);
 				}
-				/* Free Rx packet */
+
 				free(mctp_resp_msg);
+				mctp_resp_msg = NULL;
 			}
 
 			/* Increment the routing entry */

@@ -436,7 +436,7 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 {
 	mctp_requester_rc_t mctp_ret;
 	size_t resp_msg_len;
-	uint8_t *mctp_resp_msg;
+	uint8_t *mctp_resp_msg = NULL;
 	struct mctp_astpcie_pkt_private pvt_binding;
 	struct mctp_smbus_pkt_private pvt_binding_smbus;
 	struct mctp_usb_pkt_private pvt_binding_usb = { 0 };
@@ -568,11 +568,17 @@ static int do_mctp_cmdline(const mctp_cmdline_args_t *cmd, int sock_fd)
 			}
 
 			/* Return as failed once crossed threshold */
-			MCTP_ASSERT_RET(retry < MCTP_CTRL_CMD_RETRY_THRESHOLD,
-					MCTP_CMD_FAILED,
-					"Failed to received message %d\n",
-					mctp_ret);
+			if (retry >= MCTP_CTRL_CMD_RETRY_THRESHOLD) {
+				MCTP_CTRL_ERR(
+					"%s: Failed to received message %d\n",
+					__func__, mctp_ret);
+				free(mctp_resp_msg);
+				mctp_resp_msg = NULL;
+				return MCTP_CMD_FAILED;
+			}
 
+			free(mctp_resp_msg);
+			mctp_resp_msg = NULL;
 			MCTP_CTRL_ERR("%s: Retrying [%d] time\n", __func__,
 				      ++retry);
 			t_start = t_end;
@@ -749,15 +755,17 @@ static int mctp_reset_bridge_i2c(void)
 int mctp_event_monitor(mctp_ctrl_t *mctp_evt)
 {
 	mctp_requester_rc_t mctp_ret;
-	uint8_t *mctp_resp_msg;
+	uint8_t *mctp_resp_msg = NULL;
 	size_t resp_msg_len;
 
 	/* Receive the MCTP packet */
 	mctp_ret = mctp_client_recv(mctp_evt->eid, mctp_evt->sock,
 				    &mctp_resp_msg, &resp_msg_len);
-	MCTP_ASSERT_RET(mctp_ret == MCTP_REQUESTER_SUCCESS,
-			MCTP_REQUESTER_RECV_FAIL,
-			" Failed to received message %d\n", mctp_ret);
+	if (mctp_ret != MCTP_REQUESTER_SUCCESS) {
+		MCTP_CTRL_ERR(" Failed to received message %d\n", mctp_ret);
+		free(mctp_resp_msg);
+		return MCTP_REQUESTER_RECV_FAIL;
+	}
 
 	MCTP_CTRL_DEBUG("%s: Successfully received message..\n", __func__);
 
