@@ -116,9 +116,16 @@ int mctp_nl_socket_init()
 		local_interface.nl_sd = nl_sd;
 	}
 
-	if ((rc = sendto(local_interface.nl_sd, (void *)&msg.nh,
-			 msg.nh.nlmsg_len, 0, (struct sockaddr *)&nl_addr,
-			 sizeof(nl_addr))) < 0) {
+	/* Pass &msg (full struct, 32 bytes) instead of &msg.nh (just the
+	 * 16-byte nlmsghdr header). The address is the same since nh is
+	 * the first member, but the type info now carries the full struct
+	 * size - sendto reads msg.nh.nlmsg_len (= 32) bytes which spans
+	 * the full layout (nlmsghdr + ifaddrmsg + rtattr + data[4]).
+	 * Without this, Coverity sees a 16-byte buffer being read for 32
+	 * bytes and flags an OVERRUN. */
+	if ((rc = sendto(local_interface.nl_sd, (void *)&msg, msg.nh.nlmsg_len,
+			 0, (struct sockaddr *)&nl_addr, sizeof(nl_addr))) <
+	    0) {
 		MCTP_ERR(
 			"%s failed to setup local EID %d for interface %s rc [%d] %s\n",
 			__func__, eid, local_interface.ifname, rc,

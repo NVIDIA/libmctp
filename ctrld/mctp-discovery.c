@@ -1833,6 +1833,8 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
 				MCTP_CTRL_ERR(
 					"%s: Unexpected failure %d, mode[%d]\n",
 					__func__, mctp_ret, mode);
+				free(mctp_resp_msg);
+				mctp_resp_msg = NULL;
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 		}
@@ -1855,6 +1857,8 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
 				      "SPI Device Enumeration Service",
 				      "Failed to set endpoint request",
 				      EVT_CRITICAL, "Reset the baseboard");
+				free(mctp_resp_msg);
+				mctp_resp_msg = NULL;
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
@@ -1931,6 +1935,8 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_GET_EP_UUID_REQUEST\n",
 					__func__);
+				free(mctp_resp_msg);
+				mctp_resp_msg = NULL;
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
@@ -1981,6 +1987,8 @@ mctp_ret_codes_t mctp_spi_discover_endpoint(const mctp_cmdline_args_t *cmd,
 				MCTP_CTRL_ERR(
 					"%s: Failed MCTP_GET_MSG_TYPE_REQUEST\n",
 					__func__);
+				free(mctp_resp_msg);
+				mctp_resp_msg = NULL;
 				return MCTP_RET_DISCOVERY_FAILED;
 			}
 
