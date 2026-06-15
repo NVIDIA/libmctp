@@ -462,6 +462,17 @@ mctp_client_recv_from_eid(mctp_eid_t eid, int mctp_fd, uint8_t cmd_code,
 			return rc;
 		}
 
+		/* The buffer holds [msg_type][header...] and is parsed below as
+		 * an 8-byte struct mctp_vendor_msg_hdr at offset 1 (command_code
+		 * at offset 7). mctp_recv() admits buffers as small as 3 bytes,
+		 * so reject anything too short before dereferencing it
+		 * (CWE-125). */
+		if (*resp_msg_len < 1 + sizeof(struct mctp_vendor_msg_hdr)) {
+			free(*mctp_resp_msg);
+			*mctp_resp_msg = NULL;
+			return MCTP_REQUESTER_INVALID_RECV_LEN;
+		}
+
 		/* Skip msg type */
 		resp = (struct mctp_vendor_msg_hdr *)(*mctp_resp_msg + 1);
 		/* Mctp demux will forard the response to all mctp client
