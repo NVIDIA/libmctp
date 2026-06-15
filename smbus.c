@@ -948,6 +948,17 @@ int mctp_smbus_read(struct mctp_binding_smbus *smbus)
 		return -1;
 	}
 
+	/* Require at least one MCTP byte beyond the SMBus header and the
+	 * trailing PEC. Otherwise the push length below
+	 * (len - sizeof(*hdr) - SMBUS_PEC_BYTE_SIZE) underflows size_t to
+	 * SIZE_MAX and drives an unbounded memcpy in mctp_pktbuf_push
+	 * (CWE-191). A bare-header frame (len == sizeof(*hdr)) also passes
+	 * the byte_count == len - sizeof(*hdr) check when byte_count == 0. */
+	if ((size_t)len <= sizeof(*hdr) + SMBUS_PEC_BYTE_SIZE) {
+		mctp_prerr("SMBus frame too short: len=%zd", (ssize_t)len);
+		return 0;
+	}
+
 	smbus->rx_pkt = mctp_pktbuf_alloc(&smbus->binding, 0);
 	MCTP_ASSERT_RET(smbus->rx_pkt != NULL, -1,
 			"Could not allocate pktbuf.");
