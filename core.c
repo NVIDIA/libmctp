@@ -244,6 +244,13 @@ static int mctp_msg_ctx_add_pkt(struct mctp_msg_ctx *ctx,
 			ctx->buf_alloc_size = new_alloc_size;
 		} else {
 			__mctp_free(ctx->buf);
+			/* Restore the slot invariant (buf == NULL <=>
+			 * buf_alloc_size == 0). Leaving buf dangling with a
+			 * stale non-zero buf_alloc_size lets a later slot reuse
+			 * skip the (re)allocation branch and memcpy into freed
+			 * memory (CWE-416). */
+			ctx->buf = NULL;
+			ctx->buf_alloc_size = 0;
 			return -1;
 		}
 	}
