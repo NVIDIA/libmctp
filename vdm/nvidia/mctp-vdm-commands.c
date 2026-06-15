@@ -47,6 +47,8 @@
 #define MCTP_CTRL_CC_UNKNOWN 0xFF
 #define MCTP_CC_POSITION     9
 
+#define MCTP_VDM_BOOT_STATUS_MIN_LEN 8
+
 /* MCTP-VDM response binary file */
 #define MCTP_VDM_RESP_OUTPUT_FILE "/var/mctp-vdm-output.bin"
 
@@ -1134,6 +1136,16 @@ int query_boot_status(int fd, uint8_t tid, uint8_t verbose, uint8_t more)
 	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, sizeof(cmd),
 				       (uint8_t **)&resp, &resp_len, verbose);
 
+	/* The bit parsers below index resp[resp_len - 1 .. resp_len - 8];
+	 * reject a short device reply before that underflows the index. */
+	if (rc == MCTP_REQUESTER_SUCCESS &&
+	    resp_len < MCTP_VDM_BOOT_STATUS_MIN_LEN) {
+		fprintf(stderr, "%s: short boot-status response (%zu bytes)\n",
+			__func__, resp_len);
+		free(resp);
+		return MCTP_REQUESTER_RESP_MSG_TOO_SMALL;
+	}
+
 	/* Show boot status codes when flag 'more' is set */
 	if (more == true && rc == MCTP_REQUESTER_SUCCESS) {
 		printf("\n");
@@ -1189,6 +1201,17 @@ int query_boot_status_json(int fd, uint8_t tid)
 			__func__, rc);
 		free(resp);
 		return rc;
+	}
+
+	/* Reject a reply too short for the tail indexing in the bit parsers,
+	 * or for the fixed-offset completion-code read at MCTP_CC_POSITION in
+	 * create_json_with_completion_code() (CWE-125). */
+	if (resp_len < MCTP_VDM_BOOT_STATUS_MIN_LEN ||
+	    resp_len <= MCTP_CC_POSITION) {
+		fprintf(stderr, "%s: short boot-status response (%zu bytes)\n",
+			__func__, resp_len);
+		free(resp);
+		return MCTP_REQUESTER_RESP_MSG_TOO_SMALL;
 	}
 
 	struct json_object *json_obj = json_object_new_object();
