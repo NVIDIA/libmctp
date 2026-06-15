@@ -480,6 +480,14 @@ int mctp_i2c_get_routing_table_get_response(int sock_fd, mctp_eid_t eid,
 
 	MCTP_CTRL_TRACE("%s: Get EP reesponse\n", __func__);
 
+	/* See mctp_get_routing_table_get_response(): reject a response too
+	 * short to hold the header before reading its fields (CWE-125). */
+	if (resp_msg_len < sizeof(struct mctp_ctrl_resp_get_routing_table)) {
+		MCTP_CTRL_ERR("%s: Truncated routing table response (%zu bytes)\n",
+			      __func__, resp_msg_len);
+		return MCTP_RET_REQUEST_FAILED;
+	}
+
 	mctp_print_resp_msg((struct mctp_ctrl_resp *)mctp_resp_msg,
 			    "MCTP_GET_ROUTING_TABLE_ENTRIES_RESPONSE",
 			    resp_msg_len -
@@ -510,6 +518,18 @@ int mctp_i2c_get_routing_table_get_response(int sock_fd, mctp_eid_t eid,
 	/* Check if the routing table exist */
 	if (routing_table->number_of_entries) {
 		struct get_routing_table_entry routing_table_entry;
+
+		/* Reject a response too short to contain the claimed entry
+		 * before the fixed-offset copy reads past the buffer
+		 * (CWE-125). */
+		if (resp_msg_len <
+		    sizeof(struct mctp_ctrl_resp_get_routing_table) +
+			    sizeof(struct get_routing_table_entry)) {
+			MCTP_CTRL_ERR(
+				"%s: Truncated routing entry (%zu bytes)\n",
+				__func__, resp_msg_len);
+			return MCTP_RET_REQUEST_FAILED;
+		}
 
 		/* Copy the routing table entries to local routing table */
 		memcpy(&routing_table_entry,
