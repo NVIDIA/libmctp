@@ -648,6 +648,14 @@ int mctp_i2c_get_endpoint_uuid_response(mctp_eid_t eid, uint8_t *mctp_resp_msg,
 	int ret;
 	mctp_uuid_table_t uuid_table;
 
+	/* See mctp_get_endpoint_uuid_response(): reject a response too short
+	 * to contain the 16-byte UUID before the cast and copy (CWE-125). */
+	if (resp_msg_len < sizeof(struct mctp_ctrl_resp_get_uuid)) {
+		MCTP_CTRL_ERR("%s: Truncated UUID response (%zu bytes)\n",
+			      __func__, resp_msg_len);
+		return MCTP_RET_REQUEST_FAILED;
+	}
+
 	/* Trace the Rx message */
 	mctp_print_resp_msg((struct mctp_ctrl_resp *)mctp_resp_msg,
 			    "MCTP_GET_EP_UUID_RESPONSE",
