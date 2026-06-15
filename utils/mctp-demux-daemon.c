@@ -159,7 +159,7 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 	const size_t min_packet_pcie = MCTP_PCIE_MSG_OFFSET + 1;
 	const size_t min_packet_spi = MCTP_SPI_MSG_OFFSET + 1;
 	const size_t min_packet_smbus = MCTP_SMBUS_MSG_OFFSET + 1;
-	const size_t min_packet_usb = MCTP_USB_EID_OFFSET + 1;
+	const size_t min_packet_usb = MCTP_USB_MSG_OFFSET + 1;
 
 	/* Get the bus type (binding ID) */
 	bind_id = *((uint8_t *)msg);
@@ -285,7 +285,7 @@ static void tx_pvt_message(struct ctx *ctx, void *msg, size_t len)
 
 	case MCTP_BINDING_USB:
 
-		if (len < min_packet_usb) {
+		if (len <= min_packet_usb) {
 			mctp_prwarn("Packet too short for USB.");
 			return;
 		}
