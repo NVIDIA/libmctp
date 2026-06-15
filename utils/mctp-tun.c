@@ -210,6 +210,18 @@ int tun_read(struct ctx *ctx)
 	}
 
 	rlen -= sizeof(tun_pi);
+
+	/* mctp_pktbuf_alloc() sizes the buffer from the binding's fixed
+	 * pkt_size, not rlen, and the memcpy below bypasses
+	 * mctp_pktbuf_push()'s bounds check. tun_buf_size (MAX_MTU = 64K) far
+	 * exceeds pkt_size, so reject oversized frames to avoid a heap
+	 * overflow (CWE-787). */
+	if ((size_t)rlen > tun->binding.pkt_size) {
+		mctp_prerr("tun frame too large (%zd > %zu)", rlen,
+			   tun->binding.pkt_size);
+		return -1;
+	}
+
 	struct mctp_pktbuf *pkt;
 
 	pkt = mctp_pktbuf_alloc(&tun->binding, rlen);
