@@ -663,6 +663,14 @@ struct mctp_binding_usb *mctp_usb_init(mctp_usb_dev_cfg_t *cfg)
 		MCTP_ERR("Failed to alloc memory\n");
 		return NULL;
 	}
+	/* Zero the struct so binding.bus / binding.mctp are NULL until
+	 * mctp_register_bus() sets them. libusb_hotplug_register_callback()
+	 * below is armed with LIBUSB_HOTPLUG_ENUMERATE and fires
+	 * mctp_usb_hotplug_callback() for an already-attached device before
+	 * the bus is registered; that callback reads base_usb->bus and would
+	 * otherwise dereference an uninitialised pointer (CWE-824). Every
+	 * other binding zeroes its struct here too. */
+	memset(usb, 0, sizeof(*usb));
 
 	if (mode < 0 || mode > MCTP_USB_BATCH_ZPAD) {
 		mctp_prinfo(
