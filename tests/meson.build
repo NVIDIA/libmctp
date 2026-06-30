@@ -5,6 +5,7 @@ tests = [
     'test_cmds',
     'test_core',
     'test_eid',
+    'test_security',
     'test_seq',
     'test_serial',
 ]
