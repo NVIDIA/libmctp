@@ -474,7 +474,7 @@ void mctp_ctrl_usb_hotplug_exit(mctp_ctrl_usb_t *usb)
 	__mctp_free(usb);
 }
 
-static void handle_usb_event(mctp_ctrl_usb_t *usb)
+static int handle_usb_event(mctp_ctrl_usb_t *usb)
 {
 	struct timeval t = { 0 };
 	enum libusb_error rc;
@@ -483,6 +483,9 @@ static void handle_usb_event(mctp_ctrl_usb_t *usb)
 	if (rc != LIBUSB_SUCCESS)
 		mctp_prerr("%s: Libusb handle events timeout:%s", __func__,
 			   libusb_strerror(rc));
+
+	/* libusb_error codes are negative on failure, LIBUSB_SUCCESS is 0 */
+	return rc;
 }
 
 int mctp_ctrl_usb_handle_event(mctp_ctrl_t *mctp_ctrl,
@@ -494,11 +497,14 @@ int mctp_ctrl_usb_handle_event(mctp_ctrl_t *mctp_ctrl,
 	 * is generating an mctp-ctrl re-enumeration
 	 */
 	struct pollfd *fds = &context->fds[MCTP_CTRL_TOTAL_FDS];
+	int rc;
 	/* Check if there was, in fact, a USB event */
 	for (nfds_t i = 0; i < usb->bindingfds_cnt; i++) {
 		if (!fds[i].revents)
 			continue;
-		handle_usb_event(usb);
+		rc = handle_usb_event(usb);
+		if (rc < 0)
+			return rc;
 	}
 
 	return 0;
