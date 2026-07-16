@@ -1327,6 +1327,7 @@ mctp_i2c_discover_static_pool_endpoint(const mctp_cmdline_args_t *cmd,
 	if (g_i2c_bus_info.buses == NULL) {
 		MCTP_CTRL_ERR("%s: Could not allocate array for buses.",
 			      __func__);
+		return MCTP_RET_DISCOVERY_FAILED;
 	}
 
 	for (size_t i = 0; i < sizeof(cmd->i2c.logical_busses) /
