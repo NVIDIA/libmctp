@@ -1332,6 +1332,9 @@ static void parse_command_line(int argc, char *const *argv,
 				sizeof(cmdline->tx_data) /
 					sizeof(cmdline->tx_data[0]));
 			break;
+		case 'r':
+			cmdline->ops = MCTP_CMDLINE_OP_READ_DATA;
+			break;
 		case 'z':
 			cmdline->ignore_eids_len = mctp_cmdline_copy_tx_buff(
 				optarg, cmdline->ignore_eids, strlen(optarg),
