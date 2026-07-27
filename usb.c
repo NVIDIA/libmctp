@@ -551,7 +551,6 @@ void mctp_send_tx_queue_usb_frag(struct mctp_bus *bus)
 	int rv;
 	char *buf_ptr;
 	size_t usb_buf_len = 0;
-	size_t usb_segment_len = 0;
 	struct mctp_binding_usb *usb = binding_to_usb(bus->binding);
 	uint16_t usb_message_len;
 
@@ -577,7 +576,6 @@ void mctp_send_tx_queue_usb_frag(struct mctp_bus *bus)
 			continue;
 
 		} else {
-			usb_segment_len += usb_message_len;
 			usb_buf_len += usb_message_len;
 			memcpy(buf_ptr, pkt->data, usb_message_len);
 		}
