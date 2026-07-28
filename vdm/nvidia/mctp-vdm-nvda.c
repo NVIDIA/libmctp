@@ -250,6 +250,14 @@ static int cb_dbus_properity(sd_bus_message *m, uint8_t eid)
 		MCTP_ASSERT_RET(rc >= 0, -1,
 				"sd_bus_message_read_array fail rc=%d\n", rc);
 
+		/* Reject an Address array larger than the destination before
+		 * the copy (CWE-787: unbounded memcpy into fixed g_sock_name). */
+		if (len > sizeof(g_sock_name)) {
+			fprintf(stderr, "Address too long: %zu > %zu\n", len,
+				sizeof(g_sock_name));
+			return -1;
+		}
+
 		memcpy(g_sock_name, ptr, len);
 	} else if (type == SD_BUS_TYPE_BOOLEAN &&
 		   strcmp(name, "Enabled") == 0) {
