@@ -1372,6 +1372,15 @@ static int socket_init(struct ctx *ctx)
 	}
 
 	addr.sun_family = AF_UNIX;
+
+	/* Reject a socket name that would overflow sun_path before the copy
+	 * (CWE-787: unbounded memcpy into fixed addr.sun_path). */
+	if ((size_t)namelen > sizeof(addr.sun_path)) {
+		mctp_prerr("socket name too long (%d > %zu)", namelen,
+			   sizeof(addr.sun_path));
+		return -1;
+	}
+
 	memcpy(addr.sun_path, ctx->binding->sockname, namelen);
 
 	ctx->sock = socket(AF_UNIX, SOCK_SEQPACKET, 0);

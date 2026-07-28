@@ -319,6 +319,16 @@ mctp_requester_rc_t mctp_usr_socket_init(int *fd, const char *path,
 	/* skip the fist null terminated and plus one to the length */
 	len = strlen(&path[1]) + 1;
 
+	/* Reject a socket name that would overflow sun_path before the copy
+	 * (CWE-787: unbounded memcpy into fixed addr.sun_path). */
+	if (len > (int)sizeof(addr.sun_path)) {
+		MCTP_ERR("socket name too long (%d > %zu)\n", len,
+			 sizeof(addr.sun_path));
+		close(*fd);
+		*fd = -1;
+		return MCTP_REQUESTER_OPEN_FAIL;
+	}
+
 	memcpy(addr.sun_path, path, len);
 
 	/* Send a connect request to ther server */
