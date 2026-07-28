@@ -219,3 +219,22 @@ modified by any test.
 - `test_v*.c` — one focused test source per standalone finding.
 - `stubs_ctrld.c` / `stubs_demux.c` — inert externs so the ctrld / demux TUs link
   in isolation (never executed by the tested paths).
+
+### RS2-25 — NVBug 6519382 — CWE-787 — overlong socket name overflows sun_path (mctp-socket.c / demux)
+Test: `tests/security/test_rs2_25.c` drives the real `mctp_usr_socket_init()` (TU include) with a
+201-byte abstract socket name (sun_path is 108). Build without `-DMCTP_IN_KERNEL`:
+```
+gcc -g -O1 -fsanitize=address -I. -Itests tests/security/test_rs2_25.c log.c -lsystemd -o /tmp/t_rs2_25
+ASAN_OPTIONS=detect_leaks=0 /tmp/t_rs2_25
+```
+**Fixed (PASS):**
+```
+mctp_usr_socket_init() rejected overlong socket name (rc=-1) - no overflow
+RS2-25 security regression test passed (mctp_usr_socket_init rejects overlong socket names)
+EXIT=0
+```
+**Reverted (FAIL):** (memcpy of 201 bytes into 108-byte sun_path)
+```
+*** buffer overflow detected ***: terminated   (SIGABRT, EXIT=134)
+```
+The identical guard is applied at the demux bind site (`utils/mctp-demux-daemon.c`); same fix, same class.
