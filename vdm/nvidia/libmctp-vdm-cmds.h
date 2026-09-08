@@ -55,6 +55,24 @@ extern "C" {
 #define MCTP_VENDOR_CMD_FORCE_GRANT_REVOKED 0x19
 #define MCTP_VENDOR_CMD_RESET_EROT	    0x1A
 #define MCTP_VENDOR_CMD_REVOKE_AP_OTP	    0x1B
+#define MCTP_VENDOR_CMD_FACTORY_RESET	    0x1F
+
+/* Factory Reset (cmd 0x1F) sub-commands */
+#define MCTP_VDM_FACTORY_RESET_SUBCMD_TRIGGER		0x00
+#define MCTP_VDM_FACTORY_RESET_SUBCMD_QUERY_VOLATILE	0x01
+#define MCTP_VDM_FACTORY_RESET_SUBCMD_COMPLETE		0x02
+#define MCTP_VDM_FACTORY_RESET_SUBCMD_UPDATE_PUBLIC_KEY 0x03
+#define MCTP_VDM_FACTORY_RESET_SUBCMD_GET_NONCE		0x04
+
+#define MCTP_VDM_FACTORY_RESET_NONCE_SIZE    8
+#define MCTP_VDM_FACTORY_RESET_PUBKEY_SIZE   96
+#define MCTP_VDM_FACTORY_RESET_SIG_PART_SIZE 48
+
+/* Request payload sizes including sub_cmd */
+#define MCTP_VDM_FACTORY_RESET_GET_NONCE_REQ_SIZE	  1
+#define MCTP_VDM_FACTORY_RESET_TRIGGER_REQ_SIZE		  106
+#define MCTP_VDM_FACTORY_RESET_UPDATE_KEY_REQ_SIZE	  201
+#define MCTP_VDM_FACTORY_RESET_UPDATE_KEY_REQ_NO_SIG_SIZE 105
 
 /* Download log buffer length */
 #define MCTP_VDM_DOWNLOAD_LOG_BUFFER_SIZE 52
@@ -211,6 +229,16 @@ struct mctp_vendor_cmd_revoke_ap_otp {
 	uint8_t code;
 } __attribute__((__packed__));
 
+/*
+ * Factory Reset (cmd 0x1F). Payload after sub_cmd is sized for the largest
+ * request (Update Public Key, 200 bytes). req_len controls what is sent.
+ */
+struct mctp_vendor_cmd_factory_reset {
+	struct mctp_vendor_msg_hdr vdr_msg_hdr;
+	uint8_t sub_cmd;
+	uint8_t payload[MCTP_VDM_FACTORY_RESET_UPDATE_KEY_REQ_SIZE - 1];
+} __attribute__((__packed__));
+
 /* MCTP-VDM encoder API's */
 bool mctp_encode_vendor_cmd_selftest(struct mctp_vendor_cmd_selftest *cmd);
 bool mctp_encode_vendor_cmd_bootcmplt(struct mctp_vendor_cmd_bootcmplt *cmd);
@@ -253,6 +281,8 @@ bool mctp_encode_vendor_cmd_force_grant_revoked(
 bool mctp_encode_vendor_cmd_reset_erot(struct mctp_vendor_cmd_reset_erot *cmd);
 bool mctp_encode_vendor_cmd_revoke_ap_otp(
 	struct mctp_vendor_cmd_revoke_ap_otp *cmd);
+bool mctp_encode_vendor_cmd_factory_reset(
+	struct mctp_vendor_cmd_factory_reset *cmd);
 #ifdef __cplusplus
 }
 #endif

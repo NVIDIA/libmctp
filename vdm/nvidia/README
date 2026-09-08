@@ -27,6 +27,27 @@ Supported commands:
              background_copy_query_pending      
 		     in_band_disable, in_band_enable
              in_band_query_status, reset_erot
+             get_nonce
+             update_public_key
+             factory_reset_trigger
+
+Factory reset / wipe (VDM command 0x1F):
+---------------------------------------
+    Get Nonce (sub-command 0x04):
+        mctp-vdm-util -c get_nonce -t <eid>
+        Prints: nonce=<16 hex characters>
+
+    Update Public Key (sub-command 0x03):
+        First enroll (pubkey[96] + nonce[8] = 104 bytes, no signature):
+            mctp-vdm-util -c update_public_key -t <eid> <104 hex bytes>
+        Re-provision (pubkey[96] + nonce[8] + sig_r[48] + sig_s[48] = 200 bytes):
+            mctp-vdm-util -c update_public_key -t <eid> <200 hex bytes>
+        The util fills sub_cmd 0x03. Do not include it in the hex payload.
+
+    Trigger (sub-command 0x00):
+        mctp-vdm-util -c factory_reset_trigger -t <eid> <105 hex bytes>
+        Payload is volatile_data[1] + nonce[8] + sig_r[48] + sig_s[48].
+        The util fills sub_cmd 0x00. Do not include it in the hex payload.
 
 Buffer allocation/deallocation: (implementation details)
 -------------------------------

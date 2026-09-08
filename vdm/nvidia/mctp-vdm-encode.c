@@ -265,3 +265,9 @@ bool mctp_encode_vendor_cmd_revoke_ap_otp(
 {
 	ENCODE_VMD_CMD_FUNC(REVOKE_AP_OTP);
 }
+
+bool mctp_encode_vendor_cmd_factory_reset(
+	struct mctp_vendor_cmd_factory_reset *cmd)
+{
+	ENCODE_VMD_CMD_FUNC(FACTORY_RESET);
+}
