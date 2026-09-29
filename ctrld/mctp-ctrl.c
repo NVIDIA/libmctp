@@ -839,7 +839,7 @@ static int exec_command_line_mode(const mctp_cmdline_args_t *cmdline,
 	} else if (cmdline->binding_type == MCTP_BINDING_USB) {
 		MCTP_CTRL_DEBUG("%s: Setting up USB socket\n", __func__);
 		int len = strlen(&usb_sock_path[1]);
-		snprintf(usb_sock_path + len + 1, sizeof(usb_sock_path) - len,
+		snprintf(usb_sock_path + len + 1, sizeof(usb_sock_path) - len - 1,
 			 "-%d-%s", cmdline->usb.bus_id, cmdline->usb.port_path);
 		mctp_sock_path = usb_sock_path;
 	} else if (cmdline->binding_type == MCTP_BINDING_SPI) {
@@ -926,7 +926,7 @@ static int open_mctp_sock(const mctp_cmdline_args_t *cmdline,
 	} else if (cmdline->binding_type == MCTP_BINDING_USB) {
 		MCTP_CTRL_INFO("%s: Binding type: USB\n", __func__);
 		snprintf(usb_sock_path + strlen(&usb_sock_path[1]) + 1,
-			 sizeof(usb_sock_path) - strlen(&usb_sock_path[1]),
+			 sizeof(usb_sock_path) - strlen(&usb_sock_path[1]) - 1,
 			 "-%d-%s", cmdline->usb.bus_id, cmdline->usb.port_path);
 		mctp_sock_path = usb_sock_path;
 		mctp_medium_type = "USB";
