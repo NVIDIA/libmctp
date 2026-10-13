@@ -150,6 +150,9 @@ static void usage(void)
 		query_revoke_ap_otp_status\n \
 		reset_erot\n \
 		revoke_ap_otp\n \
+		get_nonce\n \
+		update_public_key - 104 bytes (pubkey[96]+nonce[8]) or 200 bytes (+sig_r[48]+sig_s[48])\n \
+		factory_reset_trigger - 105 bytes (volatile_data[1]+nonce[8]+sig_r[48]+sig_s[48])\n \
 		");
 }
 
@@ -529,6 +532,10 @@ int main(int argc, char *const *argv)
 			payload_required |= (strcmp(item, "dot_disable") == 0);
 			payload_required |=
 				(strcmp(item, "dot_token_install") == 0);
+			payload_required |=
+				(strcmp(item, "update_public_key") == 0);
+			payload_required |=
+				(strcmp(item, "factory_reset_trigger") == 0);
 
 			if (strcmp(item, "selftest") == 0)
 				max_len = 8;
@@ -544,6 +551,14 @@ int main(int argc, char *const *argv)
 				max_len = MCTP_ECDSA_P_384_DOT_ENABLE_KEY;
 			else if (strcmp(item, "dot_token_install") == 0)
 				max_len = MCTP_DOT_TOKEN_SIZE;
+			else if (strcmp(item, "update_public_key") == 0)
+				max_len =
+					MCTP_VDM_FACTORY_RESET_UPDATE_KEY_REQ_SIZE -
+					1;
+			else if (strcmp(item, "factory_reset_trigger") == 0)
+				max_len =
+					MCTP_VDM_FACTORY_RESET_TRIGGER_REQ_SIZE -
+					1;
 			else
 				max_len = 0;
 			break;
@@ -608,6 +623,16 @@ int main(int argc, char *const *argv)
 		}
 
 		payload[len] = strtol(argv[i], NULL, 16);
+	}
+
+	if ((strcmp(item, "update_public_key") == 0 ||
+	     strcmp(item, "factory_reset_trigger") == 0) &&
+	    i < argc) {
+		fprintf(stderr,
+			"Error! extra payload bytes after %u-byte maximum for %s\n",
+			max_len, item);
+		usage();
+		return EXIT_FAILURE;
 	}
 
 	rc = sd_bus_default(&bus);
@@ -929,6 +954,19 @@ int main(int argc, char *const *argv)
 		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
 				    "fail to query revoke AP otp status %d\n",
 				    rc);
+	} else if (!strcmp(item, "get_nonce")) {
+		rc = factory_reset_get_nonce(fd, teid, VERBOSE_EN, NULL);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit, "fail to get nonce %d\n",
+				    rc);
+	} else if (!strcmp(item, "update_public_key")) {
+		rc = factory_reset_update_public_key(fd, teid, payload, len,
+						     VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to update public key %d\n", rc);
+	} else if (!strcmp(item, "factory_reset_trigger")) {
+		rc = factory_reset_trigger(fd, teid, payload, len, VERBOSE_EN);
+		VMD_CMD_ASSERT_GOTO(rc == 0, exit,
+				    "fail to trigger factory reset %d\n", rc);
 	} else {
 		fprintf(stderr, "Unknown test cmd\n");
 	}

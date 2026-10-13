@@ -2305,3 +2305,282 @@ int revoke_ap_otp(int fd, uint8_t tid, uint8_t code, uint8_t verbose)
 
 	return 0;
 }
+
+#define MCTP_VDM_FACTORY_RESET_STATUS_POSITION 10
+#define MCTP_VDM_FACTORY_RESET_NONCE_POSITION  10
+
+static const char *factory_reset_trigger_status_to_string(uint8_t status)
+{
+	switch (status) {
+	case MCTP_VDM_FACTORY_RESET_STATUS_SUCCESS:
+		return "Success";
+	case MCTP_VDM_FACTORY_RESET_STATUS_SIGNATURE_FAILED:
+		return "Signature verification failed";
+	case MCTP_VDM_FACTORY_RESET_STATUS_UPDATE_FAILED:
+		return "Volatile data update failed";
+	case MCTP_VDM_FACTORY_RESET_STATUS_NOT_HOST_BMC:
+		return "Request is not from Host-BMC";
+	case MCTP_VDM_FACTORY_RESET_STATUS_NONCE_MISMATCH:
+		return "Nonce mismatch";
+	case MCTP_VDM_FACTORY_RESET_STATUS_NONCE_NOT_ENABLED:
+		return "Nonce not enabled";
+	default:
+		return "Unknown";
+	}
+}
+
+static const char *factory_reset_update_key_status_to_string(uint8_t status)
+{
+	switch (status) {
+	case MCTP_VDM_FACTORY_RESET_STATUS_SUCCESS:
+		return "Success";
+	case MCTP_VDM_FACTORY_RESET_STATUS_SIGNATURE_FAILED:
+		return "Signature verification failed";
+	case MCTP_VDM_FACTORY_RESET_STATUS_UPDATE_FAILED:
+		return "New public key update failed";
+	case MCTP_VDM_FACTORY_RESET_STATUS_NOT_HOST_BMC:
+		return "Request is not from Host-BMC";
+	case MCTP_VDM_FACTORY_RESET_STATUS_NONCE_MISMATCH:
+		return "Nonce mismatch";
+	case MCTP_VDM_FACTORY_RESET_STATUS_NONCE_NOT_ENABLED:
+		return "Nonce not enabled";
+	default:
+		return "Unknown";
+	}
+}
+
+static int factory_reset_send(int fd, uint8_t tid, uint8_t sub_cmd,
+			      const uint8_t *payload, size_t payload_len,
+			      uint8_t verbose, uint8_t **resp_out,
+			      size_t *resp_len_out)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	mctp_requester_rc_t rc;
+	struct mctp_vendor_cmd_factory_reset cmd = { 0 };
+	size_t req_len;
+
+	if (!mctp_encode_vendor_cmd_factory_reset(&cmd)) {
+		return -1;
+	}
+
+	cmd.sub_cmd = sub_cmd;
+	if (payload_len > 0) {
+		if (!payload || payload_len > sizeof(cmd.payload)) {
+			return -1;
+		}
+		memcpy(cmd.payload, payload, payload_len);
+	}
+
+	req_len = sizeof(struct mctp_vendor_msg_hdr) + 1 + payload_len;
+
+	rc = mctp_vdm_client_send_recv(tid, fd, (uint8_t *)&cmd, req_len, &resp,
+				       &resp_len, verbose);
+	if (rc != MCTP_REQUESTER_SUCCESS) {
+		free(resp);
+		MCTP_ASSERT_RET(false, -1,
+				"%s: fail to recv [rc: %d] response\n",
+				__func__, rc);
+	}
+
+	if (resp_out && resp_len_out) {
+		*resp_out = resp;
+		*resp_len_out = resp_len;
+	} else {
+		free(resp);
+	}
+
+	return 0;
+}
+
+static int factory_reset_parse_cc_status(const uint8_t *resp, size_t resp_len,
+					 uint8_t *cc_out, uint8_t *status_out)
+{
+	if (!resp || resp_len <= MCTP_CC_POSITION) {
+		return -1;
+	}
+
+	if (cc_out) {
+		*cc_out = resp[MCTP_CC_POSITION];
+	}
+	if (status_out) {
+		if (resp_len <= MCTP_VDM_FACTORY_RESET_STATUS_POSITION) {
+			return -1;
+		}
+		*status_out = resp[MCTP_VDM_FACTORY_RESET_STATUS_POSITION];
+	}
+
+	return 0;
+}
+
+static int
+factory_reset_check_cc_status(const uint8_t *resp, size_t resp_len,
+			      const char *operation,
+			      const char *(*status_to_string)(uint8_t))
+{
+	uint8_t cc = 0;
+	uint8_t status = 0;
+	bool have_status;
+
+	if (factory_reset_parse_cc_status(resp, resp_len, &cc, NULL) != 0) {
+		fprintf(stderr, "%s: response too short\n", operation);
+		return -1;
+	}
+
+	/* ERROR_GENERAL and ERROR_INVALID_DATA carry the reason in the data */
+	have_status = factory_reset_parse_cc_status(resp, resp_len, NULL,
+						    &status) == 0;
+
+	if (cc != SUCCESS) {
+		fprintf(stderr, "%s: completion code 0x%02x\n", operation, cc);
+		if (cc == ERROR_INVALID_LENGTH) {
+			fprintf(stderr, "  invalid request length\n");
+		} else if (cc == ERROR_INVALID_DATA) {
+			fprintf(stderr, "  invalid data\n");
+		}
+		if (have_status) {
+			fprintf(stderr, "  status 0x%02x (%s)\n", status,
+				status_to_string(status));
+		}
+		return -1;
+	}
+
+	if (!have_status) {
+		fprintf(stderr, "%s: execution status missing in response\n",
+			operation);
+		return -1;
+	}
+
+	if (status != MCTP_VDM_FACTORY_RESET_STATUS_SUCCESS) {
+		fprintf(stderr, "%s: status 0x%02x (%s)\n", operation, status,
+			status_to_string(status));
+		return -1;
+	}
+
+	return 0;
+}
+
+int factory_reset_get_nonce(int fd, uint8_t tid, uint8_t verbose,
+			    uint8_t *nonce_out)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	uint8_t cc = 0;
+	int rc;
+	size_t i;
+	bool all_zero;
+
+	rc = factory_reset_send(fd, tid,
+				MCTP_VDM_FACTORY_RESET_SUBCMD_GET_NONCE, NULL,
+				0, verbose, &resp, &resp_len);
+	if (rc != 0) {
+		return rc;
+	}
+
+	if (!resp || resp_len <= MCTP_CC_POSITION) {
+		fprintf(stderr, "get_nonce: response too short\n");
+		free(resp);
+		return -1;
+	}
+
+	cc = resp[MCTP_CC_POSITION];
+	if (cc != SUCCESS) {
+		fprintf(stderr, "get_nonce: completion code 0x%02x\n", cc);
+		free(resp);
+		return -1;
+	}
+
+	if (resp_len < MCTP_VDM_FACTORY_RESET_NONCE_POSITION +
+			       MCTP_VDM_FACTORY_RESET_NONCE_SIZE) {
+		fprintf(stderr, "get_nonce: nonce missing in response\n");
+		free(resp);
+		return -1;
+	}
+
+	all_zero = true;
+	for (i = 0; i < MCTP_VDM_FACTORY_RESET_NONCE_SIZE; i++) {
+		if (resp[MCTP_VDM_FACTORY_RESET_NONCE_POSITION + i] != 0) {
+			all_zero = false;
+			break;
+		}
+	}
+	if (all_zero) {
+		fprintf(stderr, "get_nonce: nonce is all zeros\n");
+		free(resp);
+		return -1;
+	}
+
+	printf("nonce=");
+	for (i = 0; i < MCTP_VDM_FACTORY_RESET_NONCE_SIZE; i++) {
+		printf("%02x", resp[MCTP_VDM_FACTORY_RESET_NONCE_POSITION + i]);
+	}
+	printf("\n");
+
+	if (nonce_out) {
+		memcpy(nonce_out, &resp[MCTP_VDM_FACTORY_RESET_NONCE_POSITION],
+		       MCTP_VDM_FACTORY_RESET_NONCE_SIZE);
+	}
+
+	free(resp);
+	return 0;
+}
+
+int factory_reset_update_public_key(int fd, uint8_t tid, uint8_t *payload,
+				    size_t length, uint8_t verbose)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	int rc;
+	size_t after_subcmd = MCTP_VDM_FACTORY_RESET_UPDATE_KEY_REQ_SIZE - 1;
+	size_t after_subcmd_no_sig =
+		MCTP_VDM_FACTORY_RESET_UPDATE_KEY_REQ_NO_SIG_SIZE - 1;
+
+	if (!payload ||
+	    (length != after_subcmd && length != after_subcmd_no_sig)) {
+		fprintf(stderr,
+			"update_public_key: payload must be %zu bytes (with signature) or %zu bytes (first enroll, no signature)\n",
+			after_subcmd, after_subcmd_no_sig);
+		return -1;
+	}
+
+	rc = factory_reset_send(fd, tid,
+				MCTP_VDM_FACTORY_RESET_SUBCMD_UPDATE_PUBLIC_KEY,
+				payload, length, verbose, &resp, &resp_len);
+	if (rc != 0) {
+		return rc;
+	}
+
+	rc = factory_reset_check_cc_status(
+		resp, resp_len, "update_public_key",
+		factory_reset_update_key_status_to_string);
+	free(resp);
+	return rc;
+}
+
+int factory_reset_trigger(int fd, uint8_t tid, uint8_t *payload, size_t length,
+			  uint8_t verbose)
+{
+	uint8_t *resp = NULL;
+	size_t resp_len = 0;
+	int rc;
+	size_t after_subcmd = MCTP_VDM_FACTORY_RESET_TRIGGER_REQ_SIZE - 1;
+
+	if (!payload || length != after_subcmd) {
+		fprintf(stderr,
+			"factory_reset_trigger: payload must be %zu bytes (volatile_data[1]+nonce[8]+sig_r[48]+sig_s[48])\n",
+			after_subcmd);
+		return -1;
+	}
+
+	rc = factory_reset_send(fd, tid, MCTP_VDM_FACTORY_RESET_SUBCMD_TRIGGER,
+				payload, length, verbose, &resp, &resp_len);
+	if (rc != 0) {
+		return rc;
+	}
+
+	rc = factory_reset_check_cc_status(
+		resp, resp_len, "factory_reset_trigger",
+		factory_reset_trigger_status_to_string);
+	free(resp);
+	return rc;
+}

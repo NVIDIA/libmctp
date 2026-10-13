@@ -64,6 +64,12 @@ int dot_token_install(int fd, uint8_t tid, uint8_t *payload, size_t length,
 int force_grant_revoke(int fd, uint8_t tid, uint8_t code, uint8_t verbose);
 int reset_erot(int fd, uint8_t tid, uint8_t verbose);
 int revoke_ap_otp(int fd, uint8_t tid, uint8_t code, uint8_t verbose);
+int factory_reset_get_nonce(int fd, uint8_t tid, uint8_t verbose,
+			    uint8_t *nonce_out);
+int factory_reset_update_public_key(int fd, uint8_t tid, uint8_t *payload,
+				    size_t length, uint8_t verbose);
+int factory_reset_trigger(int fd, uint8_t tid, uint8_t *payload, size_t length,
+			  uint8_t verbose);
 #ifdef __cplusplus
 }
 #endif
