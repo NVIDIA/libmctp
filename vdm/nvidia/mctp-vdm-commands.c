@@ -669,6 +669,35 @@ static void query_boot_status_print_bits40_to_bit47(const uint8_t *resp_msg,
 }
 
 /*
+ * AP0_RELEASE_SLOT is 0 for two different reasons on an ERoT (a fatal error
+ * happened, or authentication is still in progress), and also on devices that
+ * never report the field at all. Slots 1 and 2 are reported as is; for 0,
+ * look at the other status bits to say which situation this is:
+ *   - FATAL_ERROR_CODE (bits 28-31) is anything other than SUCCESS (0)
+ *       -> fatal error
+ *   - AP0_PRIMARY/SECONDARY_FW_AUTHENTICATION_STATUS (bits 8-11 and 12-15)
+ *     is AUTHENTICATE_IN_PROGRESS
+ *       -> authentication in progress
+ *   - otherwise nothing is wrong
+ *       -> not reported
+ */
+static const char *ap0_release_slot_zero_text(const uint8_t *resp_msg,
+					      const int resp_len)
+{
+	uint8_t auth = resp_msg[resp_len - 2];
+	uint8_t fatal = resp_msg[resp_len - 4] >> 4;
+
+	if (NO_FATAL_ERROR != fatal) {
+		return "0 (fatal error happened)";
+	}
+	if (AUTHENTICATE_IN_PROGRESS == (auth & 0xF) ||
+	    AUTHENTICATE_IN_PROGRESS == (auth >> 4)) {
+		return "0 (authentication in progress)";
+	}
+	return "0 (not-reported)";
+}
+
+/*
  * The function reads bits from 48 to 57 from response from command 'query_boot_status' and 
  * displays it in readable form  
  */
@@ -686,7 +715,7 @@ static void query_boot_status_print_bits48_to_bit57(const uint8_t *resp_msg,
 	printf("%-40s:\t ", "AP0_RELEASE_SLOT");
 	switch (ap0_release_slot_value) {
 	case 0:
-		printf("0 (fatal error happened)");
+		printf("%s", ap0_release_slot_zero_text(resp_msg, resp_len));
 		break;
 	case 1:
 		printf("1 (slot0)");
@@ -987,7 +1016,8 @@ create_json_query_boot_status_bits48_to_bit57(const uint8_t *resp_msg,
 	char *ap0_release_slot_value_txt;
 	switch (ap0_release_slot_value) {
 	case 0:
-		ap0_release_slot_value_txt = "0 (fatal error happened)";
+		ap0_release_slot_value_txt =
+			(char *)ap0_release_slot_zero_text(resp_msg, resp_len);
 		break;
 	case 1:
 		ap0_release_slot_value_txt = "1 (slot0)";
