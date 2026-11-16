@@ -25,6 +25,7 @@ struct mctp_msg_ctx {
 	uint8_t dest;
 	uint8_t tag;
 	uint8_t last_seq;
+	bool in_use;
 	void *buf;
 	size_t buf_size;
 	size_t buf_alloc_size;
@@ -168,7 +169,8 @@ static struct mctp_msg_ctx *mctp_msg_ctx_lookup(struct mctp *mctp, uint8_t src,
 	 * message contexts */
 	for (i = 0; i < ARRAY_SIZE(mctp->msg_ctxs); i++) {
 		struct mctp_msg_ctx *ctx = &mctp->msg_ctxs[i];
-		if (ctx->src == src && ctx->dest == dest && ctx->tag == tag)
+		if (ctx->in_use && ctx->src == src && ctx->dest == dest &&
+		    ctx->tag == tag)
 			return ctx;
 	}
 
@@ -183,7 +185,7 @@ static struct mctp_msg_ctx *mctp_msg_ctx_create(struct mctp *mctp, uint8_t src,
 
 	for (i = 0; i < ARRAY_SIZE(mctp->msg_ctxs); i++) {
 		struct mctp_msg_ctx *tmp = &mctp->msg_ctxs[i];
-		if (!tmp->src) {
+		if (!tmp->in_use) {
 			ctx = tmp;
 			break;
 		}
@@ -192,6 +194,7 @@ static struct mctp_msg_ctx *mctp_msg_ctx_create(struct mctp *mctp, uint8_t src,
 	if (!ctx)
 		return NULL;
 
+	ctx->in_use = true;
 	ctx->src = src;
 	ctx->dest = dest;
 	ctx->tag = tag;
@@ -202,7 +205,7 @@ static struct mctp_msg_ctx *mctp_msg_ctx_create(struct mctp *mctp, uint8_t src,
 
 static void mctp_msg_ctx_drop(struct mctp_msg_ctx *ctx)
 {
-	ctx->src = 0;
+	ctx->in_use = false;
 }
 
 static void mctp_msg_ctx_reset(struct mctp_msg_ctx *ctx)

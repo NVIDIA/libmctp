@@ -139,13 +139,84 @@ static void run_one_test(struct test_ctx *ctx, struct test *test)
 	mctp_destroy(ctx->mctp);
 }
 
+#define LOST_NONE (-1)
+#define MSG_PKTS  6
+
+static void count_rx(uint8_t eid __unused, bool tag_owner __unused,
+		     uint8_t msg_tag __unused, void *data, void *msg __unused,
+		     size_t len __unused)
+{
+	int *count = data;
+
+	(*count)++;
+}
+
+static void rx_message(struct mctp_binding_test *binding, mctp_eid_t src,
+		       mctp_eid_t dest, int lost)
+{
+	struct {
+		struct mctp_hdr hdr;
+		uint8_t payload[1];
+	} pktbuf;
+	int i;
+
+	for (i = 0; i < MSG_PKTS; i++) {
+		if (i == lost)
+			continue;
+
+		memset(&pktbuf, 0, sizeof(pktbuf));
+		pktbuf.hdr.dest = dest;
+		pktbuf.hdr.src = src;
+		pktbuf.hdr.flags_seq_tag = SEQ(i % 4);
+		if (i == 0)
+			pktbuf.hdr.flags_seq_tag |= MCTP_HDR_FLAG_SOM;
+		if (i == MSG_PKTS - 1)
+			pktbuf.hdr.flags_seq_tag |= MCTP_HDR_FLAG_EOM;
+		pktbuf.payload[0] = i;
+
+		mctp_binding_test_rx_raw(binding, &pktbuf, sizeof(pktbuf));
+	}
+}
+
+/* A lost packet must drop the whole message, also from EID 0 */
+static void run_lost_packet_test(mctp_eid_t remote_eid, int lost,
+				 int exp_rx_count)
+{
+	const mctp_eid_t local_eid = 8;
+	struct mctp_binding_test *binding;
+	struct mctp *mctp;
+	int rx_count = 0;
+
+	mctp_test_stack_init(&mctp, &binding, local_eid);
+	mctp_set_rx_all(mctp, count_rx, &rx_count);
+
+	rx_message(binding, remote_eid, local_eid, LOST_NONE);
+	assert(rx_count == 1);
+
+	rx_message(binding, remote_eid, local_eid, lost);
+	assert(rx_count == exp_rx_count);
+
+	rx_message(binding, remote_eid, local_eid, LOST_NONE);
+	assert(rx_count == exp_rx_count + 1);
+
+	mctp_binding_test_destroy(binding);
+	mctp_destroy(mctp);
+}
+
 int main(void)
 {
+	static const mctp_eid_t remote_eids[] = { 9, 0 };
 	struct test_ctx ctx;
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(tests); i++)
 		run_one_test(&ctx, &tests[i]);
+
+	for (i = 0; i < ARRAY_SIZE(remote_eids); i++) {
+		run_lost_packet_test(remote_eids[i], LOST_NONE, 2);
+		run_lost_packet_test(remote_eids[i], 0, 1);
+		run_lost_packet_test(remote_eids[i], 1, 1);
+	}
 
 	return EXIT_SUCCESS;
 }
